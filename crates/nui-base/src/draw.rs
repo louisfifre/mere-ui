@@ -9,6 +9,10 @@ pub enum Cmd {
     /// A frame of `width` physical pixels, drawn inside `rect`: 1 is the page's hairline at any scale.
     Frame { rect: Rect, width_px: f32, color: Color },
     Text { at: Vec2, text: String, size: f32, color: Color },
+    /// What is drawn up to the matching `PopClip` is cut to `rect`. Clips nest: the visible part is the
+    /// intersection of the rects pushed so far.
+    PushClip { rect: Rect },
+    PopClip,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -26,5 +30,14 @@ impl DrawList {
     /// `at` is the top-left corner of the text's line box.
     pub fn text(&mut self, at: Vec2, text: impl Into<String>, size: f32, color: Color) {
         self.cmds.push(Cmd::Text { at, text: text.into(), size, color });
+    }
+    /// Starts clipping to `rect`: the box of an `overflow: hidden` or scrolling area. Clips nest; what is drawn
+    /// between this and the matching `pop_clip` is cut to the rect.
+    pub fn push_clip(&mut self, rect: Rect) {
+        self.cmds.push(Cmd::PushClip { rect });
+    }
+    /// Ends the clip of the last `push_clip`.
+    pub fn pop_clip(&mut self) {
+        self.cmds.push(Cmd::PopClip);
     }
 }

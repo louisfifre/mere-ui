@@ -584,8 +584,22 @@ impl Renderer {
     fn try_draw_list(&mut self, list: &DrawList) -> Result<()> {
         unsafe {
             self.d2d.BeginDraw();
+            let mut clips = 0usize;
             for cmd in &list.cmds {
                 match cmd {
+                    Cmd::PushClip { rect } => {
+                        // Aliased: the page's clip edges are whole pixels, and a blurred edge would show as a seam.
+                        self.d2d.PushAxisAlignedClip(&d2d_rect(*rect), D2D1_ANTIALIAS_MODE_ALIASED);
+                        clips += 1;
+                    }
+                    Cmd::PopClip => {
+                        if clips > 0 {
+                            self.d2d.PopAxisAlignedClip();
+                            clips -= 1;
+                        } else {
+                            observe!(Warn, "draw list: PopClip without PushClip, ignored");
+                        }
+                    }
                     Cmd::Fill { rect, color } => {
                         self.brush.SetColor(&d2d_color(*color));
                         self.d2d.FillRectangle(&d2d_rect(*rect), &self.brush);
@@ -624,6 +638,13 @@ impl Renderer {
                         );
                     }
                 }
+            }
+            // Direct2D refuses EndDraw with clips left open.
+            if clips > 0 {
+                observe!(Warn, "draw list: {clips} clip(s) never popped, closed at the end");
+            }
+            for _ in 0..clips {
+                self.d2d.PopAxisAlignedClip();
             }
             self.d2d.EndDraw(None, None)
         }

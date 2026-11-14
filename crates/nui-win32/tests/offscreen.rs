@@ -209,3 +209,51 @@ fn a_uniform_texture_on_a_big_triangle_has_no_seam_either() {
         assert_eq!([px[0], px[1], px[2]], first, "pixel ({}, {})", i % w as usize, i / w as usize);
     }
 }
+
+#[test]
+fn a_clip_cuts_what_is_drawn_inside_it() {
+    let (w, h) = (100u32, 100u32);
+    let mut scene = Scene {
+        triangle: [[0.0; 2]; 3],
+        draw: |g, _, _| {
+            let mut list = DrawList::default();
+            list.push_clip(Rect::new(20.0, 20.0, 40.0, 40.0));
+            list.fill(Rect::new(0.0, 0.0, 100.0, 100.0), Color::hex(0xff0000));
+            list.pop_clip();
+            // After the pop the clip is gone: this strip is drawn whole.
+            list.fill(Rect::new(0.0, 90.0, 100.0, 10.0), Color::hex(0x0000ff));
+            g.draw_list(&list);
+        },
+    };
+    let rgba = scene_shot(&mut scene, w, h, 1.0, "clip.png");
+    let px = |x: u32, y: u32| {
+        let i = ((y * w + x) * 4) as usize;
+        [rgba[i], rgba[i + 1], rgba[i + 2]]
+    };
+    assert_eq!(px(10, 10), GROUND, "outside the clip");
+    assert_eq!(px(30, 30), [0xff, 0, 0], "inside the clip");
+    assert_eq!(px(70, 70), GROUND, "outside the clip, past its far corner");
+    assert_eq!(px(50, 95), [0, 0, 0xff], "after the pop");
+}
+
+#[test]
+fn a_clip_never_popped_still_draws() {
+    // Direct2D refuses EndDraw with a clip open: the renderer closes it, and the frame is drawn.
+    let (w, h) = (100u32, 100u32);
+    let mut scene = Scene {
+        triangle: [[0.0; 2]; 3],
+        draw: |g, _, _| {
+            let mut list = DrawList::default();
+            list.push_clip(Rect::new(20.0, 20.0, 40.0, 40.0));
+            list.fill(Rect::new(0.0, 0.0, 100.0, 100.0), Color::hex(0xff0000));
+            g.draw_list(&list);
+        },
+    };
+    let rgba = scene_shot(&mut scene, w, h, 1.0, "clip_open.png");
+    let px = |x: u32, y: u32| {
+        let i = ((y * w + x) * 4) as usize;
+        [rgba[i], rgba[i + 1], rgba[i + 2]]
+    };
+    assert_eq!(px(30, 30), [0xff, 0, 0]);
+    assert_eq!(px(70, 70), GROUND);
+}
