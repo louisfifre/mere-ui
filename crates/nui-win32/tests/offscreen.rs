@@ -257,3 +257,51 @@ fn a_clip_never_popped_still_draws() {
     assert_eq!(px(30, 30), [0xff, 0, 0]);
     assert_eq!(px(70, 70), GROUND);
 }
+
+#[test]
+fn image_nearest_blocks() {
+    use nui_base::ImageId;
+    let (w, h) = (64u32, 64u32);
+    // 16 distinct colours, row-major, opaque.
+    let texel = |i: usize| [(i * 15 + 10) as u8, (255 - i * 13) as u8, ((i * 37) % 256) as u8];
+    let mut scene = Scene {
+        triangle: [[0.0; 2]; 3],
+        draw: |g, _, _| {
+            let mut rgba = Vec::new();
+            for i in 0..16 {
+                let t = [(i * 15 + 10) as u8, (255 - i * 13) as u8, ((i * 37) % 256) as u8];
+                rgba.extend_from_slice(&[t[0], t[1], t[2], 255]);
+            }
+            g.upload_image(ImageId(5), 4, 4, &rgba);
+            let mut list = DrawList::default();
+            list.image(ImageId(5), Rect::new(10.0, 10.0, 32.0, 32.0));
+            list.disc(Vec2::new(52.0, 52.0), 6.0, Color::hex(0xff0000));
+            g.draw_list(&list);
+        },
+    };
+    let rgba = scene_shot(&mut scene, w, h, 1.0, "image_nearest.png");
+    let px = |x: u32, y: u32| {
+        let i = ((y * w + x) * 4) as usize;
+        [rgba[i], rgba[i + 1], rgba[i + 2]]
+    };
+    let mut checked = 0;
+    for y in 10..42u32 {
+        for x in 10..42u32 {
+            // Pixel centre in texel space; skip pixels whose centre lies within 1 px of a block edge.
+            let (cx, cy) = (x as f32 + 0.5 - 10.0, y as f32 + 0.5 - 10.0);
+            let near = |c: f32| {
+                let m = c % 8.0;
+                m < 1.0 || m > 7.0
+            };
+            if near(cx) || near(cy) {
+                continue;
+            }
+            let (tx, ty) = ((cx / 8.0) as usize, (cy / 8.0) as usize);
+            assert_eq!(px(x, y), texel(ty * 4 + tx), "pixel {x},{y}");
+            checked += 1;
+        }
+    }
+    assert!(checked > 400, "checked {checked} interior pixels");
+    assert_eq!(px(52, 52), [255, 0, 0], "disc centre is red");
+    assert_eq!(px(52 + 10, 52), GROUND, "ten pixels from the disc is ground");
+}

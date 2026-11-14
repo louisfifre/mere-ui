@@ -95,6 +95,8 @@ pub struct Renderer {
     raster: ID3D11RasterizerState,
     meshes: HashMap<MeshId, Mesh>,
     images: HashMap<ImageId, ID3D11ShaderResourceView>,
+    // The same pictures as Direct2D bitmaps, for `Cmd::Image`; the texture above is what a mesh drapes.
+    bitmaps: HashMap<ImageId, ID2D1Bitmap1>,
     // One text format a size and weight: DirectWrite formats are immutable, and sizes are few.
     formats: HashMap<(u32, Weight), IDWriteTextFormat>,
     // None when IBM Plex Mono could not be loaded: text is then drawn in Consolas from the system.
@@ -277,6 +279,7 @@ impl Renderer {
                 raster: raster.unwrap(),
                 meshes: HashMap::new(),
                 images: HashMap::new(),
+                bitmaps: HashMap::new(),
                 formats: HashMap::new(),
                 fonts,
             };
@@ -627,6 +630,22 @@ impl Renderer {
                         self.brush.SetColor(&d2d_color(*color));
                         self.d2d.DrawRectangle(&r, &self.brush, wd, None);
                     }
+                    Cmd::Image { image, rect } => {
+                        let Some(bitmap) = self.bitmaps.get(image) else {
+                            observe!(Warn, "draw list: image {:?} drawn before it was uploaded", image);
+                            continue;
+                        };
+                        // Nearest: the page draws its map with image-rendering: pixelated.
+                        self.d2d.DrawBitmap(bitmap, Some(&d2d_rect(*rect)), 1.0, D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR, None, None);
+                    }
+                    Cmd::Disc { center, radius, color } => {
+                        self.brush.SetColor(&d2d_color(*color));
+                        self.d2d.FillEllipse(&ellipse(*center, *radius), &self.brush);
+                    }
+                    Cmd::Ring { center, radius, width, color } => {
+                        self.brush.SetColor(&d2d_color(*color));
+                        self.d2d.DrawEllipse(&ellipse(*center, *radius), &self.brush, *width, None);
+                    }
                     Cmd::Text { at, text, size, color, weight } => {
                         let Some(format) = self.format(*size, *weight) else { continue };
                         let wide: Vec<u16> = text.encode_utf16().collect();
@@ -670,6 +689,33 @@ impl Gfx for Renderer {
         if width == 0 || height == 0 || expected != Some(rgba.len()) {
             observe!(Error, "image {:?} of {width}x{height} refused: {} bytes given, {:?} expected", id, rgba.len(), expected);
             return;
+        }
+        // Direct2D wants premultiplied B8G8R8A8; the texture keeps the application's RGBA.
+        let mut bgra = Vec::with_capacity(rgba.len());
+        for p in rgba.chunks_exact(4) {
+            let a = p[3] as u32;
+            let m = |c: u8| if a == 255 { c } else { ((c as u32 * a + 127) / 255) as u8 };
+            bgra.extend_from_slice(&[m(p[2]), m(p[1]), m(p[0]), p[3]]);
+        }
+        let bitmap = unsafe {
+            self.d2d.CreateBitmap(
+                D2D_SIZE_U { width, height },
+                Some(bgra.as_ptr() as *const _),
+                width * 4,
+                &D2D1_BITMAP_PROPERTIES1 {
+                    pixelFormat: D2D1_PIXEL_FORMAT { format: PICTURE, alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED },
+                    dpiX: 96.0,
+                    dpiY: 96.0,
+                    bitmapOptions: D2D1_BITMAP_OPTIONS_NONE,
+                    colorContext: ManuallyDrop::new(None),
+                },
+            )
+        };
+        match bitmap {
+            Ok(b) => {
+                self.bitmaps.insert(id, b);
+            }
+            Err(e) => observe!(Error, "bitmap {:?} of {width}x{height}: {e}", id),
         }
         let made = unsafe {
             let mut texture = None;
@@ -883,6 +929,14 @@ fn compile(entry: PCSTR, profile: PCSTR) -> Result<Vec<u8>> {
 
 fn d2d_color(c: Color) -> D2D1_COLOR_F {
     D2D1_COLOR_F { r: c.r, g: c.g, b: c.b, a: c.a }
+}
+
+fn ellipse(center: nui_base::Vec2, radius: f32) -> D2D1_ELLIPSE {
+    // The point type comes from a crate this one may not name, so it is built by Default and filled in.
+    let mut e = D2D1_ELLIPSE { radiusX: radius, radiusY: radius, ..Default::default() };
+    e.point.X = center.x;
+    e.point.Y = center.y;
+    e
 }
 
 fn d2d_rect(r: Rect) -> D2D_RECT_F {
