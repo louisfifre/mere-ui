@@ -172,6 +172,25 @@ fn labels_stay_inside_their_box_and_the_picture() {
             assert!(!overlap(a.rect, b.rect), "labels {:?} and {:?} overlap", a.text, b.text);
         }
     }
+    // A label never sits on the box of a descendant of its own node.
+    fn descendants(t: &nui_layout::Tree, n: nui_layout::NodeId, out: &mut Vec<nui_layout::NodeId>) {
+        for &c in t.children(n) {
+            out.push(c);
+            descendants(t, c, out);
+        }
+    }
+    for l in &labels {
+        let mut ds = Vec::new();
+        descendants(&g.tree, l.node, &mut ds);
+        for d in ds {
+            let r = g.tree.abs_rect(d);
+            if r.w <= 0.0 && r.h <= 0.0 {
+                continue;
+            }
+            let r = nui_base::Rect::new(r.x, r.y, r.w.max(0.01), r.h.max(0.01));
+            assert!(!overlap(l.rect, r), "label {:?} sits on its descendant {}", l.text, g.tree.name(d));
+        }
+    }
     let leaves = |name: &str| labels.iter().any(|l| g.tree.name(l.node) == name || l.text.starts_with(name));
     for name in ["64 blocks", "1 min 30 s", "Coal", "Plains", "Forest", "1.40"] {
         assert!(leaves(name), "no label for the leaf {name}");

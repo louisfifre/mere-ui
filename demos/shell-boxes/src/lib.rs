@@ -227,13 +227,23 @@ fn collect(tree: &Tree, n: NodeId, depth: usize, clip: Rect, placed: &mut Vec<Re
     let bottom = rect.y + rect.h - LABEL_SIZE - 4.0;
     for y in [top, bottom] {
         let label = Rect::new(x - 2.0, y - 1.0, text_w + 4.0, LABEL_SIZE + 2.0);
-        let hit = placed.iter().any(|p| overlaps(label, *p));
+        let hit = placed.iter().any(|p| overlaps(label, *p)) || touches_descendant(tree, n, label);
         if !hit && contains(clip_to(inner, rect), label) {
             placed.push(label);
             out.push(Label { node: n, depth, x, y, text, rect: label });
             return;
         }
     }
+}
+
+/// True when the label, grown by 1 px, meets the box of any descendant of `n`: a container's label must not sit
+/// on its children's frames or on what they draw (a 1 px gap keeps glyph tops and bottoms off the lines).
+fn touches_descendant(tree: &Tree, n: NodeId, label: Rect) -> bool {
+    let grown = Rect::new(label.x - 1.0, label.y - 1.0, label.w + 2.0, label.h + 2.0);
+    tree.children(n).iter().any(|&c| {
+        let r = tree.abs_rect(c);
+        (r.w > 0.0 || r.h > 0.0) && (overlaps(grown, Rect::new(r.x, r.y, r.w.max(0.01), r.h.max(0.01))) || touches_descendant(tree, c, label))
+    })
 }
 
 /// The region a node's label may use: its own box cut by what its ancestors clip.
