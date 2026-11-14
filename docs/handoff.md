@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 17 done (2026-11-14)
+## Status: steps 0 to 18 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -302,8 +302,60 @@ followed the page: with no map Generate is enabled and filled; the CLI picture i
   in `target/tmp/run_unit*`; R1 reads the button's fill 4 px under its top edge (mid-height would meet the word's
   glyphs); `--runs` and the generator path are made plain (without `\\?\`) because the stub's guard compares plain paths.
 
-Next: step 18 (the figures column, the history and the light/dark switch with the OS setting); `runs/pace.json` is
-the file for the learned pace, and the history (`preview.history`) could live beside it in the runs folder.
+Build plan step 18 is done: the right column follows the view with the page's real numbers, the history is kept, and the
+theme follows the system. Built:
+
+- `nui-base`: `Cmd::Polyline` (an open stroke, round joins, flat ends) and `Event::Scheme { dark }`. `nui-win32`: the
+  polyline as a Direct2D path geometry with one stroke style (`D2D1_LINE_JOIN_ROUND`, flat caps), `system_dark()` (the
+  registry's `AppsUseLightTheme`; missing or an error is light, as Chrome reads it; the only new `windows` feature is
+  `Win32_System_Registry`) and `WM_SETTINGCHANGE` ("ImmersiveColorSet") turned into `Event::Scheme` when the value differs
+  from the last one sent. `nui-ui`: `hover_area`, `list_part` (the `.part` heads), round mark swatches (`RowOpts.mark`),
+  `ButtonLook::Pick` and `PickNone`, a strike-through decoration, and `trend_row` with a plot drawn in its slot.
+- `demos/preview`: `figures.rs` is the page's `measure()` (zones, the 10 figures, the five lists, `Math.round`,
+  `toFixed(1)`, `percent`, `blocks`) and the cells of `showFigures`, with the change column against the run before.
+  `history.rs` is `remember`, `runsHere`, `changes` and the trend lines of `showHistory` as numbers and path text, kept
+  in `<runs>/history.json` (the page's localStorage `preview.history`, the page's JSON shape) and `<runs>/before.json`
+  (`preview.before`). The shell's right column: the figures with their change, the history fold (closed at first; the
+  pointer over it picks the nearest run), and the list that follows the view (biomes by share then "Not in this area",
+  the height, ground and temperature bands in order, structures in two parts with round marks and their part heads),
+  rows that mirror the choice, a filter, and `#pick`. The window follows the system's scheme live (`--theme
+  dark|light|system`; the default is the system for a window and dark for `--shot`).
+- Evidence: `tools/page_figures.mjs` runs the page's own `measure`, `listOf`, `showFigures`, `remember` and
+  `showHistory` in Node on `C:\Games\preview\out`, and `tests/page_figures.rs` finds, bit for bit: the 10 figure fields (flat
+  25.929, expanse 670.33, 25 biomes of 136 ...), the 5 lists (25, 3, 8, 5 and 75 rows: ids, names, colours, cells and
+  widths), the 111 absent ids, the 232 width and share strings, the 3 `showFigures` cases (22, 25 and 22 cells; the
+  second holds "=", "+1.0 pt", "−0.3 pt", "−200", "≈" and "+3"), the 5 stored history entries (43 settings each, written
+  back and read again equal) and 3 trend cases (15 path strings equal, with a gap in a line and the probe words).
+  `tests/figures.rs` (G1 to G7, H1 to H4, T1 and the command line) checks the column through the application and the
+  offscreen renderer: a theme switched live equals a fresh light picture byte for byte. 341 tests in the workspace, none
+  skipped. The shots are `docs/shots/figures-1400.png`, `figures-light.png`, `figures-change.png`, `figures-1000.png`,
+  `history.png` and `structures-list.png`; the step 13 to 17 shots stay as their record.
+
+- PLACEHOLDER: none left in the right column.
+- UNVERIFIED: the strike-through's place (a 1 px fill 0.3 em above the baseline) and the pick links' hover; that `#pick`
+  wraps only between its pieces (the page's inline text may break inside a name); the polyline's joins and the history
+  dot's ring against Chrome's SVG; the `WM_SETTINGCHANGE` path was not exercised live (the registry read is tested, the
+  window message is not); `num_digits` on exact binary halves (Intl may round on the shortest decimal); a figure that is
+  NaN (an area with no land) is shown as a dash, where the page would write "NaN".
+- The history pictures use fixture runs written by the tests (three entries of the real seed with one setting moved
+  each); no real second run exists on this machine.
+- Not built: `export.json`; `#numbers.stale` (no sketches exist natively, so it never applies); the tooltips and titles
+  (definitions, "needs the full detail", "before: ...", the part hint, the rows' ids); cursor shapes (the history's
+  crosshair); the fold's open state kept across launches; the window title bar's dark mode (DWM); history eviction (there
+  is no quota natively: the file grows by about 1 KB a run); line wrapping inside a `#pick` piece.
+- Choices where the brief was silent: the first two commits of the brief became one (nui-base alone would not compile
+  with the renderer's exhaustive match), so the renderer's polyline is in the first and the registry in the second;
+  `BAND_FIGURES` went with the shell in commit 7, since the shell used it until then; `ids.rows` was already the
+  settings' rows, so the list's are `list_rows`, `list_keys`, `list_parts`, `list_part_words`, `absent_rows`, and
+  `band_scroll` became `list_scroll`; with no map the list's title is empty (the page's markup before any list), and the
+  first part head is "first" by its place in the page's list, hidden or not; a part head that the filter empties is
+  not built; the history is cloned with the state at every build (about 43 numbers a run; fine for hundreds of runs);
+  `PreviewApp` remembers a map in `new()` (in memory) and again in `with_runs()` after reading the file, so a window
+  with runs does not duplicate the last entry; the `before` figures are written before the new map is read, only when
+  the run finished; `Figures::get` treats NaN as missing; the history entry takes its settings in `SETTINGS` order, a
+  page's file keeps its own order.
+
+Next: step 19 (polish: cursor shapes, device loss, DPI change, occlusion, errors; plus export.json and tooltips).
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
