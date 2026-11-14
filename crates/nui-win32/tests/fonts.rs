@@ -1,0 +1,57 @@
+//! The interface font: IBM Plex Mono from the repository's files, Pi glyphs included, at scale 1 and 2.
+
+use nui_base::{App, Color, DrawList, Event, Gfx, Vec2, log};
+use nui_win32::Renderer;
+
+const SAMPLE: &str = "Seed 0123456789 abcXYZ \u{2190} \u{2192} \u{2264} \u{2265} \u{2713}";
+const GROUND: [u8; 3] = [0x1a, 0x24, 0x33];
+
+struct Sample;
+
+impl App for Sample {
+    fn start(&mut self, _: &mut dyn Gfx) {}
+    fn event(&mut self, _: Event) -> bool {
+        false
+    }
+    fn frame(&mut self, gfx: &mut dyn Gfx, _: f32) -> bool {
+        gfx.begin(Color::hex(0x1a2433));
+        let mut list = DrawList::default();
+        list.text(Vec2::new(16.0, 14.0), SAMPLE, 16.0, Color::hex(0xececec));
+        list.text(Vec2::new(16.0, 44.0), SAMPLE, 12.0, Color::hex(0xececec));
+        gfx.draw_list(&list);
+        gfx.end();
+        false
+    }
+}
+
+fn picture(scale: f32, name: &str) -> (String, Vec<u8>, u32, u32) {
+    let (w, h) = ((440.0 * scale) as u32, (72.0 * scale) as u32);
+    let mut r = Renderer::offscreen(w, h, scale).expect("offscreen renderer");
+    Sample.frame(&mut r, 0.0);
+    let rgba = r.read_rgba().unwrap();
+    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    std::fs::write(&path, nui_png::encode(w, h, &rgba)).unwrap();
+    println!("wrote {}", path.display());
+    (r.text_family().to_string(), rgba, w, h)
+}
+
+fn inked(rgba: &[u8], w: u32, x0: u32, x1: u32, y0: u32, y1: u32) -> bool {
+    (x0..x1).any(|x| {
+        (y0..y1).any(|y| {
+            let i = ((y * w + x) * 4) as usize;
+            [rgba[i], rgba[i + 1], rgba[i + 2]] != GROUND
+        })
+    })
+}
+
+#[test]
+fn text_is_drawn_in_ibm_plex_mono_with_pi_glyphs() {
+    log::add_sink(log::stderr_sink(log::Level::Info));
+    for (scale, name) in [(1.0, "fonts.png"), (2.0, "fonts_x2.png")] {
+        let (family, rgba, w, _) = picture(scale, name);
+        assert_eq!(family, "IBM Plex Mono", "the embedded files loaded, no fallback to Consolas");
+        let s = scale as u32;
+        assert!(inked(&rgba, w, 16 * s, 200 * s, 14 * s, 34 * s), "16 px line drew something");
+        assert!(inked(&rgba, w, 16 * s, 200 * s, 44 * s, 60 * s), "12 px line drew something");
+    }
+}
