@@ -13,6 +13,8 @@
 //!
 //! This crate names no operating system: the draw list is drawn by whichever backend the application uses.
 
+#[allow(dead_code)]
+mod edit;
 mod fold;
 mod id;
 mod input;
@@ -23,6 +25,7 @@ mod theme;
 mod ui;
 mod widgets;
 
+pub use edit::MemoryClipboard;
 pub use fold::FoldOpts;
 pub use id::Id;
 pub use input::Input;
