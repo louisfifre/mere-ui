@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 12 done (2026-11-14)
+## Status: steps 0 to 13 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -97,12 +97,21 @@ Two observations read from the page's CSS, not checked in a browser:
 - The legend's `ch` is 11 px, so its min widths are 52.8 and 39.6 against the rows' 57.6 and 43.2. The right edges
   still align because the cells are right-aligned.
 
-Next: step 13 (the panels).
+Build plan step 13 is done: demos/preview is the world preview's shell (toolbar, three columns, the 43 real settings in their five groups, static values), preview [--light] [--size WxH] [--shot out.png], with docs/shots/preview-1400.png, preview-1200.png, preview-1000.png and preview-1400-light.png. 
+ui-ui gained wrap_lines, paragraph, ill, select, TextLook::small and label. Tests: 7 in 
+ui-ui/tests/shell_bits.rs, 4 data, 10 layout and 4 picture tests in demos/preview. The columns' rules and Export's right edge match a capture of the page (	arget/tmp/page_<width>.png, the file opened without its server) to the pixel at the three widths.
+
+- PLACEHOLDER: the map slot (a --line square; step 14 paints the map there), the seven figures, and the 8 band widths and shares (step 18 computes them).
+- UNVERIFIED: the select's value text place (7 px from the left, centred); the reference capture's select was empty, so only its height (23) and arrow were measured. The page capture has no data, so nothing inside the settings, the run block or the list was compared with a browser.
+- Not built: changed marks (` *`, `pack X`, `N changed`, Save and naming), hints and tooltips, the select's menu, the ores group, `#note`, `#filter`, the tabs that switch lists (only their pressed state changes), the map, runs and progress, and export.
+- Live: folds, tab presses, the detail choice, Pack, typing in the seed and the number fields, the toggles and the wheel.
+
+Next: step 14 (the 2D map view).
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
 
-- No height key over the 3D view: it comes with the panels, as the page's list (swatch, band, width, share).
+- No height key over the 3D view: the height list now exists in the right column of demos/preview (swatch, band, width, share); putting it beside the 3D view is for the step that joins the two.
 - The overlay's facts move into a side panel with a hairline frame, beside the view as on the page; until
   then the filled plate stays, because grey text without a ground is unreadable over bright snow.
 
