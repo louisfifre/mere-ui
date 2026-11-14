@@ -1,6 +1,6 @@
 //! Label, button and toggle in the page's looks.
 
-use nui_base::{Cmd, Color, Rect, Weight};
+use nui_base::{Cmd, Color, Cursor, Rect, Weight};
 use nui_layout::{Align, Dim, Edges, Justify, Margin, Side, Style};
 
 use crate::text::{TextLook, Tone};
@@ -65,7 +65,7 @@ impl Ui {
     /// vertically); the reference capture's select was empty. The height and the arrow were measured in Chrome.
     pub fn select(&mut self, key: &str, value: &str) -> Resp {
         let id = self.key(key);
-        let resp = self.interact(id, false);
+        let resp = self.interact(id, false, Cursor::Hand);
         let t = *self.theme();
         let style = Style { h: Dim::Px(23.0), pad: Edges::new(3.0, 5.0, 3.0, 7.0), align_items: Align::Center, ..Style::default() };
         self.open(key, id, style, Paint::Box { fill: None, frame: Some(t.edge) });
@@ -95,7 +95,9 @@ impl Ui {
 
     pub fn button_with(&mut self, key: &str, text: &str, look: ButtonLook, opts: ButtonOpts) -> Resp {
         let id = self.key(key);
-        let resp = self.interact(id, opts.disabled);
+        // `#generate.running` shows the default arrow (line 216).
+        let cursor = if matches!(look, ButtonLook::Running { .. }) { Cursor::Arrow } else { Cursor::Hand };
+        let resp = self.interact(id, opts.disabled, cursor);
         let t = *self.theme();
         // The page has no :active style, so a held button looks exactly like a hovered one.
         let lit = resp.hovered || resp.held;
@@ -175,7 +177,7 @@ impl Ui {
     /// it draws).
     pub fn stop_button(&mut self, key: &str, disabled: bool) -> Resp {
         let id = self.key(key);
-        let resp = self.interact(id, disabled);
+        let resp = self.interact(id, disabled, Cursor::Hand);
         let t = *self.theme();
         let lit = !disabled && (resp.hovered || resp.held);
         let (colour, frame) = if disabled {
@@ -199,7 +201,7 @@ impl Ui {
     /// before painting, so the frame already shows the new word. `Resp.clicked` means the value changed.
     pub fn toggle(&mut self, key: &str, on: &mut bool, on_word: &str, off_word: &str) -> Resp {
         let id = self.key(key);
-        let resp = self.interact(id, false);
+        let resp = self.interact(id, false, Cursor::Hand);
         if resp.clicked {
             *on = !*on;
         }

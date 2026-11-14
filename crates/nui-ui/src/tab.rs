@@ -2,7 +2,7 @@
 //! The app decides which tab is pressed (the page's strip lights one tab in each of two groups); a click is
 //! reported in `Resp.clicked` and the app changes its selection, which the next frame shows.
 
-use nui_base::Color;
+use nui_base::{Color, Cursor};
 use nui_layout::{Align, Dim, Display, Edges, Margin, Position, Side, Style, Track, Tracks};
 use nui_base::Vec2;
 
@@ -55,7 +55,7 @@ impl Ui {
     /// (the browser gives it to the later one): accepted.
     pub fn tab(&mut self, key: &str, text: &str, look: TabLook, opts: TabOpts) -> Resp {
         let id = self.key(key);
-        let resp = self.interact(id, opts.disabled);
+        let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
         let lit = resp.hovered || resp.held;
         // CSS opacity .35 on the whole box (lines 99, 202): every colour fades, fill included.
@@ -95,7 +95,7 @@ impl Ui {
     /// exists for it.
     pub fn detail_tab(&mut self, key: &str, text: &str, sub: &str, opts: TabOpts) -> Resp {
         let id = self.key(key);
-        let resp = self.interact(id, opts.disabled);
+        let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
         let fade = |c: Color| if opts.disabled { t.faded(c, 0.35) } else { c };
         let style = Style {

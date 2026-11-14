@@ -1,7 +1,7 @@
 //! `.fold`: a titled section that opens and closes (preview.html lines 113-121).
 
 use nui_layout::{Align, Dim, Edges, Margin, Side, Style};
-use nui_base::{Vec2, Weight};
+use nui_base::{Cursor, Vec2, Weight};
 
 use crate::text::TextLook;
 use crate::ui::{Paint, Resp, Ui};
@@ -38,7 +38,7 @@ impl Ui {
         self.add("rule", Style { h: Dim::Px(1.0), shrink: 0.0, ..Style::default() }, Paint::Box { fill: Some(t.edge), frame: None });
 
         let head_id = self.key("head");
-        let resp = self.interact(head_id, false);
+        let resp = self.interact(head_id, false, Cursor::Hand);
         if resp.clicked {
             *open = !*open;
         }

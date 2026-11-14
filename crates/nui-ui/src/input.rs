@@ -46,6 +46,10 @@ impl Input {
                 self.released = true;
                 true
             }
+            Event::PointerLeft => {
+                self.pos = None;
+                true
+            }
             Event::Wheel { pos, delta } => {
                 self.wheel += delta;
                 self.wheel_pos = Some(pos);

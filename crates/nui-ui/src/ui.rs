@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use nui_base::{Clipboard, Cmd, Color, DrawList, Event, Rect, Vec2, observe};
+use nui_base::{Clipboard, Cmd, Color, Cursor, DrawList, Event, Rect, Vec2, observe};
 use nui_layout::{Avail, Dim, Measured, NodeId, Overflow, Position, Style, Tree};
 
 use crate::edit::MemoryClipboard;
@@ -85,7 +85,23 @@ pub struct Ui {
     pub(crate) tab: Option<(Id, bool)>,
     pub(crate) redraw: bool,
     pub(crate) clipboard: Box<dyn Clipboard>,
+    /// The pointer's shape for the last frame built: the innermost widget under it that asks for one.
+    cursor: Cursor,
+    /// The application's time in seconds, which tooltips are timed by.
+    clock: f64,
+    /// The titled widget under the pointer this frame (the last built), and its text.
+    tip_candidate: Option<(Id, String)>,
+    /// The candidate of the last frame and since when it has been one.
+    tip_id: Option<Id>,
+    tip_since: f64,
+    /// A press hid the tip; it stays hidden until another widget becomes the candidate.
+    tip_hidden: bool,
 }
+
+/// How long the pointer rests on a titled widget before its tip shows (the browsers' own is about this).
+pub const TIP_DELAY: f64 = 0.5;
+/// A tip wraps at this width.
+const TIP_WRAP: f32 = 360.0;
 
 impl Ui {
     pub fn new(theme: Theme) -> Ui {
@@ -114,6 +130,12 @@ impl Ui {
             tab: None,
             redraw: false,
             clipboard: Box::new(MemoryClipboard::default()),
+            cursor: Cursor::Arrow,
+            clock: 0.0,
+            tip_candidate: None,
+            tip_id: None,
+            tip_since: 0.0,
+            tip_hidden: false,
         }
     }
 
@@ -171,8 +193,48 @@ impl Ui {
         self.seen.clear();
         self.order.clear();
         self.redraw = false;
+        self.cursor = Cursor::Arrow;
+        self.tip_candidate = None;
         self.list = DrawList::default();
         self.size = size;
+    }
+
+    /// The application's time in seconds. Tooltips are timed by it, so tests set it by hand.
+    pub fn set_clock(&mut self, seconds: f64) {
+        self.clock = seconds;
+    }
+
+    /// The pointer's shape for the frame just built: what the widgets under it asked for, else the arrow.
+    pub fn cursor(&self) -> Cursor {
+        self.cursor
+    }
+
+    /// For the application's canvases (the map, the cut), which know their own shape.
+    pub fn want_cursor(&mut self, c: Cursor) {
+        self.cursor = c;
+    }
+
+    /// The page's `title` attribute for the widget `id` built this frame; empty text means none. The tip
+    /// shows when the pointer has rested on the widget for `TIP_DELAY`; a disabled widget has one too.
+    pub fn title(&mut self, id: Id, text: &str) {
+        if text.is_empty() {
+            return;
+        }
+        // Judged on the last frame's visible rect, as the pointer is everywhere else.
+        if let (Some(r), Some(p)) = (self.hits.get(&id), self.input.pos) {
+            if r.contains(p) {
+                self.tip_candidate = Some((id, text.to_string()));
+            }
+        }
+    }
+
+    /// Seconds until a tip is due, while one waits; None when none waits or it shows already.
+    pub fn wake_in(&self) -> Option<f32> {
+        if self.tip_candidate.is_none() || self.tip_hidden {
+            return None;
+        }
+        let left = TIP_DELAY - (self.clock - self.tip_since);
+        (left > 0.0).then_some(left as f32)
     }
 
     /// A container called `key` under the open one; `children` builds what is inside.
@@ -190,7 +252,7 @@ impl Ui {
     /// before the box is laid out, so it judges the pointer against the last frame's rect (Resp::rect).
     pub fn canvas(&mut self, key: &str, style: Style, draw: impl FnOnce(&mut Ui, &Resp) -> Vec<Cmd>) -> Resp {
         let id = self.key(key);
-        let resp = self.interact(id, false);
+        let resp = self.interact(id, false, Cursor::Arrow);
         let cmds = draw(self, &resp);
         self.open(key, id, style, Paint::Cmds(cmds));
         self.close();
@@ -254,6 +316,7 @@ impl Ui {
             scrolls: &mut self.scrolls,
         };
         painter.node(self.root, Vec2::new(0.0, 0.0), window);
+        self.paint_tip();
         self.rects.clear();
         self.hits.clear();
         for &(id, n) in &self.keyed {
@@ -280,6 +343,38 @@ impl Ui {
         self.lost = None;
         self.input.end_frame();
         &self.list
+    }
+
+    /// The tip, last of all so it lies over everything: a framed box under the pointer.
+    fn paint_tip(&mut self) {
+        let now = self.tip_candidate.as_ref().map(|c| c.0);
+        if now != self.tip_id {
+            self.tip_id = now;
+            self.tip_since = self.clock;
+            self.tip_hidden = false;
+        }
+        if self.input.pressed {
+            self.tip_hidden = true;
+        }
+        let (Some((_, text)), Some(at)) = (self.tip_candidate.clone(), self.input.pos) else { return };
+        if self.tip_hidden || self.clock - self.tip_since < TIP_DELAY {
+            return;
+        }
+        // OUR LOOK in the page's tokens: the browser's tip is the system's.
+        let t = self.theme;
+        let look = TextLook::small(Tone::Text);
+        let lines = wrap_lines(&text, look, TIP_WRAP);
+        let w = lines.iter().map(|l| look.width(l)).fold(0.0, f32::max) + 14.0;
+        let h = lines.len() as f32 * look.line + 8.0;
+        let x = at.x.min(self.size.x - w).max(0.0);
+        let below = at.y + 20.0;
+        let y = if below + h <= self.size.y { below } else { (at.y - h - 4.0).max(0.0) };
+        let r = Rect::new(x, y, w, h);
+        self.list.fill(r, t.ground);
+        self.list.frame(r, 1.0, t.edge);
+        for (i, line) in lines.iter().enumerate() {
+            draw_line(&mut self.list, line, look, t.text, x + 7.0, y + 4.0 + i as f32 * look.line + half_leading(look));
+        }
     }
 
     /// What the frame decided about the focus once every field was built: a Tab moves it to the next field
@@ -457,7 +552,7 @@ impl Ui {
 
     /// microui's rules. The hit test uses the rect of the last frame, which is what the person saw and
     /// pointed at.
-    pub(crate) fn interact(&mut self, id: Id, disabled: bool) -> Resp {
+    pub(crate) fn interact(&mut self, id: Id, disabled: bool, cursor: Cursor) -> Resp {
         let rect = self.rects.get(&id).copied();
         let reach = self.hits.get(&id).copied();
         let over = !disabled && matches!((reach, self.input.pos), (Some(r), Some(p)) if r.contains(p));
@@ -471,6 +566,11 @@ impl Ui {
         let hovered = over && (!self.input.down || is_active);
         if clicked {
             observe!(Debug, "click {:x}", id.0);
+        }
+        // The last widget built wins, which is the innermost. A held one keeps its shape wherever the pointer
+        // goes; a disabled one asks for none (`button:disabled { cursor: default }`).
+        if cursor != Cursor::Arrow && !disabled && (hovered || held) {
+            self.cursor = cursor;
         }
         Resp { id, rect, hovered, held, clicked, pressed }
     }

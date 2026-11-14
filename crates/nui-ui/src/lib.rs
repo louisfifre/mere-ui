@@ -14,9 +14,11 @@
 //!
 //! This crate names no operating system: the draw list is drawn by whichever backend the application uses.
 
+mod chrome;
 mod edit;
 mod field;
 mod fold;
+mod icon;
 mod id;
 mod input;
 mod number;
@@ -28,7 +30,9 @@ mod theme;
 mod ui;
 mod widgets;
 
+pub use chrome::{CORNER, GRIP, IconLook, IconOpts, chrome_hit, grip};
 pub use edit::MemoryClipboard;
+pub use icon::Icon;
 pub use field::{FieldLook, FieldOpts, FieldResp};
 pub use list::{ListRow, PartOpts, RowOpts};
 pub use number::NumberSpec;
@@ -39,5 +43,5 @@ pub use input::Input;
 pub use tab::{TabLook, TabOpts, choice_style, details_style, strip_style};
 pub use text::{ADVANCE_EM, ASCENT_EM, DESCENT_EM, TextLook, Tone, ellipsize, text_width, wrap_lines, wrap_lines_after};
 pub use theme::{Theme, mix};
-pub use ui::{Resp, Ui};
+pub use ui::{Resp, TIP_DELAY, Ui};
 pub use widgets::{ButtonLook, ButtonOpts};

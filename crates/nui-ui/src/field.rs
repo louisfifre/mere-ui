@@ -7,7 +7,7 @@
 //! the keys are read, so a press on one field and the typing after it land on the right one whichever field
 //! was built first.
 
-use nui_base::{Color, DrawList, Key, Mods, Rect, Vec2, observe};
+use nui_base::{Color, Cursor, DrawList, Key, Mods, Rect, Vec2, observe};
 use nui_layout::{Dim, Edges, Measured, Style};
 
 use crate::edit::{Accept, Edit, Outcome};
@@ -156,7 +156,7 @@ impl Ui {
 
     pub(crate) fn field(&mut self, key: &str, mut target: Target, shape: Shape, placeholder: &str, width: Dim, want_focus: bool) -> FieldResp {
         let id = self.key(key);
-        let resp = self.interact(id, false);
+        let resp = self.interact(id, false, Cursor::IBeam);
         self.order.push(id);
         let t = *self.theme();
         let (pad, right) = (shape.pad(), shape.right());

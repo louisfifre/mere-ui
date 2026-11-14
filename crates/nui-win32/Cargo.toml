@@ -36,3 +36,5 @@ features = [
 
 [dev-dependencies]
 nui-png.workspace = true
+# Only for the shape tests, which count a pixel icon's area with its own mask.
+nui-ui.workspace = true

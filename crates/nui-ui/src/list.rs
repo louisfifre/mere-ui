@@ -2,7 +2,7 @@
 //! 360-363) and the history trend row (lines 310-313). A row is its own grid, as the page's `.biome` is, so
 //! the width column of one row does not line up with the next one's: only the right edges do.
 
-use nui_base::{Cmd, Color, Vec2};
+use nui_base::{Cmd, Color, Cursor, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Justify, Style, Track, Tracks};
 
 use crate::id::Id;
@@ -61,7 +61,8 @@ impl Ui {
     /// One `.biome` row. `Resp.clicked` is false for an absent row, which the page does not make a button.
     pub fn list_row(&mut self, key: &str, row: &ListRow, opts: RowOpts) -> Resp {
         let id = self.key(key);
-        let mut resp = self.interact(id, false);
+        // An absent row is no button: it keeps the arrow.
+        let mut resp = self.interact(id, false, if opts.absent { Cursor::Arrow } else { Cursor::Hand });
         if opts.absent {
             resp.clicked = false;
         }
@@ -110,7 +111,7 @@ impl Ui {
     /// it the head is only a note.
     pub fn list_part(&mut self, key: &str, name: &str, share: &str, opts: PartOpts) -> Resp {
         let id = self.key(key);
-        let mut resp = self.interact(id, !opts.button);
+        let mut resp = self.interact(id, !opts.button, Cursor::Hand);
         if !opts.button {
             resp.clicked = false;
         }
