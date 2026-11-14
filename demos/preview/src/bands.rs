@@ -8,44 +8,7 @@ pub const HEIGHT_STEPS: [f64; 4] = [100.0, 150.0, 200.0, 250.0];
 /// Line 1137: the same under the sea, in blocks of water over the floor.
 pub const SEA_DEPTHS: [f64; 2] = [20.0, 45.0];
 
-/// Lines 1040-1045. `Math.round` is `(x + 0.5).floor()`; the `%` of floats is JS's too.
-pub fn hsl_to_rgb(h: f64, s: f64, l: f64) -> [u8; 3] {
-    let (s, l) = (s / 100.0, l / 100.0);
-    let k = |n: f64| (n + h / 30.0) % 12.0;
-    let a = s * l.min(1.0 - l);
-    let f = |n: f64| {
-        let kn = k(n);
-        let v = l - a * (-1.0f64).max((kn - 3.0).min((9.0 - kn).min(1.0)));
-        (255.0 * v + 0.5).floor() as u8
-    };
-    [f(0.0), f(8.0), f(4.0)]
-}
-
-/// Lines 1091-1102: lowland green, then ochre, rock, snow; below the sea, deeper is darker.
-pub fn height_colour(y: f64, sea: f64) -> [u8; 3] {
-    if y < sea {
-        let d = ((sea - y) / 60.0).min(1.0);
-        return hsl_to_rgb(212.0, 55.0, 46.0 - d * 26.0);
-    }
-    let stops: [(f64, [f64; 3]); 6] = [
-        (0.0, [110.0, 40.0, 42.0]),
-        (40.0, [80.0, 40.0, 50.0]),
-        (90.0, [40.0, 38.0, 48.0]),
-        (150.0, [25.0, 20.0, 45.0]),
-        (210.0, [0.0, 0.0, 70.0]),
-        (260.0, [0.0, 0.0, 96.0]),
-    ];
-    let up = y - sea;
-    for i in 1..stops.len() {
-        if up <= stops[i].0 {
-            let (a, ca) = stops[i - 1];
-            let (b, cb) = stops[i];
-            let t = (up - a) / (b - a);
-            return hsl_to_rgb(ca[0] + (cb[0] - ca[0]) * t, ca[1] + (cb[1] - ca[1]) * t, ca[2] + (cb[2] - ca[2]) * t);
-        }
-    }
-    [245, 245, 245]
-}
+pub use crate::colour::{height_colour, hsl_to_rgb};
 
 /// Line 509.
 pub fn band_names(sea: f64, steps: &[f64], depths: &[f64]) -> Vec<String> {
