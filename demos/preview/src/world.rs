@@ -48,6 +48,9 @@ pub struct World {
     pub structures: Option<Structures>,
     /// The z of the first cut of the section, when the page would show its ticks: cuts exist and ores.json parses.
     pub cut_z: Option<f64>,
+    /// The page's total of biomes: those met plus the surface ones the generator can place that this area
+    /// lacks. None when `preview.json` does not list what the generator can place.
+    pub biome_total: Option<usize>,
 }
 
 impl World {
@@ -85,6 +88,16 @@ impl World {
             let id = b.get("id").and_then(Json::text).ok_or("a biome of preview.json has no id")?;
             biomes.push(Biome { id, temperature: b.get("temperature").and_then(Json::num).unwrap_or(0.0) });
         }
+        // As the page counts them: a biome that lives under the ground only would be called missing for ever.
+        let biome_total = json.get("possible").and_then(Json::array).map(|list| {
+            let absent = list
+                .iter()
+                .filter(|b| !b.get("underground").and_then(Json::boolean).unwrap_or(false))
+                .filter_map(|b| b.get("id").and_then(Json::text))
+                .filter(|id| !biomes.iter().any(|m| &m.id == id))
+                .count();
+            biomes.len() + absent
+        });
         let heights: Vec<i16> = heights_raw.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]])).collect();
         let biome_at: Vec<u16> = biomes_raw.chunks_exact(2).map(|b| u16::from_le_bytes([b[0], b[1]])).collect();
         if let Some((i, &b)) = biome_at.iter().enumerate().find(|(_, b)| **b as usize >= biomes.len()) {
@@ -107,7 +120,15 @@ impl World {
             flat_at,
             structures: load_structures(dir),
             cut_z: load_cut(dir),
+            biome_total,
         })
+    }
+
+    /// Lowest and highest ground; (0, 0) for an empty grid.
+    pub fn height_range(&self) -> (i16, i16) {
+        let lo = self.heights.iter().copied().min().unwrap_or(0);
+        let hi = self.heights.iter().copied().max().unwrap_or(0);
+        (lo, hi)
     }
 }
 

@@ -7,6 +7,7 @@ pub mod colour;
 pub mod json;
 pub mod map;
 pub mod paint;
+pub mod scene;
 pub mod settings;
 pub mod shell;
 pub mod text;
