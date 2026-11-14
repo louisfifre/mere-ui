@@ -12,6 +12,11 @@ pub struct Input {
     pub pressed: bool,
     /// The button went up since the last frame. Both edges can be true in one frame (a fast click).
     pub released: bool,
+    /// Where the left button went down this frame, which is where a click is judged (the pointer may move on
+    /// before the frame is built).
+    pub press_pos: Option<Vec2>,
+    /// Presses in a row at one spot, as the backend counted them: 1, 2 or 3. Stored on a left press.
+    pub clicks: u8,
 }
 
 impl Input {
@@ -22,8 +27,10 @@ impl Input {
                 self.pos = Some(pos);
                 true
             }
-            Event::PointerDown { pos, button: Button::Left, .. } => {
+            Event::PointerDown { pos, button: Button::Left, clicks } => {
                 self.pos = Some(pos);
+                self.press_pos = Some(pos);
+                self.clicks = clicks;
                 self.down = true;
                 self.pressed = true;
                 true
@@ -41,5 +48,6 @@ impl Input {
     pub(crate) fn end_frame(&mut self) {
         self.pressed = false;
         self.released = false;
+        self.press_pos = None;
     }
 }

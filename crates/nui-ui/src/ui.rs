@@ -2,9 +2,11 @@
 
 use std::collections::{HashMap, HashSet};
 
-use nui_base::{Color, DrawList, Event, Rect, Vec2, observe};
+use nui_base::{Clipboard, Color, DrawList, Event, Rect, Vec2, observe};
 use nui_layout::{Avail, Measured, NodeId, Overflow, Position, Style, Tree};
 
+use crate::edit::MemoryClipboard;
+use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::id::Id;
 use crate::input::Input;
 use crate::text::{TextLook, Tone, baseline, half_leading};
@@ -25,11 +27,13 @@ pub(crate) enum Paint {
     None,
     Box { fill: Option<Color>, frame: Option<Color> },
     Text { text: String, look: TextLook, color: Color, underline: bool },
+    /// A text field: its own frame, clip, selection, text and caret (field.rs).
+    Field(Box<FieldPaint>),
 }
 
 pub struct Ui {
     theme: Theme,
-    input: Input,
+    pub(crate) input: Input,
     tree: Tree,
     root: NodeId,
     /// Open containers, innermost last, with their ids.
@@ -45,6 +49,18 @@ pub struct Ui {
     active: Option<Id>,
     list: DrawList,
     size: Vec2,
+    /// Keys and characters since the last frame, in arrival order, for the focused field.
+    pub(crate) typed: Vec<Typed>,
+    /// The one field with the keyboard, if any. At most one, so no per-field state map.
+    pub(crate) focus: Option<Focus>,
+    /// A focus another field took away during this frame, kept until its own field is built and can be told.
+    pub(crate) lost: Option<Focus>,
+    /// The fields built this frame, in build order: the order Tab walks.
+    pub(crate) order: Vec<Id>,
+    /// A Tab that left a field: its id and whether it was Shift+Tab. Applied after painting.
+    pub(crate) tab: Option<(Id, bool)>,
+    pub(crate) redraw: bool,
+    pub(crate) clipboard: Box<dyn Clipboard>,
 }
 
 impl Ui {
@@ -64,6 +80,13 @@ impl Ui {
             active: None,
             list: DrawList::default(),
             size: Vec2::new(0.0, 0.0),
+            typed: Vec::new(),
+            focus: None,
+            lost: None,
+            order: Vec::new(),
+            tab: None,
+            redraw: false,
+            clipboard: Box::new(MemoryClipboard::default()),
         }
     }
 
@@ -75,9 +98,36 @@ impl Ui {
         self.theme = t;
     }
 
-    /// Takes an event; true means the screen must be drawn again.
+    /// Takes an event; true means the screen must be drawn again. Keys and characters wait for the focused
+    /// field, which reads them when it is built.
     pub fn event(&mut self, e: &Event) -> bool {
-        self.input.feed(e)
+        match *e {
+            Event::Key { key, mods } => {
+                self.typed.push(Typed::Key(key, mods));
+                true
+            }
+            Event::Char { ch } => {
+                self.typed.push(Typed::Char(ch));
+                true
+            }
+            _ => self.input.feed(e),
+        }
+    }
+
+    /// The field that has the keyboard.
+    pub fn focused(&self) -> Option<Id> {
+        self.focus.as_ref().map(|f| f.id)
+    }
+
+    /// True when the frame just ended changed something that only the next frame shows (Tab moved the focus
+    /// after the picture was made): the application should draw once more.
+    pub fn want_redraw(&self) -> bool {
+        self.redraw
+    }
+
+    /// Where Ctrl+C, X and V go. A memory clipboard until the application gives the system's.
+    pub fn set_clipboard(&mut self, c: Box<dyn Clipboard>) {
+        self.clipboard = c;
     }
 
     pub fn begin_frame(&mut self, size: Vec2) {
@@ -92,6 +142,8 @@ impl Ui {
         self.stack.push((self.root, Id::ROOT));
         self.keyed.clear();
         self.seen.clear();
+        self.order.clear();
+        self.redraw = false;
         self.list = DrawList::default();
         self.size = size;
     }
@@ -122,8 +174,34 @@ impl Ui {
         if self.input.released || self.active.is_some_and(|a| !self.seen.contains(&a)) {
             self.active = None;
         }
+        self.settle_focus();
+        self.typed.clear();
+        self.lost = None;
         self.input.end_frame();
         &self.list
+    }
+
+    /// What the frame decided about the focus once every field was built: a Tab moves it to the next field
+    /// built (wrapping), and a focused field that was not built any more loses it.
+    fn settle_focus(&mut self) {
+        if let Some((from, back)) = self.tab.take() {
+            let n = self.order.len();
+            match self.order.iter().position(|&i| i == from) {
+                Some(at) if n > 0 => {
+                    let to = self.order[if back { (at + n - 1) % n } else { (at + 1) % n }];
+                    observe!(Debug, "tab {} from {:x} to {:x}", if back { "back" } else { "forward" }, from.0, to.0);
+                    // The new field builds its state on its first frame, with all its text selected.
+                    self.focus = Some(Focus { id: to, state: None, select_all: true });
+                    self.redraw = true;
+                }
+                _ => observe!(Warn, "tab from {:x} found no field to go to", from.0),
+            }
+        } else if let Some(f) = &self.focus {
+            if !self.order.contains(&f.id) {
+                observe!(Debug, "focus lost: {:x} was not built this frame", f.id.0);
+                self.focus = None;
+            }
+        }
     }
 
     /// The laid-out tree as text, for tests (after `end_frame`).
@@ -159,6 +237,14 @@ impl Ui {
 
     pub(crate) fn close(&mut self) {
         self.stack.pop();
+    }
+
+    /// A keyed leaf whose size is given: a text field.
+    pub(crate) fn add_keyed_leaf(&mut self, name: &str, id: Id, style: Style, paint: Paint, measured: Measured) -> NodeId {
+        let n = self.add(name, style, paint);
+        self.keyed.push((id, n));
+        self.tree.set_leaf(n, Box::new(move |_: Avail| measured));
+        n
     }
 
     /// A text leaf: its size is arithmetic, and the closure owns what it needs, as the layout wants.
@@ -226,6 +312,7 @@ fn paint_node(tree: &Tree, paints: &[Paint], list: &mut DrawList, abs: &mut [Rec
                 list.frame(r, 1.0, *c);
             }
         }
+        Paint::Field(f) => paint_field(list, f, r, tree.style(n).pad),
         Paint::Text { text, look, color, underline } => {
             let y = r.y + half_leading(*look);
             if look.tracking == 0.0 {

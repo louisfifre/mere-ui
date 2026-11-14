@@ -3,7 +3,7 @@
 
 use nui_base::{DrawList, Event, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Style, Track, Tracks};
-use nui_ui::{FoldOpts, Id, TabLook, TabOpts, TextLook, Theme, Tone, Ui, choice_style, details_style, strip_style};
+use nui_ui::{FoldOpts, Id, NumberSpec, TabLook, TabOpts, TextLook, Theme, Tone, Ui, choice_style, details_style, strip_style};
 
 use crate::{absolute_at, text};
 
@@ -20,12 +20,14 @@ pub struct ControlsState {
     pub history_open: bool,
     pub settings_open: bool,
     pub rolling: bool,
+    /// The three number settings: vertical scale, bottom of the world, land against ocean.
+    pub values: [f64; 3],
 }
 
 impl Default for ControlsState {
     fn default() -> ControlsState {
         // View 1 is Flat: the build plan's "second tab selected".
-        ControlsState { view: 1, in3d: false, profile: 0, detail: 1, world_open: false, history_open: false, settings_open: true, rolling: false }
+        ControlsState { view: 1, in3d: false, profile: 0, detail: 1, world_open: false, history_open: false, settings_open: true, rolling: false, values: [1.0, -64.0, -0.45] }
     }
 }
 
@@ -148,15 +150,22 @@ fn c6_history(ui: &mut Ui, s: &mut ControlsState) -> Option<Id> {
 
 fn c7_settings(ui: &mut Ui, s: &mut ControlsState) -> Option<Id> {
     ui.node("c7", col_at(460.0, 234.0, 330.0), |ui| {
-        let ControlsState { settings_open, profile, rolling, .. } = s;
+        let ControlsState { settings_open, profile, rolling, values, .. } = s;
         ui.fold_with("settings", text::SETTINGS, settings_open, FoldOpts::default(), |ui| {
             choice_row(ui, profile, 2);
             ui.node("rows", Style { column: true, ..Style::default() }, |ui| {
-                for (key, label, v) in [("scale", text::VERTICAL_SCALE, 1.0), ("bottom", text::BOTTOM, -64.0), ("land", text::LAND, -0.45)] {
+                // The page's `known` table (line 655): vertical_scale, min_y and ocean_offset.
+                let specs = [
+                    NumberSpec { min: 0.5, max: 3.0, step: 0.025 },
+                    NumberSpec { min: -256.0, max: 0.0, step: 16.0 },
+                    NumberSpec { min: -1.0, max: -0.2, step: 0.05 },
+                ];
+                let rows = [("scale", text::VERTICAL_SCALE), ("bottom", text::BOTTOM), ("land", text::LAND)];
+                for (i, (key, label)) in rows.into_iter().enumerate() {
                     ui.node(key, setting_style(Dim::Auto), |ui| {
                         ui.label(label, Tone::Text);
                         ui.text("", TextLook::body(Tone::Muted));
-                        ui.number("field", v);
+                        ui.number("field", &mut values[i], specs[i]);
                     });
                 }
                 ui.node("rolling", setting_style(Dim::Auto), |ui| {

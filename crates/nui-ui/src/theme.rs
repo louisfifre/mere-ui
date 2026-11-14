@@ -20,6 +20,10 @@ pub struct Theme {
     pub track: Color,
     /// `--edge`: the hairline of fields and disabled buttons.
     pub edge: Color,
+    /// The background of selected text and its text colour. The page has no `::selection` rule, so the browser's
+    /// default applies; these are Windows' Highlight and HighlightText. UNVERIFIED against Chrome.
+    pub select: Color,
+    pub select_text: Color,
     /// `font: 12px/1.5` of the body.
     pub body: f32,
     /// The 11 px of the status lines.
@@ -38,6 +42,8 @@ impl Theme {
             grid: Color::hex(0xffffff).with_alpha(0.16),
             track: Color::hex(0x6a6a6a),
             edge: Color::hex(0x4a4a4a),
+            select: Color::hex(0x0078d7),
+            select_text: Color::hex(0xffffff),
             body: 12.0,
             small: 11.0,
         }
@@ -54,6 +60,8 @@ impl Theme {
             grid: Color::hex(0x000000).with_alpha(0.12),
             track: Color::hex(0x9a9a96),
             edge: Color::hex(0xb4b4ae),
+            select: Color::hex(0x0078d7),
+            select_text: Color::hex(0xffffff),
             body: 12.0,
             small: 11.0,
         }

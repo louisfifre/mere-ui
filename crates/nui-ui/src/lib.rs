@@ -4,7 +4,8 @@
 //! One frame, in this order:
 //! 1. `Ui::event` for every event received since the last frame (pointer state is only stored);
 //! 2. `Ui::begin_frame(size)`;
-//! 3. the application's calls: `node`, `label`, `button`, `toggle`, `fold`, `tab`, `detail_tab`, `number`...
+//! 3. the application's calls: `node`, `label`, `button`, `toggle`, `fold`, `tab`, `detail_tab`, `number`,
+//!    `text_field`...
 //!    Each widget answers with what the
 //!    pointer did to it, judged against where the widget stood in the LAST frame (what the person saw and
 //!    pointed at), so the first frame of a widget has no interaction;
@@ -13,8 +14,8 @@
 //!
 //! This crate names no operating system: the draw list is drawn by whichever backend the application uses.
 
-#[allow(dead_code)]
 mod edit;
+mod field;
 mod fold;
 mod id;
 mod input;
@@ -26,6 +27,8 @@ mod ui;
 mod widgets;
 
 pub use edit::MemoryClipboard;
+pub use field::{FieldLook, FieldOpts, FieldResp};
+pub use number::NumberSpec;
 pub use fold::FoldOpts;
 pub use id::Id;
 pub use input::Input;

@@ -2,7 +2,7 @@
 
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Position, Style, Track, Tracks};
-use nui_ui::{FoldOpts, Id, TabLook, TabOpts, TextLook, Theme, Tone, Ui, choice_style, details_style, strip_style};
+use nui_ui::{FoldOpts, Id, NumberSpec, TabLook, TabOpts, TextLook, Theme, Tone, Ui, choice_style, details_style, strip_style};
 
 const SIZE: Vec2 = Vec2::new(860.0, 440.0);
 
@@ -398,7 +398,7 @@ fn details_geometry_and_colours() {
 
 // ---- number ----
 
-fn setting(ui: &mut Ui, v: f64) -> Id {
+fn setting(ui: &mut Ui, mut v: f64) -> Id {
     let style = at(
         460.0,
         298.0,
@@ -416,7 +416,7 @@ fn setting(ui: &mut Ui, v: f64) -> Id {
     ui.node("setting", style, |ui| {
         ui.label("Vertical scale", Tone::Text);
         ui.text("", TextLook::body(Tone::Muted));
-        id = Some(ui.number("v", v).id);
+        id = Some(ui.number("v", &mut v, NumberSpec::ANY).resp.id);
     });
     id.unwrap()
 }
