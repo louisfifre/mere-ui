@@ -17,6 +17,11 @@ pub struct Input {
     pub press_pos: Option<Vec2>,
     /// Presses in a row at one spot, as the backend counted them: 1, 2 or 3. Stored on a left press.
     pub clicks: u8,
+    /// Wheel notches since the last frame, positive away from the user. A scroll area that uses them sets
+    /// this back to 0, so only the innermost area under the pointer moves.
+    pub wheel: f32,
+    /// Where the pointer was at the last wheel event.
+    pub wheel_pos: Option<Vec2>,
 }
 
 impl Input {
@@ -41,6 +46,11 @@ impl Input {
                 self.released = true;
                 true
             }
+            Event::Wheel { pos, delta } => {
+                self.wheel += delta;
+                self.wheel_pos = Some(pos);
+                true
+            }
             _ => false,
         }
     }
@@ -49,5 +59,7 @@ impl Input {
         self.pressed = false;
         self.released = false;
         self.press_pos = None;
+        self.wheel = 0.0;
+        self.wheel_pos = None;
     }
 }

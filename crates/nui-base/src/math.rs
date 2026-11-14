@@ -30,6 +30,14 @@ impl Rect {
     pub fn contains(&self, p: Vec2) -> bool {
         p.x >= self.x && p.y >= self.y && p.x < self.x + self.w && p.y < self.y + self.h
     }
+    /// The part both rects cover. Width and height stop at 0, so an empty result contains no point.
+    pub fn intersect(&self, o: &Rect) -> Rect {
+        let x = self.x.max(o.x);
+        let y = self.y.max(o.y);
+        let r = (self.x + self.w).min(o.x + o.w);
+        let b = (self.y + self.h).min(o.y + o.h);
+        Rect::new(x, y, (r - x).max(0.0), (b - y).max(0.0))
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
@@ -140,6 +148,14 @@ impl Mul for Mat4 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn intersect_clamps_to_empty() {
+        let a = Rect::new(0.0, 0.0, 10.0, 10.0);
+        assert_eq!(a.intersect(&Rect::new(5.0, 2.0, 10.0, 3.0)), Rect::new(5.0, 2.0, 5.0, 3.0));
+        let far = a.intersect(&Rect::new(20.0, 20.0, 5.0, 5.0));
+        assert!(far.w == 0.0 && far.h == 0.0 && !far.contains(Vec2::new(20.0, 20.0)));
+    }
 
     fn depth(m: &Mat4, z_view: f32) -> f32 {
         let c = m.transform(Vec3::new(0.0, 0.0, z_view));

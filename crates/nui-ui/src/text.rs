@@ -1,5 +1,5 @@
 //! Text metrics as arithmetic: IBM Plex Mono is monospaced, so a width is a count times a constant and no
-//! text-measuring trait is needed. Single line only: no wrapping or ellipsis (steps 12-13).
+//! text-measuring trait is needed. Single line only: the ellipsis is here (`ellipsize`), wrapping is step 13.
 
 use nui_base::Weight;
 
@@ -48,6 +48,20 @@ impl TextLook {
     pub fn width(&self, s: &str) -> f32 {
         s.chars().count() as f32 * self.step()
     }
+}
+
+/// `text-overflow: ellipsis` with `white-space: nowrap`: `s` if it fits in `w`, else the longest whole-glyph
+/// prefix that leaves room for the ellipsis, which is one monospaced cell (Chrome cuts at glyph boundaries).
+pub fn ellipsize(s: &str, look: TextLook, w: f32) -> String {
+    if look.width(s) <= w + 0.01 {
+        return s.to_string();
+    }
+    let step = look.step();
+    // The 1e-3 keeps a column that is an exact multiple of the step from losing a glyph to rounding.
+    let n = ((w - step) / step + 1e-3).floor().max(0.0) as usize;
+    let mut out: String = s.chars().take(n).collect();
+    out.push('\u{2026}');
+    out
 }
 
 pub fn text_width(s: &str, size: f32) -> f32 {

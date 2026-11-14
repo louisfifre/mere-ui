@@ -36,6 +36,13 @@ impl Ui {
         self.add_text(s, look, color, false, Style::default());
     }
 
+    /// A text leaf that ends in an ellipsis when its box is narrower than the text. `min-width: 0` lets it
+    /// shrink in a flex row; a grid fr column already stretches it.
+    pub fn ellipsis(&mut self, s: &str, look: TextLook) {
+        let color = self.tone_color(look.tone);
+        self.add_ellipsis(s, look, color, false);
+    }
+
     pub fn button(&mut self, key: &str, text: &str, look: ButtonLook) -> Resp {
         self.button_with(key, text, look, ButtonOpts::default())
     }

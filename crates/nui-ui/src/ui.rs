@@ -3,13 +3,13 @@
 use std::collections::{HashMap, HashSet};
 
 use nui_base::{Clipboard, Color, DrawList, Event, Rect, Vec2, observe};
-use nui_layout::{Avail, Measured, NodeId, Overflow, Position, Style, Tree};
+use nui_layout::{Avail, Dim, Measured, NodeId, Overflow, Position, Style, Tree};
 
 use crate::edit::MemoryClipboard;
 use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::id::Id;
 use crate::input::Input;
-use crate::text::{TextLook, Tone, baseline, half_leading};
+use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading};
 use crate::theme::Theme;
 
 /// What the pointer did to a widget this frame.
@@ -26,7 +26,8 @@ pub struct Resp {
 pub(crate) enum Paint {
     None,
     Box { fill: Option<Color>, frame: Option<Color> },
-    Text { text: String, look: TextLook, color: Color, underline: bool },
+    /// `ellipsis` cuts the text to its box with `ellipsize` when painting, the box being known only then.
+    Text { text: String, look: TextLook, color: Color, underline: bool, ellipsis: bool },
     /// A text field: its own frame, clip, selection, text and caret (field.rs).
     Field(Box<FieldPaint>),
 }
@@ -45,6 +46,9 @@ pub struct Ui {
     seen: HashSet<Id>,
     /// Absolute rects of keyed nodes from the LAST `end_frame`: what hit tests use.
     rects: HashMap<Id, Rect>,
+    /// The part of each keyed node's rect that was visible in the LAST frame (cut by every scrolling or
+    /// clipping ancestor): what the pointer can reach. A row scrolled out of sight takes no hover.
+    hits: HashMap<Id, Rect>,
     /// The widget the pressed button went down on.
     active: Option<Id>,
     list: DrawList,
@@ -77,6 +81,7 @@ impl Ui {
             keyed: Vec::new(),
             seen: HashSet::new(),
             rects: HashMap::new(),
+            hits: HashMap::new(),
             active: None,
             list: DrawList::default(),
             size: Vec2::new(0.0, 0.0),
@@ -165,10 +170,15 @@ impl Ui {
     pub fn end_frame(&mut self) -> &DrawList {
         self.tree.compute(self.root, self.size);
         let mut abs = vec![Rect::default(); self.paints.len()];
-        paint_node(&self.tree, &self.paints, &mut self.list, &mut abs, self.root, Vec2::new(0.0, 0.0));
+        let mut vis = vec![Rect::default(); self.paints.len()];
+        let window = Rect::new(0.0, 0.0, self.size.x, self.size.y);
+        let mut painter = Painter { tree: &self.tree, paints: &self.paints, list: &mut self.list, abs: &mut abs, vis: &mut vis };
+        painter.node(self.root, Vec2::new(0.0, 0.0), window);
         self.rects.clear();
+        self.hits.clear();
         for &(id, n) in &self.keyed {
             self.rects.insert(id, abs[n.0]);
+            self.hits.insert(id, vis[n.0]);
         }
         // A release ends any press; a widget that vanished cannot be released on.
         if self.input.released || self.active.is_some_and(|a| !self.seen.contains(&a)) {
@@ -249,9 +259,19 @@ impl Ui {
 
     /// A text leaf: its size is arithmetic, and the closure owns what it needs, as the layout wants.
     pub(crate) fn add_text(&mut self, text: &str, look: TextLook, color: Color, underline: bool, style: Style) -> NodeId {
+        self.add_text_with(text, look, color, underline, false, style)
+    }
+
+    /// A text leaf that may shrink below its text (`min-width: 0`) and is cut with an ellipsis when painted.
+    pub(crate) fn add_ellipsis(&mut self, text: &str, look: TextLook, color: Color, underline: bool) -> NodeId {
+        let style = Style { min_w: Dim::Px(0.0), ..Style::default() };
+        self.add_text_with(text, look, color, underline, true, style)
+    }
+
+    fn add_text_with(&mut self, text: &str, look: TextLook, color: Color, underline: bool, ellipsis: bool, style: Style) -> NodeId {
         let owned = text.to_string();
         let width = look.width(text);
-        let n = self.add("text", style, Paint::Text { text: owned, look, color, underline });
+        let n = self.add("text", style, Paint::Text { text: owned, look, color, underline, ellipsis });
         let measured = Measured { size: Vec2::new(width, look.line), baseline: baseline(look) };
         self.tree.set_leaf(n, Box::new(move |_: Avail| measured));
         n
@@ -277,7 +297,8 @@ impl Ui {
     /// pointed at.
     pub(crate) fn interact(&mut self, id: Id, disabled: bool) -> Resp {
         let rect = self.rects.get(&id).copied();
-        let over = !disabled && matches!((rect, self.input.pos), (Some(r), Some(p)) if r.contains(p));
+        let reach = self.hits.get(&id).copied();
+        let over = !disabled && matches!((reach, self.input.pos), (Some(r), Some(p)) if r.contains(p));
         if over && self.input.pressed && self.active.is_none() {
             self.active = Some(id);
         }
@@ -292,57 +313,84 @@ impl Ui {
     }
 }
 
-/// Paints `n` and its children depth-first, carrying the parent's absolute origin down, and records each
-/// node's absolute rect.
-fn paint_node(tree: &Tree, paints: &[Paint], list: &mut DrawList, abs: &mut [Rect], n: NodeId, origin: Vec2) {
-    let rel = tree.rect(n);
-    let r = Rect::new(origin.x + rel.x, origin.y + rel.y, rel.w, rel.h);
-    abs[n.0] = r;
-    let clip = tree.style(n).overflow != Overflow::Visible;
-    if clip {
-        list.push_clip(r);
-    }
-    match &paints[n.0] {
-        Paint::None => {}
-        Paint::Box { fill, frame } => {
-            if let Some(c) = fill {
-                list.fill(r, *c);
-            }
-            if let Some(c) = frame {
-                list.frame(r, 1.0, *c);
-            }
+/// What painting needs besides the node: the tree and paints to read, the list and the two rect tables to
+/// write. Gathered here so the recursion carries only the node, its origin and the clip.
+struct Painter<'a> {
+    tree: &'a Tree,
+    paints: &'a [Paint],
+    list: &'a mut DrawList,
+    /// Absolute rect of every node.
+    abs: &'a mut [Rect],
+    /// `abs` cut to the clips of the ancestors: the part that can be seen and pointed at.
+    vis: &'a mut [Rect],
+}
+
+impl Painter<'_> {
+    /// Paints `n` and its children depth-first, carrying the parent's absolute origin and the visible clip
+    /// down, and records each node's absolute and visible rects.
+    fn node(&mut self, n: NodeId, origin: Vec2, clip: Rect) {
+        let rel = self.tree.rect(n);
+        let r = Rect::new(origin.x + rel.x, origin.y + rel.y, rel.w, rel.h);
+        self.abs[n.0] = r;
+        self.vis[n.0] = r.intersect(&clip);
+        let clips = self.tree.style(n).overflow != Overflow::Visible;
+        let child_clip = if clips { r.intersect(&clip) } else { clip };
+        if clips {
+            self.list.push_clip(r);
         }
-        Paint::Field(f) => paint_field(list, f, r, tree.style(n).pad),
-        Paint::Text { text, look, color, underline } => {
-            let y = r.y + half_leading(*look);
-            if look.tracking == 0.0 {
-                list.text_weighted(Vec2::new(r.x, y), text.clone(), look.size, *color, look.weight);
-            } else {
-                // Plex Mono is monospaced and has no kerning, so one glyph per step equals a spaced string.
-                let mut buf = [0u8; 4];
-                for (i, ch) in text.chars().enumerate() {
-                    let x = r.x + i as f32 * look.step();
-                    list.text_weighted(Vec2::new(x, y), &*ch.encode_utf8(&mut buf), look.size, *color, look.weight);
+        match &self.paints[n.0] {
+            Paint::None => {}
+            Paint::Box { fill, frame } => {
+                if let Some(c) = fill {
+                    self.list.fill(r, *c);
+                }
+                if let Some(c) = frame {
+                    self.list.frame(r, 1.0, *c);
                 }
             }
-            if *underline {
-                // text-underline-offset 3px from the baseline (line 152); the 1 px thickness is UNVERIFIED
-                // against the browser.
-                list.fill(Rect::new(r.x, r.y + baseline(*look) + 3.0, look.width(text), 1.0), *color);
+            Paint::Field(f) => paint_field(self.list, f, r, self.tree.style(n).pad),
+            Paint::Text { text, look, color, underline, ellipsis } => {
+                let y = r.y + half_leading(*look);
+                let drawn = if *ellipsis { ellipsize(text, *look, r.w) } else { text.clone() };
+                // A box narrower than the ellipsis cell still shows one: cut it to the box.
+                let cut = *ellipsis && drawn == "\u{2026}" && r.w < look.step();
+                if cut {
+                    self.list.push_clip(r);
+                }
+                if look.tracking == 0.0 {
+                    self.list.text_weighted(Vec2::new(r.x, y), drawn.clone(), look.size, *color, look.weight);
+                } else {
+                    // Plex Mono is monospaced and has no kerning, so one glyph per step equals a spaced string.
+                    let mut buf = [0u8; 4];
+                    for (i, ch) in drawn.chars().enumerate() {
+                        let x = r.x + i as f32 * look.step();
+                        self.list.text_weighted(Vec2::new(x, y), &*ch.encode_utf8(&mut buf), look.size, *color, look.weight);
+                    }
+                }
+                if cut {
+                    self.list.pop_clip();
+                }
+                if *underline {
+                    // text-underline-offset 3px from the baseline (line 152); the 1 px thickness is UNVERIFIED
+                    // against the browser.
+                    let w = look.width(&drawn).min(r.w);
+                    self.list.fill(Rect::new(r.x, r.y + baseline(*look) + 3.0, w, 1.0), *color);
+                }
             }
         }
-    }
-    // CSS paints positioned boxes (z-index auto) after the in-flow ones: the pressed tab's hairline must
-    // cover the grey one of the neighbour it overlaps.
-    let kids = tree.children(n);
-    let flow = |c: &&NodeId| tree.style(**c).position == Position::Static;
-    for &c in kids.iter().filter(flow) {
-        paint_node(tree, paints, list, abs, c, Vec2::new(r.x, r.y));
-    }
-    for &c in kids.iter().filter(|c| !flow(c)) {
-        paint_node(tree, paints, list, abs, c, Vec2::new(r.x, r.y));
-    }
-    if clip {
-        list.pop_clip();
+        // CSS paints positioned boxes (z-index auto) after the in-flow ones: the pressed tab's hairline must
+        // cover the grey one of the neighbour it overlaps.
+        let tree = self.tree;
+        let kids = tree.children(n);
+        let flow = |c: &&NodeId| tree.style(**c).position == Position::Static;
+        for &c in kids.iter().filter(flow) {
+            self.node(c, Vec2::new(r.x, r.y), child_clip);
+        }
+        for &c in kids.iter().filter(|c| !flow(c)) {
+            self.node(c, Vec2::new(r.x, r.y), child_clip);
+        }
+        if clips {
+            self.list.pop_clip();
+        }
     }
 }
