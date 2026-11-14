@@ -7,11 +7,13 @@ mod clipboard;
 mod fonts;
 mod process;
 mod renderer;
+mod scheme;
 mod window;
 
 pub use clipboard::SystemClipboard;
 pub use process::SystemLauncher;
 pub use renderer::Renderer;
+pub use scheme::system_dark;
 pub use window::run;
 
 /// Draws one frame of `app` offscreen, at `width` x `height` physical pixels and `scale` physical pixels

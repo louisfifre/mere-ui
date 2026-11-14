@@ -75,6 +75,8 @@ struct State {
     /// The first half of a character outside the Basic Multilingual Plane, which WM_CHAR delivers as two
     /// messages.
     high: Option<u16>,
+    /// The light/dark setting last read or sent, so a change message that changes nothing sends nothing.
+    dark: bool,
 }
 
 impl State {
@@ -309,6 +311,7 @@ pub fn run(title: &str, app: &mut dyn App) -> Result<()> {
             last_pos: Vec2::new(0.0, 0.0),
             last_down: None,
             high: None,
+            dark: crate::scheme::system_dark(),
         }));
         guard.state = state;
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, state as isize);
@@ -493,6 +496,24 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     send(state, Event::Char { ch });
                 }
                 LRESULT(0)
+            }
+            WM_SETTINGCHANGE => {
+                // lParam names what changed, as a wide string, or is null when the sender gave none.
+                if lparam.0 != 0 {
+                    let mut len = 0;
+                    let name = lparam.0 as *const u16;
+                    while *name.add(len) != 0 {
+                        len += 1;
+                    }
+                    if crate::scheme::is_scheme_change(std::slice::from_raw_parts(name, len)) {
+                        let dark = crate::scheme::system_dark();
+                        if dark != (*state).dark {
+                            (*state).dark = dark;
+                            send(state, Event::Scheme { dark });
+                        }
+                    }
+                }
+                DefWindowProcW(hwnd, msg, wparam, lparam)
             }
             WM_DESTROY => {
                 WINDOW.store(0, Ordering::Relaxed);
