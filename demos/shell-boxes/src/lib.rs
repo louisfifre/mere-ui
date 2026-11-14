@@ -154,11 +154,15 @@ pub fn draw_boxes(tree: &Tree, root: NodeId, width: f32, height: f32) -> DrawLis
     let mut list = DrawList::default();
     list.fill(Rect::new(0.0, 0.0, width, height), Color::hex(0x101214));
     let palette = [0xe0e0e0, 0x6fb3d2, 0xd2a36f, 0x8fc98f];
-    walk(tree, root, 0, &palette, &mut list);
+    let mut placed = Vec::new();
+    walk(tree, root, 0, &palette, &mut list, &mut placed);
     list
 }
 
-fn walk(tree: &Tree, n: NodeId, depth: usize, palette: &[u32], list: &mut DrawList) {
+/// `placed` keeps the rectangles of the labels already written: a label that would land on one of them
+/// (at 1000 px the right column's label and its first child's were 2 px apart) tries its box's bottom
+/// edge, and is left out if that is taken too, so every label that is drawn stays readable.
+fn walk(tree: &Tree, n: NodeId, depth: usize, palette: &[u32], list: &mut DrawList, placed: &mut Vec<Rect>) {
     let rect = tree.abs_rect(n);
     let colour = Color::hex(palette[depth % palette.len()]);
     list.fill(rect, colour.with_alpha(0.06));
@@ -171,10 +175,19 @@ fn walk(tree: &Tree, n: NodeId, depth: usize, palette: &[u32], list: &mut DrawLi
         let leaf = tree.children(n).is_empty();
         let x = if leaf { rect.x + 4.0 } else { (rect.x + rect.w - text_w - 4.0).max(rect.x + 4.0) };
         // The window's own label goes to the bottom, where the toolbar's does not write over it.
-        let y = if depth == 0 { rect.y + rect.h - size - 6.0 } else { rect.y + 2.0 };
-        list.text(Vec2::new(x, y), text, size, colour);
+        let top = if depth == 0 { rect.y + rect.h - size - 6.0 } else { rect.y + 2.0 };
+        let bottom = rect.y + rect.h - size - 4.0;
+        for y in [top, bottom] {
+            let label = Rect::new(x - 2.0, y - 1.0, text_w + 4.0, size + 2.0);
+            let hit = placed.iter().any(|p| label.x < p.x + p.w && p.x < label.x + label.w && label.y < p.y + p.h && p.y < label.y + label.h);
+            if !hit {
+                placed.push(label);
+                list.text(Vec2::new(x, y), text.clone(), size, colour);
+                break;
+            }
+        }
     }
     for &c in tree.children(n) {
-        walk(tree, c, depth + 1, palette, list);
+        walk(tree, c, depth + 1, palette, list, placed);
     }
 }
