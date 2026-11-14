@@ -4,7 +4,17 @@
 
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use nui_layout::{Dim, Style};
-use nui_ui::{Resp, TabOpts, TextLook, Theme, Tone, Ui, wrap_lines};
+use nui_ui::{Resp, TabOpts, TextLook, Theme, Tone, Ui, wrap_lines, wrap_lines_after};
+
+#[test]
+fn n1b_a_lead_is_taken_off_the_first_line_only() {
+    let small = TextLook::small(Tone::Text);
+    let step = nui_ui::ADVANCE_EM * small.size;
+    // 10 cells wide, 4 taken by the lead: the long word fills the first line's 6 cells, then whole lines of 10.
+    let lines = wrap_lines_after("abcdefghijklmnopqrstuvwxyz", small, 10.0 * step, 4.0 * step);
+    assert_eq!(lines, ["abcdef", "ghijklmnop", "qrstuvwxyz"]);
+    assert_eq!(wrap_lines_after("ab cd", small, 10.0 * step, 0.0), wrap_lines("ab cd", small, 10.0 * step));
+}
 
 const SIZE: Vec2 = Vec2::new(600.0, 400.0);
 const HINT: &str = "Click \u{201c}pack\u{2026}\u{201d} beside a value to put it back to the pack\u{2019}s.";

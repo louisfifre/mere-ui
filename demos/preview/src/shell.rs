@@ -716,17 +716,12 @@ fn steps_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
             });
         }
         Steps::Saved { folder } => {
-            // `.saved` (lines 277-281): the path takes a whole line, then the two links, wrapping. UNVERIFIED: the
-            // label and the path stand side by side here, the page flows the path on after its label.
+            // `.saved` (lines 277-281): the path takes a whole line, then the two links, wrapping. The path is one
+            // flowing run: the label with its 6 px, then the folder wrapped on from it, back to the left edge.
             let notice = Style { wrap: true, align_items: Align::Baseline, gap: Vec2::new(16.0, 2.0), ..Style::default() };
             ids.saved = ui.node("saved", notice, |ui| {
-                let path = Style { basis: Dim::Pct(100.0), align_items: Align::Baseline, ..Style::default() };
-                ui.node("path", path, |ui| {
-                    let label = Style { shrink: 0.0, margin: Margin { right: Side::Px(6.0), ..Margin::default() }, ..Style::default() };
-                    ui.node("to", label, |ui| ui.text(text::EXPORTED_TO, muted));
-                    let folder_box = Style { column: true, grow: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..Style::default() };
-                    ui.node("folder", folder_box, |ui| ui.paragraph(folder, now_look));
-                });
+                let path = Style { basis: Dim::Pct(100.0), column: true, min_w: Dim::Px(0.0), ..Style::default() };
+                ui.node("path", path, |ui| ui.flow(text::EXPORTED_TO, Tone::Muted, 6.0, folder, now_look));
                 let r = ui.button("openFolder", text::OPEN_FOLDER, ButtonLook::Link);
                 ids.open_folder = r.id;
                 if r.clicked {

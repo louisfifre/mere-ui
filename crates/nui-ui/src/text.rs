@@ -76,14 +76,21 @@ pub fn ellipsize(s: &str, look: TextLook, w: f32) -> String {
 /// by single spaces, a line takes as many as fit in `w`, and a word wider than `w` by itself is cut at whole
 /// glyphs. Its last piece goes on as the current line, so the next word may follow it.
 pub fn wrap_lines(s: &str, look: TextLook, w: f32) -> Vec<String> {
+    wrap_lines_after(s, look, w, 0.0)
+}
+
+/// `wrap_lines` for text that follows something inline on its first line (the page's `.saved .path`: a label,
+/// then the path with `overflow-wrap: anywhere`): `lead` px are taken off the first line only, the next lines
+/// start at the left edge. A word too long for what is left of the first line is cut there, not moved down.
+pub fn wrap_lines_after(s: &str, look: TextLook, w: f32, lead: f32) -> Vec<String> {
     let step = look.step();
-    let room = w + 0.01;
     // A column narrower than one glyph still takes one glyph per line, as the browser does.
-    let per = (room / step).floor().max(1.0) as usize;
-    let mut lines = Vec::new();
+    let per_of = |room: f32| ((room + 0.01) / step).floor().max(1.0) as usize;
+    let mut lines: Vec<String> = Vec::new();
     let mut cur = String::new();
     let mut cur_n = 0usize;
     for word in s.split_whitespace() {
+        let room = if lines.is_empty() { w - lead } else { w } + 0.01;
         let n = word.chars().count();
         let joined = if cur_n == 0 { n } else { cur_n + 1 + n };
         if joined as f32 * step <= room {
@@ -94,23 +101,27 @@ pub fn wrap_lines(s: &str, look: TextLook, w: f32) -> Vec<String> {
             cur_n = joined;
             continue;
         }
+        let first_open = lines.is_empty() && cur_n == 0 && lead > 0.0;
         if cur_n > 0 {
             lines.push(std::mem::take(&mut cur));
             cur_n = 0;
         }
-        if n as f32 * step <= room {
+        if !first_open && n as f32 * step <= w + 0.01 {
             cur.push_str(word);
             cur_n = n;
             continue;
         }
         let chars: Vec<char> = word.chars().collect();
-        let mut pieces = chars.chunks(per).peekable();
-        while let Some(p) = pieces.next() {
-            let piece: String = p.iter().collect();
-            if pieces.peek().is_some() {
+        let mut at = 0;
+        while at < chars.len() {
+            let per = per_of(if lines.is_empty() { w - lead } else { w });
+            let end = (at + per).min(chars.len());
+            let piece: String = chars[at..end].iter().collect();
+            at = end;
+            if at < chars.len() {
                 lines.push(piece);
             } else {
-                cur_n = p.len();
+                cur_n = piece.chars().count();
                 cur = piece;
             }
         }

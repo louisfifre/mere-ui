@@ -44,6 +44,12 @@ impl Ui {
         self.add_paragraph(s, look, color, Style::default());
     }
 
+    /// A muted label and a text that flows on after it and wraps back to the left edge (`.saved .path`).
+    pub fn flow(&mut self, lead: &str, lead_tone: Tone, gap: f32, text: &str, look: TextLook) {
+        let (lead_color, color) = (self.tone_color(lead_tone), self.tone_color(look.tone));
+        self.add_flow(lead, lead_color, gap, text, look, color, Style::default());
+    }
+
     /// An unkeyed box painted in one colour: a one-side border, a rule, a slot.
     pub fn fill(&mut self, style: Style, color: Color) {
         self.add("fill", style, Paint::Box { fill: Some(color), frame: None });

@@ -10,7 +10,7 @@ use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::id::Id;
 use crate::input::Input;
 use crate::scroll::{ScrollMetrics, ScrollPaint, thumb_rect};
-use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading, wrap_lines};
+use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
 
 /// What the pointer did to a widget this frame.
@@ -33,6 +33,8 @@ pub(crate) enum Paint {
     /// `ellipsis` cuts the text to its box with `ellipsize` when painting, the box being known only then.
     /// `wrap` breaks it into lines of the box's width (`wrap_lines`); neither underline nor ellipsis then.
     Text { text: String, look: TextLook, color: Color, underline: bool, ellipsis: bool, wrap: bool },
+    /// One flowing run: `lead` in its colour, `gap` px, then `text` wrapped on from there (`wrap_lines_after`).
+    Flow { lead: String, lead_color: Color, gap: f32, text: String, look: TextLook, color: Color },
     /// The running generate button: its 1 px frame, then the bar from the padding box's left, `share` of its width.
     Running { frame: Color, bar: Color, share: f32 },
     /// The select's arrow: 8 x 5 px, painted as filled 1 px rows, as Chrome's is at 1x.
@@ -386,6 +388,35 @@ impl Ui {
         n
     }
 
+    /// A label and a text that flows on after it, wrapping back to the left edge: `.saved .path`. The leaf's
+    /// measure answers as a paragraph's does; the label always takes the first line.
+    pub(crate) fn add_flow(&mut self, lead: &str, lead_color: Color, gap: f32, text: &str, look: TextLook, color: Color, style: Style) -> NodeId {
+        let paint = Paint::Flow { lead: lead.to_string(), lead_color, gap, text: text.to_string(), look, color };
+        let n = self.add("flow", style, paint);
+        let (lead, text) = (lead.to_string(), text.to_string());
+        let base = baseline(look);
+        self.tree.set_leaf(
+            n,
+            Box::new(move |a: Avail| {
+                let lead_w = look.width(&lead) + gap;
+                let size = match a.w {
+                    Some(w) if w == 0.0 => {
+                        let widest = text.split_whitespace().map(|x| look.width(x)).fold(lead_w, f32::max);
+                        Vec2::new(widest, look.line)
+                    }
+                    Some(w) => {
+                        let lines = wrap_lines_after(&text, look, w, lead_w);
+                        let widest = lines.iter().enumerate().map(|(i, l)| look.width(l) + if i == 0 { lead_w } else { 0.0 }).fold(lead_w, f32::max);
+                        Vec2::new(widest, lines.len().max(1) as f32 * look.line)
+                    }
+                    None => Vec2::new(lead_w + look.width(&text.split_whitespace().collect::<Vec<_>>().join(" ")), look.line),
+                };
+                Measured { size, baseline: base }
+            }),
+        );
+        n
+    }
+
     pub(crate) fn tone_color(&self, tone: Tone) -> Color {
         match tone {
             Tone::Text => self.theme.text,
@@ -502,6 +533,15 @@ impl Painter<'_> {
                     for &(a, b) in *row {
                         self.list.fill(Rect::new(r.x + a, r.y + i as f32, b - a, 1.0), *color);
                     }
+                }
+            }
+            Paint::Flow { lead, lead_color, gap, text, look, color } => {
+                let lead_w = look.width(lead) + gap;
+                let top = r.y + half_leading(*look);
+                draw_line(self.list, lead, *look, *lead_color, r.x, top);
+                for (i, line) in wrap_lines_after(text, *look, r.w, lead_w).iter().enumerate() {
+                    let x = if i == 0 { r.x + lead_w } else { r.x };
+                    draw_line(self.list, line, *look, *color, x, top + i as f32 * look.line);
                 }
             }
             Paint::Text { text, look, color, underline, ellipsis, wrap } => {
