@@ -12,6 +12,7 @@ use preview::map::{Look, point_under};
 use preview::paint::{View, paint, rows};
 use preview::text::pretty;
 use preview::world::World;
+use preview::scene;
 use preview::{PreviewApp, PreviewState, ShellIds, build};
 
 const SIZE: Vec2 = Vec2::new(1400.0, 940.0);
@@ -56,6 +57,11 @@ impl Rig {
 
     fn rect(&self) -> Rect {
         self.ui.rect(self.ids.map).expect("the map is built")
+    }
+
+    /// The 3D view's square.
+    fn relief(&self) -> Rect {
+        self.ui.rect(self.ids.relief).expect("the 3D view is built")
     }
 
     fn centre(&self) -> Vec2 {
@@ -225,4 +231,108 @@ fn i5_the_tab_changes_the_colouring_through_the_whole_application() {
     assert_eq!(app.state().view, 0, "the click set the view");
     assert_eq!(px(&second), tex(&biomes, col, row), "the biomes' colour");
     assert_ne!(px(&second), tex(&heights, col, row), "and no longer the relief's");
+}
+
+// The 3D view's orbit.
+
+fn rig_3d(world: World) -> Rig {
+    Rig::new(world, PreviewState { view: 2, in3d: true, ..PreviewState::default() })
+}
+
+/// Lets the camera glide to rest, as the frames of the window do.
+fn rest(r: &mut Rig) -> nui_base::Vec3 {
+    let orbit = r.s.orbit.as_mut().expect("the orbit was made");
+    for _ in 0..600 {
+        if !scene::settle(orbit, &r.world, 1.0 / 60.0) {
+            return orbit.eye();
+        }
+    }
+    panic!("never came to rest");
+}
+
+fn yaw(eye: nui_base::Vec3) -> f32 {
+    eye.x.atan2(eye.z)
+}
+
+/// A press at `from`, a move to `to` in ten steps with a frame each, then the release and a frame.
+fn drag(r: &mut Rig, from: Vec2, to: Vec2) {
+    r.moved(from);
+    r.down(from);
+    r.frame();
+    for i in 1..=10 {
+        let t = i as f32 / 10.0;
+        r.moved(Vec2::new(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t));
+        r.frame();
+    }
+    r.up(to);
+    r.frame();
+}
+
+#[test]
+fn o1_a_drag_on_the_3d_view_turns_the_camera_by_a_full_turn_per_side() {
+    let Some(world) = load() else { return };
+    let mut r = rig_3d(world);
+    let (c, side) = (Vec2::new(r.relief().x + r.relief().w / 2.0, r.relief().y + r.relief().h / 2.0), r.relief().w);
+    let start = rest(&mut r);
+    drag(&mut r, c, Vec2::new(c.x - 100.0, c.y));
+    let eye = rest(&mut r);
+    let want = std::f32::consts::TAU * 100.0 / side;
+    assert!((yaw(eye) - want).abs() < 0.01, "yaw {} against {want}", yaw(eye));
+    assert!(eye.x > 0.0);
+    drag(&mut r, Vec2::new(c.x - 100.0, c.y), c);
+    let back = rest(&mut r);
+    assert!((back.x - start.x).abs() < 1.0, "right undoes left: {} against {}", back.x, start.x);
+}
+
+#[test]
+fn o2_a_press_outside_the_stage_does_not_turn() {
+    let Some(world) = load() else { return };
+    let mut r = rig_3d(world);
+    rest(&mut r);
+    let before = r.s.orbit.clone();
+    // The page's padding, then across the stage.
+    let (y, far) = (r.relief().y + 100.0, r.relief().x + r.relief().w + 50.0);
+    drag(&mut r, Vec2::new(10.0, y), Vec2::new(far, y));
+    rest(&mut r);
+    assert_eq!(r.s.orbit, before);
+    assert!(r.s.turn_from.is_none());
+}
+
+#[test]
+fn o3_the_wheel_over_the_stage_zooms_and_elsewhere_does_not() {
+    let Some(world) = load() else { return };
+    let mut r = rig_3d(world);
+    let before = {
+        let eye = rest(&mut r);
+        eye.length()
+    };
+    let c = Vec2::new(r.relief().x + r.relief().w / 2.0, r.relief().y + r.relief().h / 2.0);
+    r.moved(c);
+    r.ui.event(&Event::Wheel { pos: c, delta: 1.0 });
+    r.frame();
+    let after = rest(&mut r).length();
+    assert!((after / before - 0.95).abs() < 1e-3, "{after} / {before}");
+
+    let kept = r.s.orbit.clone();
+    let list = r.ui.rect(r.ids.band_scroll).expect("the list was built");
+    let p = Vec2::new(list.x + list.w / 2.0, list.y + list.h / 2.0);
+    r.moved(p);
+    r.ui.event(&Event::Wheel { pos: p, delta: 1.0 });
+    r.frame();
+    rest(&mut r);
+    assert_eq!(r.s.orbit, kept);
+}
+
+#[test]
+fn o4_a_drag_that_leaves_the_stage_keeps_turning_until_the_release() {
+    let Some(world) = load() else { return };
+    let mut r = rig_3d(world);
+    rest(&mut r);
+    let rect = r.relief();
+    // Starts 14 px inside the right edge and ends 86 px outside it.
+    let from = Vec2::new(rect.x + rect.w - 14.0, rect.y + 200.0);
+    drag(&mut r, from, Vec2::new(from.x + 100.0, from.y));
+    let eye = rest(&mut r);
+    let want = -std::f32::consts::TAU * 100.0 / rect.w;
+    assert!((yaw(eye) - want).abs() < 0.01, "yaw {} against {want}", yaw(eye));
 }

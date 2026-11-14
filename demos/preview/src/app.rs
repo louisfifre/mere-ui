@@ -1,14 +1,15 @@
-//! The preview as an application: the shell built every frame, and the map's picture painted and uploaded
-//! whenever what it shows changes.
+//! The preview as an application: the shell built every frame, the map's picture painted and uploaded whenever
+//! what it shows changes, and the 3D scene drawn into the stage's square under the interface.
 
 use std::collections::BTreeSet;
 use std::time::Instant;
 
 use nui_base::{App, DrawList, Event, Gfx, Vec2, observe};
-use nui_ui::{Theme, Ui};
+use nui_ui::{Id, Theme, Ui};
 
 use crate::map::MAP_IMAGE;
 use crate::paint::{View, paint};
+use crate::scene;
 use crate::shell::{PreviewState, ShellIds, build};
 use crate::world::World;
 
@@ -23,11 +24,13 @@ pub struct PreviewApp {
     /// What the uploaded picture was painted for: the view, the theme and the choice. None until a first
     /// upload, and again after `start`, because a rebuilt device has lost its images.
     painted: Option<(View, bool, BTreeSet<String>)>,
+    /// The interface list of the last frame, which a test draws alone to see what the scene covered.
+    last: DrawList,
 }
 
 impl PreviewApp {
     pub fn new(theme: Theme, dark: bool, size: Vec2, state: PreviewState, world: Option<World>) -> PreviewApp {
-        PreviewApp { ui: Ui::new(theme), theme, dark, size, state, world, ids: ShellIds::default(), painted: None }
+        PreviewApp { ui: Ui::new(theme), theme, dark, size, state, world, ids: ShellIds::default(), painted: None, last: DrawList::default() }
     }
 
     pub fn ui(&self) -> &Ui {
@@ -37,6 +40,16 @@ impl PreviewApp {
     /// Where the parts stood in the last build.
     pub fn ids(&self) -> &ShellIds {
         &self.ids
+    }
+
+    /// The interface list of the last frame (what is drawn over the 3D scene).
+    pub fn list(&self) -> &DrawList {
+        &self.last
+    }
+
+    /// The view the uploaded picture was painted for.
+    pub fn painted_view(&self) -> Option<View> {
+        self.painted.as_ref().map(|p| p.0)
     }
 
     pub fn state(&self) -> &PreviewState {
@@ -52,11 +65,12 @@ impl PreviewApp {
     }
 
     /// What the map's picture should be painted for now, or None when the frame shows no map picture (no
-    /// world, the 3D view, the section, or the structures' view of a preview without structures).
+    /// world, the section, or the structures' view of a preview without structures).
     fn wanted(&self) -> Option<(View, bool, BTreeSet<String>)> {
         let world = self.world.as_ref()?;
         let view = View::from_index(self.state.view)?;
-        if self.state.in3d || (view == View::Structures && world.structures.is_none()) {
+        // The 3D view drapes the same picture over the land.
+        if view == View::Structures && world.structures.is_none() {
             return None;
         }
         // The land under the marks does not change when the marks do, so the structures' key has no choice.
@@ -66,8 +80,12 @@ impl PreviewApp {
 }
 
 impl App for PreviewApp {
-    fn start(&mut self, _: &mut dyn Gfx) {
+    fn start(&mut self, gfx: &mut dyn Gfx) {
         self.painted = None;
+        // Also after a device rebuild, which has lost the meshes.
+        if let Some(world) = &self.world {
+            scene::upload(gfx, world);
+        }
     }
 
     fn event(&mut self, e: Event) -> bool {
@@ -78,7 +96,12 @@ impl App for PreviewApp {
         self.ui.event(&e)
     }
 
-    fn frame(&mut self, gfx: &mut dyn Gfx, _: f32) -> bool {
+    fn frame(&mut self, gfx: &mut dyn Gfx, seconds: f32) -> bool {
+        // Before building, so the frame shows the settled pose.
+        let moving = match (&mut self.state.orbit, &self.world) {
+            (Some(orbit), Some(world)) => scene::settle(orbit, world, seconds),
+            _ => false,
+        };
         gfx.begin(self.theme.ground);
         // The scrollbar's gutter comes a frame late, and a click changes the state after its widget was
         // built: build again until neither is pending, at most three times, so a picture shows the settled page.
@@ -110,8 +133,14 @@ impl App for PreviewApp {
                 self.painted = Some(key);
             }
         }
+        // The meshes come before the list: the interface is drawn over the scene, and the viewport clips it to the
+        // square.
+        if let (Some(rect), Some(orbit), Some((view, ..))) = (self.ui.rect(self.ids.relief).filter(|_| self.ids.relief != Id::ROOT), &self.state.orbit, &self.painted) {
+            scene::draw(gfx, rect, orbit, MAP_IMAGE, scene::water_alpha(*view));
+        }
         gfx.draw_list(&list);
+        self.last = list;
         gfx.end();
-        self.ui.want_redraw()
+        self.ui.want_redraw() || moving
     }
 }

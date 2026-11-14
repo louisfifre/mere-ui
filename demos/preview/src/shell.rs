@@ -3,12 +3,15 @@
 //! sections and static values.
 //!
 //! What is a PLACEHOLDER is marked so: the map slot (step 14 paints the map there), the figures, and the
-//! band widths and shares (step 18 computes them). Not built yet: changed marks, hints and tooltips, the
-//! select's menu, the ores group, the filter, the tabs that switch the list, the map, runs and export.
+//! band widths and shares (step 18 computes them), and the section's slot (step 16). Step 15 puts the 3D view in
+//! the frame: a canvas that takes the orbit's drag and wheel, the scene itself is drawn by the app under the
+//! interface list. Not built yet: changed marks, hints and tooltips, the select's menu, the ores group, the
+//! filter, the tabs that switch the list, the section, runs and export; in 3D, the structure marks, the right-drag
+//! pan, keys and touch, and the no3d note.
 
 use std::collections::BTreeSet;
 
-use nui_base::{Color, DrawList, Vec2};
+use nui_base::{Color, DrawList, Orbit, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
     ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, RowOpts, ScrollOpts, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
@@ -17,6 +20,7 @@ use nui_ui::{
 
 use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
 use crate::paint::{View, rows};
+use crate::scene;
 use crate::world::World;
 use crate::bands::{BAND_FIGURES, HEIGHT_STEPS, SEA, SEA_DEPTHS, band_colours, band_names};
 use crate::settings::{Kind, SETTINGS, grouped, pack_values};
@@ -82,6 +86,11 @@ pub struct PreviewState {
     pub carry: Option<Carry>,
     /// What is chosen in each of the five views (by id): what the map shows alone.
     pub chosen: [BTreeSet<String>; 5],
+    /// The 3D camera: made when the 3D view is first built, and kept across view and shape switches (the page
+    /// resets it only when the area's width changes, line 1873).
+    pub orbit: Option<Orbit>,
+    /// Where the pointer was at the last frame of a press that began on the 3D view.
+    pub turn_from: Option<Vec2>,
 }
 
 impl Default for PreviewState {
@@ -102,6 +111,8 @@ impl Default for PreviewState {
             look: Look::REST,
             carry: None,
             chosen: Default::default(),
+            orbit: None,
+            turn_from: None,
         }
     }
 }
@@ -135,6 +146,8 @@ pub struct ShellIds {
     pub frame: Id,
     /// The map itself (a canvas), when the frame holds one.
     pub map: Id,
+    /// The 3D view's square (a canvas), when the frame holds one; the app draws the scene into its rect.
+    pub relief: Id,
     pub under: Id,
     pub probe: Id,
     /// What the probe line says, whole (the line itself is cut with an ellipsis when it does not fit).
@@ -176,6 +189,7 @@ impl Default for ShellIds {
             stage: o,
             frame: o,
             map: o,
+            relief: o,
             under: o,
             probe: o,
             probe_text: String::new(),
@@ -293,12 +307,15 @@ fn toolbar(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<
                     s.view = i;
                 }
             }
-            ui.strip_gap();
-            for (i, word) in text::SHAPES.iter().enumerate() {
-                let r = ui.tab(&format!("shape{i}"), word, TabLook::Strip, TabOpts { pressed: (i == 1) == s.in3d, disabled: false });
-                ids.tabs.push(r.id);
-                if r.clicked {
-                    s.in3d = i == 1;
+            // The section has no 2D or 3D (line 2540): the tabs and the gap before them are not built.
+            if s.view != 5 {
+                ui.strip_gap();
+                for (i, word) in text::SHAPES.iter().enumerate() {
+                    let r = ui.tab(&format!("shape{i}"), word, TabLook::Strip, TabOpts { pressed: (i == 1) == s.in3d, disabled: false });
+                    ids.tabs.push(r.id);
+                    if r.clicked {
+                        s.in3d = i == 1;
+                    }
                 }
             }
         });
@@ -430,10 +447,11 @@ fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
             let slot = Style { w: Dim::Px(side), h: Dim::Px(side), shrink: 0.0, ..Style::default() };
             match (world, view) {
                 (None, _) => note(ui, text::NO_PREVIEW),
-                // PLACEHOLDER: the 3D view and the section draw here in steps 15 and 16.
+                // PLACEHOLDER: the section draws here in step 16.
                 (Some(_), None) => ui.fill(slot, t.line),
-                (Some(_), Some(_)) if s.in3d => ui.fill(slot, t.line),
+                // Before the 3D view: a world without structures has nothing to drape (line 2521).
                 (Some(w), Some(View::Structures)) if w.structures.is_none() => note(ui, text::NO_STRUCTURES),
+                (Some(w), Some(_)) if s.in3d => ids.relief = relief_canvas(ui, s, side, w),
                 (Some(w), Some(view)) => ids.map = map_canvas(ui, s, t, side, w, view),
             }
             // `#under` (line 260): 10 px below the map, as wide as it.
@@ -553,6 +571,37 @@ fn map_canvas(ui: &mut Ui, s: &mut PreviewState, t: &Theme, side: f32, world: &W
     });
     resp.id
 }
+/// The 3D view: a canvas that takes the orbit's drag and wheel. It draws nothing itself, because the scene is a mesh
+/// the app draws into this rect before the interface list (the page's #relief, absolutely over the frame).
+/// Returns its id.
+fn relief_canvas(ui: &mut Ui, s: &mut PreviewState, side: f32, world: &World) -> Id {
+    let style = Style { w: Dim::Px(side), h: Dim::Px(side), shrink: 0.0, ..Style::default() };
+    let resp = ui.canvas("relief", style, |ui, resp| {
+        let orbit = s.orbit.get_or_insert_with(|| scene::orbit(world, None));
+        if let Some(rect) = resp.rect {
+            if let Some((notches, _)) = ui.take_wheel(resp.id) {
+                orbit.zoom(notches);
+            }
+            let pointer = ui.pointer();
+            if resp.pressed {
+                s.turn_from = pointer;
+            }
+            // Read until the press is over, not only while held, so the last movement before the release counts
+            // (as the map does). A drag that leaves the square keeps turning: OrbitControls captures the pointer.
+            if let (Some(from), Some(p)) = (s.turn_from, pointer) {
+                // OrbitControls turns a full circle per clientHeight of its canvas: the square's side.
+                orbit.drag(p.x - from.x, p.y - from.y, rect.h);
+                s.turn_from = Some(p);
+            }
+            if !resp.held {
+                s.turn_from = None;
+            }
+        }
+        Vec::new()
+    });
+    resp.id
+}
+
 /// The right column (lines 429-449): the figures and the history, then the list of height bands.
 fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns) {
     let body = TextLook::body(Tone::Text);
