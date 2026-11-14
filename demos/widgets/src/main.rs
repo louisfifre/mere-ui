@@ -1,12 +1,13 @@
-//! widgets [--controls | --fields] [--light] [--shot out.png]
+//! widgets [--controls | --fields | --lists] [--light] [--shot out.png]
 //!
 //! Without --shot, opens a window with the live widgets (--controls: the folds, tabs and number fields;
-//! --fields: the text and number fields, typed into for real). With it, draws one frame offscreen and writes
+//! --fields: the text and number fields, typed into for real; --lists: the biome list with its scrollbar,
+//! the wheel and the thumb working, and the trend rows). With it, draws one frame offscreen and writes
 //! the PNG: the same frame the window would show.
 
-use nui_base::{App, Event, Gfx, Vec2, log};
+use nui_base::{App, DrawList, Event, Gfx, Vec2, log};
 use nui_ui::{Theme, Ui};
-use widgets::{CONTROLS, ControlsState, FIELDS, FieldsState, SHEET, controls_live, fields_live, live, text};
+use widgets::{CONTROLS, ControlsState, FIELDS, FieldsState, LISTS, ListsState, SHEET, controls_live, fields_live, live, lists_live, lists_marks, text};
 
 struct Widgets {
     ui: Ui,
@@ -15,6 +16,7 @@ struct Widgets {
     ons: [bool; 2],
     controls: Option<ControlsState>,
     fields: Option<FieldsState>,
+    lists: Option<ListsState>,
 }
 
 impl App for Widgets {
@@ -30,13 +32,26 @@ impl App for Widgets {
 
     fn frame(&mut self, gfx: &mut dyn Gfx, _: f32) -> bool {
         gfx.begin(self.theme.ground);
-        self.ui.begin_frame(self.size);
-        match (&mut self.controls, &mut self.fields) {
-            (Some(s), _) => controls_live(&mut self.ui, s),
-            (_, Some(s)) => fields_live(&mut self.ui, s),
-            _ => live(&mut self.ui, &mut self.ons),
+        // The scrollbar's gutter is reserved a frame after the list overflows: the lists page builds again
+        // before drawing, so that a picture (which is one frame) shows the settled page.
+        let mut list = DrawList::default();
+        for _ in 0..3 {
+            self.ui.begin_frame(self.size);
+            match (&mut self.controls, &mut self.fields, &mut self.lists) {
+                (Some(s), _, _) => controls_live(&mut self.ui, s),
+                (_, Some(s), _) => fields_live(&mut self.ui, s),
+                (_, _, Some(s)) => lists_live(&mut self.ui, s),
+                _ => live(&mut self.ui, &mut self.ons),
+            }
+            list = self.ui.end_frame().clone();
+            if self.lists.is_none() || !self.ui.want_redraw() {
+                break;
+            }
         }
-        gfx.draw_list(self.ui.end_frame());
+        gfx.draw_list(&list);
+        if let Some(s) = &self.lists {
+            gfx.draw_list(&lists_marks(&self.ui, s, self.theme));
+        }
         gfx.end();
         // A Tab moves the focus after the picture is made: one more frame shows it.
         self.ui.want_redraw()
@@ -44,24 +59,25 @@ impl App for Widgets {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: widgets [--controls | --fields] [--light] [--shot out.png]");
+    eprintln!("usage: widgets [--controls | --fields | --lists] [--light] [--shot out.png]");
     std::process::exit(2);
 }
 
 fn main() {
     log::add_sink(log::stderr_sink(log::Level::Info));
-    let (mut light, mut shot, mut controls, mut fields) = (false, None, false, false);
+    let (mut light, mut shot, mut controls, mut fields, mut lists) = (false, None, false, false, false);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--light" => light = true,
             "--controls" => controls = true,
             "--fields" => fields = true,
+            "--lists" => lists = true,
             "--shot" => shot = Some(args.next().unwrap_or_else(|| usage())),
             _ => usage(),
         }
     }
-    if controls && fields {
+    if [controls, fields, lists].iter().filter(|b| **b).count() > 1 {
         usage();
     }
     let theme = if light { Theme::light() } else { Theme::dark() };
@@ -69,6 +85,8 @@ fn main() {
         CONTROLS
     } else if fields {
         FIELDS
+    } else if lists {
+        LISTS
     } else {
         SHEET
     };
@@ -81,6 +99,7 @@ fn main() {
         ons: [false, true],
         controls: controls.then(ControlsState::default),
         fields: fields.then(FieldsState::default),
+        lists: lists.then(ListsState::default),
     };
     match shot {
         Some(path) => {

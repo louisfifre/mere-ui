@@ -99,4 +99,12 @@ pub const SCRIPT: [&str; 13] = [
     "Ctrl+A",
     "Escape",
 ];
+/// Line 508, `lists.biomes[1]`: the legend's first column word.
+pub const COL_BIOME: &str = "biome";
+/// Line 520, `colWidth`.
+pub const COL_WIDTH: &str = "typical width";
+/// Line 521, `colShare`.
+pub const COL_SHARE: &str = "share";
+/// Lines 605-609, `figureNames`: flat, expanse, typical, ocean, high.
+pub const FIGURE_NAMES: [&str; 5] = ["Flat land", "Typical flat zone", "Typical biome", "Sea", "High land"];
 pub const WINDOW_TITLE: &str = "Widgets";
