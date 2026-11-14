@@ -11,6 +11,10 @@ pub struct Orbit {
     now: Pose,
     pub fov_y: f32,
     pub near: f32,
+    /// How far the wheel can take the camera out; without it the area dwindles to a speck.
+    pub max_distance: f32,
+    /// How close it can come: the applications set it to what their data still shows as more than a blur.
+    pub min_distance: f32,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -38,7 +42,7 @@ impl Orbit {
             pitch: (d.y / distance).asin().clamp(PITCH_MIN, PITCH_MAX),
             distance,
         };
-        Orbit { target, goal: pose, now: pose, fov_y: 50f32.to_radians(), near: 10.0 }
+        Orbit { target, goal: pose, now: pose, fov_y: 50f32.to_radians(), near: 10.0, max_distance: distance * 2.0, min_distance: 40.0 }
     }
 
     pub fn drag(&mut self, dx: f32, dy: f32) {
@@ -48,7 +52,7 @@ impl Orbit {
 
     /// One wheel notch is `delta` 1; positive comes closer.
     pub fn zoom(&mut self, delta: f32) {
-        self.goal.distance = (self.goal.distance * 0.9f32.powf(delta)).max(self.near * 4.0);
+        self.goal.distance = (self.goal.distance * 0.9f32.powf(delta)).clamp(self.min_distance, self.max_distance);
     }
 
     /// Moves towards the goal; true while still moving.
@@ -67,6 +71,25 @@ impl Orbit {
             self.now = self.goal;
         }
         !close
+    }
+
+    /// Lifts the camera, current and goal, so it stays above a surface: loor(x, z) is the lowest height
+    /// the eye may have there, or 32::NEG_INFINITY where there is none. It first tilts the camera up
+    /// round the target, and when even straight above is too low, backs it away.
+    pub fn keep_above(&mut self, floor: &dyn Fn(f32, f32) -> f32) {
+        let target = self.target;
+        let lift = |p: &mut Pose| {
+            let at = |p: &Pose| target + Vec3::new(p.pitch.cos() * p.yaw.sin(), p.pitch.sin(), p.pitch.cos() * p.yaw.cos()) * p.distance;
+            let eye = at(p);
+            let need = floor(eye.x, eye.z) - target.y;
+            if need > eye.y - target.y {
+                p.pitch = (need / p.distance).clamp(-1.0, 1.0).asin().clamp(p.pitch, PITCH_MAX);
+                // Straight above is the highest it can tilt: past that, the distance has to grow.
+                p.distance = p.distance.max(need / p.pitch.sin());
+            }
+        };
+        lift(&mut self.goal);
+        lift(&mut self.now);
     }
 
     pub fn eye(&self) -> Vec3 {

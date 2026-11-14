@@ -56,6 +56,24 @@ impl World {
         self.samples as f32 * self.step
     }
 
+    /// The ground's height under (x, z) of the centred square, between the four nearest points as the
+    /// mesh's triangles do closely enough; None outside the square.
+    pub fn ground_at(&self, x: f32, z: f32) -> Option<f32> {
+        let n = self.samples;
+        let half = (n - 1) as f32 * self.step / 2.0;
+        let (c, r) = ((x + half) / self.step, (z + half) / self.step);
+        let top = (n - 1) as f32;
+        if !(0.0..=top).contains(&c) || !(0.0..=top).contains(&r) {
+            return None;
+        }
+        let (c0, r0) = ((c.floor() as usize).min(n - 2), (r.floor() as usize).min(n - 2));
+        let (fc, fr) = (c - c0 as f32, r - r0 as f32);
+        let h = |col: usize, row: usize| self.heights[row * n + col] as f32;
+        let north = h(c0, r0) + (h(c0 + 1, r0) - h(c0, r0)) * fc;
+        let south = h(c0, r0 + 1) + (h(c0 + 1, r0 + 1) - h(c0, r0 + 1)) * fc;
+        Some(north + (south - north) * fr)
+    }
+
     pub fn height_range(&self) -> (i16, i16) {
         let lo = self.heights.iter().copied().min().unwrap_or(0);
         let hi = self.heights.iter().copied().max().unwrap_or(0);

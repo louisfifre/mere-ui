@@ -9,6 +9,9 @@ const LAND: MeshId = MeshId(1);
 const WATER: MeshId = MeshId(2);
 const MAP: ImageId = ImageId(1);
 
+// Blocks kept between the camera and the ground under it.
+const MARGIN: f32 = 24.0;
+
 // The page's colours: its black ground (the dark theme's --ground), its water, and the interface's hairline,
 // text and muted text.
 const GROUND: Color = Color::hex(0x000000);
@@ -30,7 +33,10 @@ impl Relief {
     pub fn new(world: World) -> Relief {
         // The page starts far and high enough to hold the whole square, its near edge included.
         let w = world.width();
-        let orbit = Orbit::new(Vec3::default(), Vec3::new(0.0, 1.1 * w, w));
+        let mut orbit = Orbit::new(Vec3::default(), Vec3::new(0.0, 1.1 * w, w));
+        // The page's target sits at height 0, well under the land: closer than this the camera is lifted to
+        // clear the ground and looks at one huge triangle, which says nothing.
+        orbit.min_distance = world.step * 40.0;
         Relief { world, orbit, drag_from: None }
     }
 
@@ -91,6 +97,10 @@ impl App for Relief {
         let s = gfx.scale();
         let (w, h) = (wp as f32 / s, hp as f32 / s);
         let moving = self.orbit.step(seconds);
+        // A block and a half of air over the ground: the near plane is ten blocks, and the camera must not
+        // pass through the land it is turning round.
+        let world = &self.world;
+        self.orbit.keep_above(&|x, z| world.ground_at(x, z).map_or(f32::NEG_INFINITY, |g| g + MARGIN));
         gfx.begin(GROUND);
         if w > 0.0 && h > 0.0 {
             let view_proj = self.orbit.view_proj(w / h);
@@ -102,5 +112,143 @@ impl App for Relief {
         gfx.draw_list(&self.overlay());
         gfx.end();
         moving
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nui_win32::Renderer;
+    use std::f32::consts::FRAC_PI_2;
+    use std::path::Path;
+
+    const DATA: &str = r"C:\Games\preview\out";
+    const SIZE: (u32, u32) = (960, 600);
+
+    fn app() -> Option<(Relief, Renderer)> {
+        let dir = Path::new(DATA);
+        if !dir.join("preview.json").exists() {
+            return None;
+        }
+        let mut app = Relief::new(World::load(dir).unwrap());
+        let mut r = Renderer::offscreen(SIZE.0, SIZE.1, 1.0).unwrap();
+        app.start(&mut r);
+        app.event(Event::Resized { width_px: SIZE.0, height_px: SIZE.1, scale: 1.0 });
+        Some((app, r))
+    }
+
+    /// Draws frames until the camera has glided to rest, as the window does, then saves the last one.
+    fn shot(app: &mut Relief, r: &mut Renderer, name: &str) {
+        let mut frames = 0;
+        while app.frame(r, 1.0 / 60.0) {
+            frames += 1;
+            assert!(frames < 600, "{name}: never came to rest");
+        }
+        let path = format!("{}/../../target/tmp/interact-{name}.png", env!("CARGO_MANIFEST_DIR"));
+        std::fs::create_dir_all(Path::new(&path).parent().unwrap()).unwrap();
+        std::fs::write(&path, nui_png::encode(SIZE.0, SIZE.1, &r.read_rgba().unwrap())).unwrap();
+    }
+
+    fn drag(app: &mut Relief, from: Vec2, to: Vec2) {
+        app.event(Event::PointerDown { pos: from, button: Button::Left });
+        // In small steps, like a real hand.
+        for i in 1..=10 {
+            let t = i as f32 / 10.0;
+            app.event(Event::PointerMoved { pos: Vec2::new(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t) });
+        }
+        app.event(Event::PointerUp { pos: to, button: Button::Left });
+    }
+
+    /// Lets the glide finish the way frames do, and checks the camera is above the ground and not too far.
+    fn rest(app: &mut Relief) -> Vec3 {
+        let mut frames = 0;
+        loop {
+            let moving = app.orbit.step(1.0 / 60.0);
+            let world = &app.world;
+            app.orbit.keep_above(&|x, z| world.ground_at(x, z).map_or(f32::NEG_INFINITY, |g| g + MARGIN));
+            frames += 1;
+            assert!(frames < 600, "never came to rest");
+            if !moving {
+                break;
+            }
+        }
+        let eye = app.orbit.eye();
+        if let Some(g) = app.world.ground_at(eye.x, eye.z) {
+            assert!(eye.y >= g + MARGIN - 0.5, "camera under the ground: {eye:?} over {g}");
+        }
+        assert!((eye - app.orbit.target).length() <= app.orbit.max_distance * 1.001, "too far");
+        eye
+    }
+
+    #[test]
+    fn the_camera_answers_the_hand_as_orbit_controls_does() {
+        let Some((mut app, mut r)) = app() else { return };
+        shot(&mut app, &mut r, "0-start");
+        let start = app.orbit.eye();
+        assert!(start.x.abs() < 1.0 && start.y > 0.0 && start.z > 0.0);
+
+        // Dragging right: three.js lowers the camera's angle round the vertical, so the camera goes to -x
+        // and the scene seems to turn to the right.
+        drag(&mut app, Vec2::new(600.0, 300.0), Vec2::new(300.0, 300.0));
+        // Left by 300 px: the camera goes to +x.
+        let left = rest(&mut app);
+        assert!(left.x > 0.0, "a drag to the left must bring the camera to +x, got {left:?}");
+        shot(&mut app, &mut r, "1-drag-left");
+        drag(&mut app, Vec2::new(300.0, 300.0), Vec2::new(600.0, 300.0));
+        let back = rest(&mut app);
+        assert!((back.x - start.x).abs() < 1.0 && (back.z - start.z).abs() < 1.0, "right undoes left");
+        let height = back.y;
+
+        // Dragging down lifts the camera in three.js; dragging up lowers it, down to the limit.
+        drag(&mut app, Vec2::new(300.0, 100.0), Vec2::new(300.0, 500.0));
+        let up = rest(&mut app);
+        assert!(up.y > height, "a drag down must lift the camera");
+        assert!(up.y / (up - app.orbit.target).length() <= (FRAC_PI_2 - 0.02).sin() + 1e-4, "pitch passes the limit");
+        drag(&mut app, Vec2::new(300.0, 500.0), Vec2::new(300.0, 0.0));
+        drag(&mut app, Vec2::new(300.0, 600.0), Vec2::new(300.0, 0.0));
+        drag(&mut app, Vec2::new(300.0, 600.0), Vec2::new(300.0, 0.0));
+        let low = rest(&mut app);
+        shot(&mut app, &mut r, "2-drag-up-to-limit");
+        assert!(low.y > 0.0, "the camera went under the horizon");
+
+        let before = (rest(&mut app) - app.orbit.target).length();
+        for _ in 0..5 {
+            app.event(Event::Wheel { pos: Vec2::new(480.0, 300.0), delta: 1.0 });
+        }
+        let near = (rest(&mut app) - app.orbit.target).length();
+        assert!(near < before, "wheel forward must come closer");
+        shot(&mut app, &mut r, "3-wheel-in-5");
+        for _ in 0..20 {
+            app.event(Event::Wheel { pos: Vec2::new(480.0, 300.0), delta: -1.0 });
+        }
+        let far = (rest(&mut app) - app.orbit.target).length();
+        assert!(far > near);
+        shot(&mut app, &mut r, "4-wheel-out-20");
+
+        // Far in: the camera must stay above the ground it looks at, and not vanish.
+        for _ in 0..200 {
+            app.event(Event::Wheel { pos: Vec2::new(480.0, 300.0), delta: 1.0 });
+        }
+        let close = rest(&mut app);
+        shot(&mut app, &mut r, "5-wheel-in-max");
+        assert!(close.is_finite_all());
+
+        // A smaller window keeps the picture right: same scene, new aspect.
+        app.event(Event::Resized { width_px: 480, height_px: 600, scale: 1.0 });
+        r.resize(480, 600, 1.0).unwrap();
+        while app.frame(&mut r, 1.0 / 60.0) {}
+        let small = r.read_rgba().unwrap();
+        assert_eq!(small.len(), 480 * 600 * 4);
+        let path = format!("{}/../../target/tmp/interact-6-resized.png", env!("CARGO_MANIFEST_DIR"));
+        std::fs::write(&path, nui_png::encode(480, 600, &small)).unwrap();
+    }
+
+    trait Finite {
+        fn is_finite_all(&self) -> bool;
+    }
+    impl Finite for Vec3 {
+        fn is_finite_all(&self) -> bool {
+            self.x.is_finite() && self.y.is_finite() && self.z.is_finite()
+        }
     }
 }
