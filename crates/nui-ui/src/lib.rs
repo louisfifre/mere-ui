@@ -5,7 +5,7 @@
 //! 1. `Ui::event` for every event received since the last frame (pointer state is only stored);
 //! 2. `Ui::begin_frame(size)`;
 //! 3. the application's calls: `node`, `label`, `button`, `toggle`, `fold`, `tab`, `detail_tab`, `number`,
-//!    `text_field`...
+//!    `text_field`, `ellipsis`, `scroll`, `list_row`, `list_head`, `trend_row`...
 //!    Each widget answers with what the
 //!    pointer did to it, judged against where the widget stood in the LAST frame (what the person saw and
 //!    pointed at), so the first frame of a widget has no interaction;
@@ -20,6 +20,8 @@ mod fold;
 mod id;
 mod input;
 mod number;
+mod list;
+mod scroll;
 mod tab;
 mod text;
 mod theme;
@@ -28,7 +30,9 @@ mod widgets;
 
 pub use edit::MemoryClipboard;
 pub use field::{FieldLook, FieldOpts, FieldResp};
+pub use list::{ListRow, RowOpts};
 pub use number::NumberSpec;
+pub use scroll::{GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, WHEEL_STEP, scroll_style};
 pub use fold::FoldOpts;
 pub use id::Id;
 pub use input::Input;

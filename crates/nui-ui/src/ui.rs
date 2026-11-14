@@ -9,6 +9,7 @@ use crate::edit::MemoryClipboard;
 use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::id::Id;
 use crate::input::Input;
+use crate::scroll::{ScrollMetrics, ScrollPaint, thumb_rect};
 use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading};
 use crate::theme::Theme;
 
@@ -30,6 +31,8 @@ pub(crate) enum Paint {
     Text { text: String, look: TextLook, color: Color, underline: bool, ellipsis: bool },
     /// A text field: its own frame, clip, selection, text and caret (field.rs).
     Field(Box<FieldPaint>),
+    /// A scroll area: it offsets its children and draws its thumb and fade after them (scroll.rs).
+    Scroll(ScrollPaint),
 }
 
 pub struct Ui {
@@ -50,7 +53,12 @@ pub struct Ui {
     /// clipping ancestor): what the pointer can reach. A row scrolled out of sight takes no hover.
     hits: HashMap<Id, Rect>,
     /// The widget the pressed button went down on.
-    active: Option<Id>,
+    pub(crate) active: Option<Id>,
+    /// How far below the top of the scrollbar thumb the pointer took hold of it. Only one drag at a time,
+    /// like the focus, so one value serves every scroll area.
+    pub(crate) grab: Option<f32>,
+    /// What each scroll area measured in the LAST frame.
+    pub(crate) scrolls: HashMap<Id, ScrollMetrics>,
     list: DrawList,
     size: Vec2,
     /// Keys and characters since the last frame, in arrival order, for the focused field.
@@ -83,6 +91,8 @@ impl Ui {
             rects: HashMap::new(),
             hits: HashMap::new(),
             active: None,
+            grab: None,
+            scrolls: HashMap::new(),
             list: DrawList::default(),
             size: Vec2::new(0.0, 0.0),
             typed: Vec::new(),
@@ -172,7 +182,15 @@ impl Ui {
         let mut abs = vec![Rect::default(); self.paints.len()];
         let mut vis = vec![Rect::default(); self.paints.len()];
         let window = Rect::new(0.0, 0.0, self.size.x, self.size.y);
-        let mut painter = Painter { tree: &self.tree, paints: &self.paints, list: &mut self.list, abs: &mut abs, vis: &mut vis };
+        self.scrolls.clear();
+        let mut painter = Painter {
+            tree: &self.tree,
+            paints: &self.paints,
+            list: &mut self.list,
+            abs: &mut abs,
+            vis: &mut vis,
+            scrolls: &mut self.scrolls,
+        };
         painter.node(self.root, Vec2::new(0.0, 0.0), window);
         self.rects.clear();
         self.hits.clear();
@@ -183,6 +201,17 @@ impl Ui {
         // A release ends any press; a widget that vanished cannot be released on.
         if self.input.released || self.active.is_some_and(|a| !self.seen.contains(&a)) {
             self.active = None;
+        }
+        if self.active.is_none() {
+            self.grab = None;
+        }
+        // The gutter is reserved from what the last frame measured, so a list that just grew past its box
+        // (or shrank under it) is one frame late: ask for one more.
+        for (id, m) in &self.scrolls {
+            if m.overflow != m.gutter {
+                observe!(Debug, "scroll {:x}: overflow {}, one more frame", id.0, m.overflow);
+                self.redraw = true;
+            }
         }
         self.settle_focus();
         self.typed.clear();
@@ -243,6 +272,11 @@ impl Ui {
     /// container is already open.
     pub(crate) fn restyle(&mut self, n: NodeId, style: Style) {
         *self.tree.style_mut(n) = style;
+    }
+
+    /// Replaces a node's paint once the widget knows its final state (a scroll area's offset, after its body).
+    pub(crate) fn set_paint(&mut self, n: NodeId, paint: Paint) {
+        self.paints[n.0] = paint;
     }
 
     pub(crate) fn close(&mut self) {
@@ -323,6 +357,8 @@ struct Painter<'a> {
     abs: &'a mut [Rect],
     /// `abs` cut to the clips of the ancestors: the part that can be seen and pointed at.
     vis: &'a mut [Rect],
+    /// Filled for every scroll area painted.
+    scrolls: &'a mut HashMap<Id, ScrollMetrics>,
 }
 
 impl Painter<'_> {
@@ -338,8 +374,21 @@ impl Painter<'_> {
         if clips {
             self.list.push_clip(r);
         }
-        match &self.paints[n.0] {
+        // A copy of the shared slice, so that what is matched does not keep `self` borrowed.
+        let paints = self.paints;
+        let mut kid_origin = Vec2::new(r.x, r.y);
+        let mut scrolled = None;
+        match &paints[n.0] {
             Paint::None => {}
+            Paint::Scroll(s) => {
+                let content_h = self.tree.content_size(n).y;
+                let max = (content_h - r.h).max(0.0);
+                let off = s.y.clamp(0.0, max);
+                // The children are laid out from the top; moving their origin puts the offset into the
+                // rects recorded for them, so hit tests see where they are drawn.
+                kid_origin.y -= off;
+                scrolled = Some((s, content_h, max, off));
+            }
             Paint::Box { fill, frame } => {
                 if let Some(c) = fill {
                     self.list.fill(r, *c);
@@ -384,10 +433,27 @@ impl Painter<'_> {
         let kids = tree.children(n);
         let flow = |c: &&NodeId| tree.style(**c).position == Position::Static;
         for &c in kids.iter().filter(flow) {
-            self.node(c, Vec2::new(r.x, r.y), child_clip);
+            self.node(c, kid_origin, child_clip);
         }
         for &c in kids.iter().filter(|c| !flow(c)) {
-            self.node(c, Vec2::new(r.x, r.y), child_clip);
+            self.node(c, kid_origin, child_clip);
+        }
+        if let Some((s, content_h, max, off)) = scrolled {
+            let overflow = content_h > r.h + 0.5;
+            // The thumb, then the mask over it: the CSS mask fades the scrollbar with the content.
+            if overflow {
+                self.list.fill(thumb_rect(r, content_h, max, off), s.thumb);
+            }
+            // The ground is opaque behind the list, so laying it over in 1 px bands of rising opacity equals
+            // the page's `mask-image` gradient, quantised per band.
+            for i in 0..s.fade as usize {
+                let band = Rect::new(r.x, r.y + r.h - s.fade + i as f32, r.w, 1.0);
+                self.list.fill(band, s.ground.with_alpha((i as f32 + 0.5) / s.fade));
+            }
+            self.scrolls.insert(
+                s.id,
+                ScrollMetrics { visible: self.vis[n.0], view: r, content_h, max, off, overflow, gutter: s.gutter },
+            );
         }
         if clips {
             self.list.pop_clip();
