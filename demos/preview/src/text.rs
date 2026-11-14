@@ -110,3 +110,99 @@ pub fn pretty(id: &str) -> String {
         None => String::new(),
     }
 }
+
+/// Line 620.
+pub const NO_SECTION: &str = "No section for this preview. Generate it again.";
+/// Line 621.
+pub const NEXT_CUT: &str = "Another cut";
+
+/// Line 623: `at` and `of` are printed as they are, `z`, `from` and `to` already formatted.
+pub fn cut_rest(at: usize, of: usize, z: &str, from: &str, to: &str) -> String {
+    format!("Cut {at} of {of}, west to east at z {z}, x {from} to {to}. True scale. Wheel: closer.")
+}
+
+/// Line 624.
+pub fn nav_note(times: &str) -> String {
+    format!("The whole cut, heights \u{d7} {times}. Click or drag the frame to look along it.")
+}
+
+/// Line 625: three spaces between the fields. `y` is a whole number of blocks.
+pub fn cut_probe(x: &str, y: f64, depth: &str, what: &str, biome: &str) -> String {
+    format!("x {x}   height {y}   {depth}   {what}   {biome}")
+}
+
+/// Line 626: `depth` is a whole number of blocks.
+pub fn cut_depth(depth: f64) -> String {
+    if depth > 0.0 { format!("{depth} under the ground") } else { "above the ground".to_string() }
+}
+
+/// Line 627, indexed by the cell: air, rock, water, lava.
+pub const CUT_CELLS: [&str; 4] = ["Air", "Rock", "Water", "Lava"];
+/// Line 628.
+pub const CUT_EARTH: &str = "Top layers";
+/// Line 629, in `section::ORE_KINDS` order.
+pub const ORES: [&str; 8] = ["Coal", "Copper", "Iron", "Gold", "Lapis", "Redstone", "Diamond", "Emerald"];
+/// Line 630: the list's title and the name of its first column.
+pub const ORE_LIST: [&str; 2] = ["Ores", "ore"];
+/// Line 631.
+pub const ORE_COLUMNS: [&str; 2] = ["low ground", "high ground"];
+/// Line 633.
+pub const ORE_PICK_HINT: &str = "Click an ore to see it alone.";
+
+/// Line 635.
+pub fn ore_unplayed(count: usize) -> String {
+    format!("{count} ore rules use a placement step this page cannot play: they are left out.")
+}
+
+/// Line 652 with `digits` fraction digits: `toLocaleString('en-US', { minimumFractionDigits: digits,
+/// maximumFractionDigits: digits })`, halves away from zero, computed on the double as it is. UNVERIFIED for the
+/// exact binary halves (Intl may round on the shortest decimal of the double instead); the Node test compares
+/// the strings of the real data.
+pub fn num_digits(v: f64, digits: usize) -> String {
+    let scale = 10f64.powi(digits as i32);
+    let r = (v.abs() * scale + 0.5).floor() as u64;
+    let unit = scale as u64;
+    let whole = (r / unit).to_string();
+    let mut out = String::new();
+    for (i, c) in whole.chars().enumerate() {
+        if i > 0 && (whole.len() - i) % 3 == 0 {
+            out.push(',');
+        }
+        out.push(c);
+    }
+    if digits > 0 {
+        out.push_str(&format!(".{:0width$}", r % unit, width = digits));
+    }
+    if v < 0.0 && r != 0 { format!("-{out}") } else { out }
+}
+
+/// Line 2303: how many times the heights are stretched, with a decimal below 1.95 and whole above.
+pub fn times(v: f64) -> String {
+    if v < 1.95 { num_digits(v, 1) } else { num((v + 0.5).floor()) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn numbers_are_written_as_the_page_writes_them() {
+        assert_eq!(num_digits(1234.56, 1), "1,234.6");
+        assert_eq!(num_digits(0.04, 1), "0.0");
+        assert_eq!(num_digits(-0.04, 1), "0.0", "no minus sign on a zero");
+        assert_eq!(num_digits(-1500.25, 1), "-1,500.3");
+        assert_eq!(num_digits(7.0, 0), "7");
+        assert_eq!(times(1.3), "1.3");
+        assert_eq!(times(1.94), "1.9");
+        assert_eq!(times(12.4), "12");
+        assert_eq!(times(1.95), "2");
+        assert_eq!(nav_note("12"), "The whole cut, heights \u{d7} 12. Click or drag the frame to look along it.");
+    }
+
+    #[test]
+    fn the_cut_speaks_as_the_page_does() {
+        assert_eq!(cut_rest(1, 4, "-1,504", "-2,048", "2,048"), "Cut 1 of 4, west to east at z -1,504, x -2,048 to 2,048. True scale. Wheel: closer.");
+        assert_eq!(cut_probe("-100", 12.0, &cut_depth(5.0), "Rock", "Plains"), "x -100   height 12   5 under the ground   Rock   Plains");
+        assert_eq!(cut_depth(0.0), "above the ground");
+        assert_eq!(cut_depth(-3.0), "above the ground");
+    }
+}
