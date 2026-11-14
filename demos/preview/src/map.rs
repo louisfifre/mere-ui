@@ -96,10 +96,10 @@ pub fn structure_near(world: &World, chosen: &BTreeSet<String>, look: Look, side
     best
 }
 
-/// Where the cut's tick sits as a fraction of the frame, when the page shows it (`showCutLine`, 1789-1795):
-/// the world has a cut and the tick lies within the frame after the look.
-pub fn tick_at(world: &World, look: Look) -> Option<f32> {
-    let at = (world.cut_z? - world.origin_z) / world.span();
+/// Where the tick of cut `cut` sits as a fraction of the frame, when the page shows it (`showCutLine`, 1789-1795):
+/// the world has a section and the tick lies within the frame after the look.
+pub fn tick_at(world: &World, look: Look, cut: usize) -> Option<f32> {
+    let at = (world.section.as_ref()?.cuts.get(cut)?.z - world.origin_z) / world.span();
     let y = look.y as f64 + at * look.k as f64;
     (at >= 0.0 && (0.0..=1.0).contains(&y)).then_some(y as f32)
 }
@@ -110,7 +110,7 @@ fn fill(x: f32, y: f32, w: f32, h: f32, color: Color) -> Cmd {
 
 /// Everything the frame holds, in its own coordinates, in painting order: the picture, the marks, the grid and
 /// the cross, all cut to the frame (`#flat` hides its overflow), then the ticks, which hang outside it.
-pub fn frame_cmds(world: &World, view: View, chosen: &BTreeSet<String>, look: Look, side: f32, grid: Color, muted: Color) -> Vec<Cmd> {
+pub fn frame_cmds(world: &World, view: View, chosen: &BTreeSet<String>, look: Look, side: f32, grid: Color, muted: Color, cut: usize) -> Vec<Cmd> {
     let mut out = vec![Cmd::PushClip { rect: Rect::new(0.0, 0.0, side, side) }];
     let whole = side * look.k;
     out.push(Cmd::Image { image: MAP_IMAGE, rect: Rect::new(look.x * side, look.y * side, whole, whole) });
@@ -153,7 +153,7 @@ pub fn frame_cmds(world: &World, view: View, chosen: &BTreeSet<String>, look: Lo
     out.push(Cmd::PopClip);
 
     // #cutLine (CSS 253-256): a tick of 6 x 1 px on each side, 9 px outside the frame.
-    if let Some(y) = tick_at(world, look) {
+    if let Some(y) = tick_at(world, look, cut) {
         let row = (y * side - 0.5).round();
         out.push(fill(-9.0, row, 6.0, 1.0, muted));
         out.push(fill(side + 3.0, row, 6.0, 1.0, muted));

@@ -129,7 +129,7 @@ fn m2_rest_look_shows_each_point_as_its_texel() {
     println!("rest look: {checked} pixels each equal a texel around their place");
 
     // The ticks of the cut: 9 px left of the frame at the row of the first cut, in the muted colour.
-    let at = tick_at(&world, Look::REST).expect("the cut is there");
+    let at = tick_at(&world, Look::REST, 0).expect("the cut is there");
     let row = (at * side - 0.5).round() as i32;
     let t = Theme::dark();
     let muted = [t.muted.r, t.muted.g, t.muted.b].map(|v| (v * 255.0).round() as u8);

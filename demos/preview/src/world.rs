@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::colour::{biome_colour, structure_colour, underground};
 use crate::json::Json;
+use crate::section::Section;
 
 #[derive(Clone, Debug)]
 pub struct Biome {
@@ -46,8 +47,8 @@ pub struct World {
     /// 1 where the land is flat, 0 elsewhere.
     pub flat_at: Vec<u8>,
     pub structures: Option<Structures>,
-    /// The z of the first cut of the section, when the page would show its ticks: cuts exist and ores.json parses.
-    pub cut_z: Option<f64>,
+    /// The section: its cuts and ore rules, when section.json lists cuts and ores.json parses (`Section::load`).
+    pub section: Option<Section>,
     /// The page's total of biomes: those met plus the surface ones the generator can place that this area
     /// lacks. None when `preview.json` does not list what the generator can place.
     pub biome_total: Option<usize>,
@@ -119,7 +120,7 @@ impl World {
             colours,
             flat_at,
             structures: load_structures(dir),
-            cut_z: load_cut(dir),
+            section: Section::load(dir),
             biome_total,
         })
     }
@@ -221,13 +222,6 @@ fn load_structures(dir: &Path) -> Option<Structures> {
     Some(Structures { ids, colours, under, count, points, by_kind, order })
 }
 
-/// Line 1978: the section exists when it has cuts and the ores file is there; the ticks sit at the first cut.
-fn load_cut(dir: &Path) -> Option<f64> {
-    let meta = read_json(dir, "section.json")?;
-    read_json(dir, "ores.json")?;
-    meta.get("cuts")?.array()?.first()?.get("z")?.num()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -252,7 +246,10 @@ mod tests {
         let s = w.structures.as_ref().expect("structures.json is there");
         assert_eq!((s.ids.len(), s.points.len()), (75, 655));
         assert!(s.order.windows(2).all(|p| s.count[p[0]] >= s.count[p[1]]));
-        assert_eq!(w.cut_z, Some(-1504.0));
+        let section = w.section.as_ref().expect("section.json and ores.json are there");
+        assert_eq!(section.cuts[0].z, -1504.0);
+        assert_eq!((section.cuts.len(), section.length, section.height, section.min_y), (4, 4096, 384, -64.0));
+        assert!(section.cuts.iter().all(|c| c.cells.is_some()), "every cut's cells are read");
         assert!(w.flat_at.iter().any(|&f| f == 1));
     }
 

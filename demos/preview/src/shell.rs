@@ -91,6 +91,8 @@ pub struct PreviewState {
     pub orbit: Option<Orbit>,
     /// Where the pointer was at the last frame of a press that began on the 3D view.
     pub turn_from: Option<Vec2>,
+    /// The cut of the section being looked at (0-based).
+    pub cut_at: usize,
 }
 
 impl Default for PreviewState {
@@ -113,6 +115,7 @@ impl Default for PreviewState {
             chosen: Default::default(),
             orbit: None,
             turn_from: None,
+            cut_at: 0,
         }
     }
 }
@@ -501,7 +504,7 @@ fn note(ui: &mut Ui, words: &str) {
 fn probe_text(ui: &Ui, s: &PreviewState, ids: &ShellIds, side: f32, world: Option<&World>) -> String {
     let Some(w) = world else { return text::area_probe("4,096", "512", false) };
     let map_shown = ids.map != Id::ROOT;
-    let rest = || text::area_probe(&text::num(w.span()), &text::num(w.span() / 8.0), map_shown && tick_at(w, s.look).is_some());
+    let rest = || text::area_probe(&text::num(w.span()), &text::num(w.span() / 8.0), map_shown && tick_at(w, s.look, s.cut_at).is_some());
     let (Some(p), Some(rect), Some(view)) = (ui.pointer(), ui.rect(ids.map), View::from_index(s.view)) else { return rest() };
     if !map_shown || !rect.contains(p) {
         return rest();
@@ -567,7 +570,7 @@ fn map_canvas(ui: &mut Ui, s: &mut PreviewState, t: &Theme, side: f32, world: &W
                 s.carry = None;
             }
         }
-        frame_cmds(world, view, &s.chosen[view.index()], s.look, side, grid, muted)
+        frame_cmds(world, view, &s.chosen[view.index()], s.look, side, grid, muted, s.cut_at)
     });
     resp.id
 }

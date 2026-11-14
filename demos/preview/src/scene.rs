@@ -146,7 +146,7 @@ mod tests {
             colours: Vec::new(),
             flat_at: vec![0; samples * samples],
             structures: None,
-            cut_z: None,
+            section: None,
             biome_total: None,
         }
     }
