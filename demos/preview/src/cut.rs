@@ -192,14 +192,18 @@ pub fn sheet_rect(look: CutLook, s: Sight, box_h: f64) -> Rect {
     Rect::new(x as f32, (y * squeeze) as f32, w as f32, (h * squeeze) as f32)
 }
 
+/// The heights the strip shows (line 2286): from a little under the deepest floor to a little over the highest ground. (top, bottom).
+pub fn nav_range(section: &Section, ground: &Ground) -> (f64, f64) {
+    (ground.top + 6.0, section.min_y.max(ground.bottom - 20.0))
+}
+
 /// The whole cut drawn small (`drawNav`, 2279-2300): its rock and its water, from a little under the deepest floor
 /// to a little over the highest ground, so the heights are stretched to read. Returns RGBA of `width` by `NAV_H`
 /// (transparent where nothing is drawn) and the range of heights it shows, (top, bottom).
 pub fn nav_image(section: &Section, ground: &Ground, width: usize) -> (Vec<u8>, (f64, f64)) {
     let height = NAV_H as usize;
     let (l, min_y) = (section.length, section.min_y);
-    let top = ground.top + 6.0;
-    let bottom = min_y.max(ground.bottom - 20.0);
+    let (top, bottom) = nav_range(section, ground);
     let mut px = vec![0u8; width * height * 4];
     let row_of = |y: f64| round((top - y) / (top - bottom) * height as f64);
     for col in 0..width {

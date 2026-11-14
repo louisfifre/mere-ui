@@ -11,16 +11,18 @@
 
 use std::collections::BTreeSet;
 
-use nui_base::{Color, DrawList, Orbit, Vec2};
+use nui_base::{Cmd, Color, DrawList, Orbit, Rect, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
     ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, RowOpts, ScrollOpts, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
-    choice_style, details_style, scroll_style, strip_style,
+    choice_style, details_style, scroll_style, strip_style, wrap_lines,
 };
 
+use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
 use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
 use crate::paint::{View, rows};
 use crate::scene;
+use crate::section::{ORE_COLOURS, ORE_KINDS, Shown};
 use crate::world::World;
 use crate::bands::{BAND_FIGURES, HEIGHT_STEPS, SEA, SEA_DEPTHS, band_colours, band_names};
 use crate::settings::{Kind, SETTINGS, grouped, pack_values};
@@ -93,6 +95,14 @@ pub struct PreviewState {
     pub turn_from: Option<Vec2>,
     /// The cut of the section being looked at (0-based).
     pub cut_at: usize,
+    /// How the cut is looked at; `CutLook::FRESH` until its first settling.
+    pub cut_look: CutLook,
+    /// A press on the cut: where it began and the look then.
+    pub cut_carry: Option<(Vec2, CutLook)>,
+    /// A press on the strip: how far from the frame's left edge it took hold.
+    pub nav_carry: Option<f64>,
+    /// The ores chosen in the section's list, by kind name (`chosen.section`): the cut draws these alone.
+    pub chosen_ores: BTreeSet<String>,
 }
 
 impl Default for PreviewState {
@@ -116,6 +126,10 @@ impl Default for PreviewState {
             orbit: None,
             turn_from: None,
             cut_at: 0,
+            cut_look: CutLook::FRESH,
+            cut_carry: None,
+            nav_carry: None,
+            chosen_ores: BTreeSet::new(),
         }
     }
 }
@@ -159,9 +173,23 @@ pub struct ShellIds {
     pub figures_grid: Id,
     pub goal_values: Vec<Id>,
     pub list_block: Id,
+    /// The list's title as shown: "HEIGHTS", or "ORES" in the section.
+    pub list_title: String,
     pub pick: Id,
     pub band_scroll: Id,
     pub bands: Vec<Id>,
+    /// The cut of the section (a column inside the frame), its strip, the strip's note and the cut at true scale
+    /// (canvases): the ids are Id::ROOT unless a cut is shown.
+    pub cut: Id,
+    pub nav: Id,
+    pub nav_note: Id,
+    pub cut_view: Id,
+    /// The cut view's border box as the look arithmetic takes it (before layout): width and height.
+    pub cut_box: (f64, f64),
+    /// "Another cut", when the section view has a section.
+    pub next_cut: Id,
+    /// The ore rows of the section's list, in `ORE_KINDS` order.
+    pub ores: Vec<Id>,
 }
 
 impl Default for ShellIds {
@@ -200,9 +228,17 @@ impl Default for ShellIds {
             figures_grid: o,
             goal_values: Vec::new(),
             list_block: o,
+            list_title: String::new(),
             pick: o,
             band_scroll: o,
             bands: Vec::new(),
+            cut: o,
+            nav: o,
+            nav_note: o,
+            cut_view: o,
+            cut_box: (0.0, 0.0),
+            next_cut: o,
+            ores: Vec::new(),
         }
     }
 }
@@ -252,7 +288,7 @@ fn rgb(c: [u8; 3]) -> Color {
 /// Builds the shell into the frame the caller began (`begin_frame(size)` before, `end_frame` after). `size` is
 /// the window's: the map's side is arithmetic from it, because the square needs the column's height before
 /// layout. `world` is the preview on the map, if there is one.
-pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World>) -> ShellIds {
+pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World>, shown: Option<&Shown>) -> ShellIds {
     let t = *ui.theme();
     let cols = Columns::for_width(size.x);
     let mut ids = ShellIds::default();
@@ -265,6 +301,8 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
     let middle_w = size.x.min(1480.0) - cols.pad.left - cols.pad.right - cols.left - cols.right - 2.0 * cols.gap;
     let column_h = size.y - TOOLBAR_H - cols.pad.top - cols.pad.bottom;
     let side = middle_w.min(column_h - UNDER).max(0.0);
+    // The section takes the square's place (line 283): the column's whole width, and its height less `--under`.
+    let frame_size = if s.view == 5 { (middle_w.max(0.0), (column_h - UNDER).max(0.0)) } else { (side, side) };
 
     // body (lines 63-72): a column filling the window.
     ui.node("body", Style { column: true, ..fills() }, |ui| {
@@ -281,8 +319,8 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
         };
         ids.page = ui.node("page", page, |ui| {
             ids.left = ui.node("left", column(), |ui| left_column(ui, s, &mut ids, &t));
-            ids.middle = ui.node("middle", column(), |ui| middle_column(ui, s, &mut ids, &t, side, world));
-            ids.right = ui.node("right", column(), |ui| right_column(ui, s, &mut ids, &t, &cols));
+            ids.middle = ui.node("middle", column(), |ui| middle_column(ui, s, &mut ids, &t, frame_size, world, shown));
+            ids.right = ui.node("right", column(), |ui| right_column(ui, s, &mut ids, &t, &cols, world, shown));
         });
     });
     ids
@@ -441,17 +479,23 @@ fn run_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme) {
 }
 
 /// The middle column: the stage holds the map's square and the strip under it (line 226).
-fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, side: f32, world: Option<&World>) {
+fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, frame_size: (f32, f32), world: Option<&World>, shown: Option<&Shown>) {
+    // The square's side in the 2D and 3D views; the section's frame is the column's width by the height left.
+    let (side, frame_h) = frame_size;
     let stage = Style { align_items: Align::Center, ..Style { column: true, ..fills() } };
     ids.stage = ui.node("stage", stage, |ui| {
-        let frame = Style { position: Position::Relative, w: Dim::Px(side), h: Dim::Px(side), shrink: 0.0, ..Style::default() };
+        let frame = Style { position: Position::Relative, w: Dim::Px(side), h: Dim::Px(frame_h), shrink: 0.0, ..Style::default() };
         ids.frame = ui.node("frame", frame, |ui| {
             let view = View::from_index(s.view);
-            let slot = Style { w: Dim::Px(side), h: Dim::Px(side), shrink: 0.0, ..Style::default() };
             match (world, view) {
                 (None, _) => note(ui, text::NO_PREVIEW),
-                // PLACEHOLDER: the section draws here in step 16.
-                (Some(_), None) => ui.fill(slot, t.line),
+                // The section (view 5): a world without one says so; one whose cut is not read yet shows nothing.
+                (Some(w), None) if w.section.is_none() => note(ui, text::NO_SECTION),
+                (Some(w), None) => {
+                    if let Some(shown) = shown {
+                        cut_frame(ui, s, ids, t, w, shown, (side, frame_h));
+                    }
+                }
                 // Before the 3D view: a world without structures has nothing to drape (line 2521).
                 (Some(w), Some(View::Structures)) if w.structures.is_none() => note(ui, text::NO_STRUCTURES),
                 (Some(w), Some(_)) if s.in3d => ids.relief = relief_canvas(ui, s, side, w),
@@ -460,17 +504,26 @@ fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
             // `#under` (line 260): 10 px below the map, as wide as it.
             let under = Style {
                 position: Position::Absolute,
-                inset: Insets { left: Dim::Px(0.0), right: Dim::Px(0.0), top: Dim::Px(side + 10.0), ..Insets::default() },
+                inset: Insets { left: Dim::Px(0.0), right: Dim::Px(0.0), top: Dim::Px(frame_h + 10.0), ..Insets::default() },
                 column: true,
                 gap: Vec2::new(0.0, 6.0),
                 ..Style::default()
             };
-            let probe_text = probe_text(ui, s, ids, side, world);
+            let probe_text = if view.is_none() { cut_probe_text(ui, s, ids, world, shown) } else { probe_text(ui, s, ids, side, world) };
             ids.probe_text = probe_text.clone();
+            // "Another cut" is there in the section view only, when there is a section (line 2527).
+            let cuts = if view.is_none() { world.and_then(|w| w.section.as_ref()).map_or(0, |sec| sec.cuts.len()) } else { 0 };
             ids.under = ui.node("under", under, |ui| {
                 ui.node("probeRow", Style { gap: Vec2::new(18.0, 0.0), align_items: Align::Baseline, ..Style::default() }, |ui| {
                     let probe = Style { grow: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..Style::default() };
                     ids.probe = ui.node("probe", probe, |ui| ui.ellipsis(&probe_text, TextLook::body(Tone::Muted)));
+                    if cuts > 0 {
+                        let r = ui.button("nextCut", text::NEXT_CUT, ButtonLook::Link);
+                        ids.next_cut = r.id;
+                        if r.clicked {
+                            s.cut_at = (s.cut_at + 1) % cuts;
+                        }
+                    }
                     let r = ui.button("export", text::EXPORT, ButtonLook::Link);
                     ids.export = r.id;
                     if r.clicked {
@@ -482,6 +535,117 @@ fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
             });
         });
     });
+}
+
+/// The section in the frame (`#cut`, lines 284-291 and 2205-2332): over the whole frame a column of the strip
+/// (the whole cut drawn small, with the frame of the part looked at), its note, and the cut at true scale. The
+/// pictures are uploaded by the app (`cut::nav_image`, `cut::sheet`); here they are placed. The cut view's box is
+/// arithmetic before layout, as `side` is, because the look is settled against it before anything reads the look:
+/// the frame less the strip (56), the note (its wrapped lines of 18 px and 8 px under) and two gaps of 8.
+fn cut_frame(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, world: &World, shown: &Shown, size: (f32, f32)) {
+    let section = world.section.as_ref().expect("a cut is shown only for a world with a section");
+    let (w, h) = size;
+    let length = section.length;
+    let ground = &shown.ground;
+    let range = cut::nav_range(section, ground);
+    let note_text = text::nav_note(&text::times(cut::nav_times(length, w as f64, range)));
+    let muted = TextLook::body(Tone::Muted);
+    let lines = wrap_lines(&note_text, muted, w).len() as f32;
+    let box_h = (h - NAV_H - 8.0 - 18.0 * lines - 8.0 - 8.0).max(0.0);
+    let (bw, bh) = (w as f64, box_h as f64);
+    s.cut_look = cut::settled(s.cut_look, bw, bh, ground, length);
+    ids.cut_box = (bw, bh);
+    let (line, text_colour) = (t.line, t.text);
+
+    let column = Style {
+        position: Position::Absolute,
+        inset: Insets { left: Dim::Px(0.0), right: Dim::Px(0.0), top: Dim::Px(0.0), bottom: Dim::Px(0.0) },
+        column: true,
+        gap: Vec2::new(0.0, 8.0),
+        ..Style::default()
+    };
+    ids.cut = ui.node("cut", column, |ui| {
+        // `#nav` (line 285): 56 px with a hairline under it; its canvas shows in the 55 px above the hairline.
+        let nav_style = Style { h: Dim::Px(NAV_H), shrink: 0.0, ..Style::default() };
+        ids.nav = ui
+            .canvas("nav", nav_style, |ui, resp| {
+                if let Some(rect) = resp.rect {
+                    let pointer = ui.pointer();
+                    // A click brings the window there; a press on the frame (3 px of grace) carries it along (2319-2332).
+                    if let (true, Some(p)) = (resp.pressed, pointer) {
+                        let x = (p.x - rect.x) as f64;
+                        let frame = cut::nav_frame(s.cut_look, bw, bh, length, ground, section, range, bw).rect();
+                        let (left, right) = (frame.x as f64, (frame.x + frame.w) as f64);
+                        let inside = x >= left - 3.0 && x <= right + 3.0;
+                        s.nav_carry = Some(if inside { x - left } else { frame.w as f64 / 2.0 });
+                    }
+                    if let (Some(grip), Some(p)) = (s.nav_carry, pointer) {
+                        let go = cut::nav_go(s.cut_look, grip, (p.x - rect.x) as f64, bw, length);
+                        s.cut_look = cut::settled(go, bw, bh, ground, length);
+                    }
+                    if !resp.held {
+                        s.nav_carry = None;
+                    }
+                }
+                let frame = cut::nav_frame(s.cut_look, bw, bh, length, ground, section, range, bw).rect();
+                vec![
+                    Cmd::Image { image: NAV_IMAGE, rect: Rect::new(0.0, 0.0, w, NAV_H - 1.0) },
+                    // `outline: 1px solid var(--text)` inside the frame's box.
+                    Cmd::Frame { rect: frame, width_px: 1.0, color: text_colour },
+                    Cmd::Fill { rect: Rect::new(0.0, NAV_H - 1.0, w, 1.0), color: line },
+                ]
+            })
+            .id;
+        // `#navNote` (line 289): 12 px muted, 8 px under it.
+        let note_style = Style { shrink: 0.0, margin: Margin { bottom: Side::Px(8.0), ..Margin::default() }, ..Style::default() };
+        ids.nav_note = ui.node("navNote", note_style, |ui| ui.paragraph(&note_text, muted));
+        // `#cutView` (line 290): takes what is left; its canvas shows in the 1 px less above the hairline.
+        let view_style = Style { grow: 1.0, basis: Dim::Px(0.0), min_h: Dim::Px(0.0), ..Style::default() };
+        ids.cut_view = ui
+            .canvas("cutView", view_style, |ui, resp| {
+                if let Some(rect) = resp.rect {
+                    // The wheel comes closer to the point under it (2467-2474).
+                    if let Some((notches, p)) = ui.take_wheel(resp.id) {
+                        let at = ((p.x - rect.x) as f64, (p.y - rect.y) as f64);
+                        s.cut_look = cut::wheel(s.cut_look, at, notches, bw, bh, ground, length);
+                    }
+                    let pointer = ui.pointer();
+                    if let (true, Some(p)) = (resp.pressed, pointer) {
+                        s.cut_carry = Some((p, s.cut_look));
+                    }
+                    // Read until the press is over, not only while held, so the last movement before the release counts.
+                    if let (Some((from, start)), Some(p)) = (s.cut_carry, pointer) {
+                        s.cut_look = cut::dragged(start, (p.x - from.x) as f64, (p.y - from.y) as f64, bw, bh, ground, length);
+                    }
+                    if !resp.held {
+                        s.cut_carry = None;
+                    }
+                }
+                let mut cmds = vec![Cmd::PushClip { rect: Rect::new(0.0, 0.0, w, box_h - 1.0) }];
+                if let Some(sight) = cut::sight(s.cut_look, bw, bh, length, ground.rows) {
+                    cmds.push(Cmd::Image { image: CUT_IMAGE, rect: cut::sheet_rect(s.cut_look, sight, bh) });
+                }
+                cmds.push(Cmd::PopClip);
+                cmds.push(Cmd::Fill { rect: Rect::new(0.0, box_h - 1.0, w, 1.0), color: line });
+                cmds
+            })
+            .id;
+    });
+}
+
+/// What `#probe` says in the section: the block under the pointer when it is over the cut, else the cut's line
+/// (`restCut`, 2455-2459). Nothing until a cut is shown. While a drag is held the page freezes the line; here it
+/// follows the pointer: UNVERIFIED small difference.
+fn cut_probe_text(ui: &Ui, s: &PreviewState, ids: &ShellIds, world: Option<&World>, shown: Option<&Shown>) -> String {
+    let (Some(w), Some(shown)) = (world, shown) else { return String::new() };
+    let Some(section) = w.section.as_ref() else { return String::new() };
+    let cut = &section.cuts[shown.at];
+    let rest = || text::cut_rest(shown.at + 1, section.cuts.len(), &text::num(cut.z), &text::num(cut.x), &text::num(cut.x + section.length as f64));
+    let (Some(p), Some(rect)) = (ui.pointer(), ui.rect(ids.cut_view)) else { return rest() };
+    if !rect.contains(p) {
+        return rest();
+    }
+    cut::probe(w, shown, s.cut_look, ((p.x - rect.x) as f64, (p.y - rect.y) as f64)).unwrap_or_else(rest)
 }
 
 /// `#note` (line 257): over the whole frame, its words centred in 40 px of padding, in the muted colour. The
@@ -605,8 +769,88 @@ fn relief_canvas(ui: &mut Ui, s: &mut PreviewState, side: f32, world: &World) ->
     resp.id
 }
 
-/// The right column (lines 429-449): the figures and the history, then the list of height bands.
-fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns) {
+/// The right column (lines 429-449): the figures and the history, then the list of height bands. In the section
+/// the figures are not built (line 2533: they would describe the map) and the list is the ores of the cut.
+fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>, shown: Option<&Shown>) {
+    let cut = s.view == 5;
+    if !cut {
+        figures_block(ui, s, ids, t, cols);
+    }
+
+    // `#listBlock.rule` (lines 295-296, 440): a hairline on top, 9 px of padding, a gap of 6. In the section the
+    // rule and the padding go (line 294).
+    ids.list_block = ui.node("listBlock", Style { column: true, ..fills() }, |ui| {
+        if !cut {
+            ui.fill(rule(), t.edge);
+        }
+        let inner = Style { column: true, pad: Edges::new(if cut { 0.0 } else { 9.0 }, 0.0, 0.0, 0.0), gap: Vec2::new(0.0, 6.0), ..fills() };
+        ui.node("listBody", inner, |ui| {
+            let title = if cut { text::ORE_LIST[0] } else { text::LIST_HEIGHT[0] }.to_uppercase();
+            let section = world.and_then(|w| w.section.as_ref());
+            // Names and figures of the ore rows, in `ORE_KINDS` order; empty without a cut.
+            let figures: Vec<(usize, String, String)> = match (cut, shown) {
+                (true, Some(shown)) => (0..ORE_KINDS.len())
+                    .filter_map(|k| {
+                        let f = shown.play.per_chunk[k].as_ref()?;
+                        let figure = |v: Option<f64>| v.map_or("\u{2013}".to_string(), |v| text::num_digits(v, 1));
+                        Some((k, figure(f.low), figure(f.high)))
+                    })
+                    .collect(),
+                _ => Vec::new(),
+            };
+            ui.node("listHead", column(), |ui| {
+                ui.node("title", Style { pad: Edges::new(0.0, 0.0, 2.0, 0.0), ..Style::default() }, |ui| {
+                    ui.text(&title, TextLook::heading());
+                });
+                // `#pick` (line 341): two lines of the small size at most.
+                let pick = Style { h: Dim::Px(34.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
+                let words = match (cut, shown, section) {
+                    (false, ..) => text::PICK_HINT.to_string(),
+                    (true, Some(_), Some(sec)) if sec.unplayed() > 0 => text::ore_unplayed(sec.unplayed()),
+                    (true, Some(_), _) => text::ORE_PICK_HINT.to_string(),
+                    (true, None, _) => String::new(),
+                };
+                ids.pick = ui.node("pick", pick, |ui| ui.paragraph(&words, TextLook::small(Tone::Muted)));
+            });
+            ids.list_title = title;
+            if cut {
+                // Line 2370-2372: the legend names the columns; a list without a cut has no legend.
+                if shown.is_some() {
+                    ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1], cols.narrow);
+                }
+            } else {
+                ui.list_head("legend", text::LIST_HEIGHT[1], text::COL_WIDTH, text::COL_SHARE, cols.narrow);
+            }
+            let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
+                if cut {
+                    for (k, low, high) in &figures {
+                        let name = ORE_KINDS[*k];
+                        let row = ListRow { swatch: rgb(ORE_COLOURS[*k]), name: text::ORES[*k], width: low, share: high };
+                        let opts = RowOpts { pressed: s.chosen_ores.contains(name), choosing: !s.chosen_ores.is_empty(), narrow: cols.narrow, ..RowOpts::default() };
+                        let r = ui.list_row(&format!("ore{k}"), &row, opts);
+                        ids.ores.push(r.id);
+                        // A click picks the ore, or lets it go (2385).
+                        if r.clicked && !s.chosen_ores.remove(name) {
+                            s.chosen_ores.insert(name.to_string());
+                        }
+                    }
+                    return;
+                }
+                let names = band_names(SEA, &HEIGHT_STEPS, &SEA_DEPTHS);
+                let colours = band_colours(SEA, &HEIGHT_STEPS, &SEA_DEPTHS);
+                for i in 0..names.len() {
+                    let row = ListRow { swatch: rgb(colours[i]), name: &names[i], width: BAND_FIGURES[i].0, share: BAND_FIGURES[i].1 };
+                    let r = ui.list_row(&format!("band{i}"), &row, RowOpts { narrow: cols.narrow, ..RowOpts::default() });
+                    ids.bands.push(r.id);
+                }
+            });
+            ids.band_scroll = r.id;
+        });
+    });
+}
+
+/// `#figuresBlock` (lines 430-439): the figures of the map and the history.
+fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns) {
     let body = TextLook::body(Tone::Text);
     let muted = TextLook::body(Tone::Muted);
     ui.node("figuresBlock", column(), |ui| {
@@ -647,35 +891,7 @@ fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme
         let r = ui.fold("history", text::HISTORY, &mut s.history_open, |ui| ui.text("", body));
         ids.history_head = r.id;
     });
-
-    // `#listBlock.rule` (lines 295-296, 440): a hairline on top, 9 px of padding, a gap of 6.
-    ids.list_block = ui.node("listBlock", Style { column: true, ..fills() }, |ui| {
-        ui.fill(rule(), t.edge);
-        let inner = Style { column: true, pad: Edges::new(9.0, 0.0, 0.0, 0.0), gap: Vec2::new(0.0, 6.0), ..fills() };
-        ui.node("listBody", inner, |ui| {
-            ui.node("listHead", column(), |ui| {
-                ui.node("title", Style { pad: Edges::new(0.0, 0.0, 2.0, 0.0), ..Style::default() }, |ui| {
-                    ui.text(&text::LIST_HEIGHT[0].to_uppercase(), TextLook::heading());
-                });
-                // `#pick` (line 341): two lines of the small size at most.
-                let pick = Style { h: Dim::Px(34.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
-                ids.pick = ui.node("pick", pick, |ui| ui.paragraph(text::PICK_HINT, TextLook::small(Tone::Muted)));
-            });
-            ui.list_head("legend", text::LIST_HEIGHT[1], text::COL_WIDTH, text::COL_SHARE, cols.narrow);
-            let names = band_names(SEA, &HEIGHT_STEPS, &SEA_DEPTHS);
-            let colours = band_colours(SEA, &HEIGHT_STEPS, &SEA_DEPTHS);
-            let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
-                for i in 0..names.len() {
-                    let row = ListRow { swatch: rgb(colours[i]), name: &names[i], width: BAND_FIGURES[i].0, share: BAND_FIGURES[i].1 };
-                    let r = ui.list_row(&format!("band{i}"), &row, RowOpts { narrow: cols.narrow, ..RowOpts::default() });
-                    ids.bands.push(r.id);
-                }
-            });
-            ids.band_scroll = r.id;
-        });
-    });
 }
-
 /// The shell as a picture: builds until the scrollbar's gutter has settled (it comes one frame late), at most
 /// three times, and returns the last draw list with the `Ui` (for the rects) and the ids.
 pub fn picture(theme: Theme, size: Vec2) -> (DrawList, Ui, ShellIds) {
@@ -684,7 +900,7 @@ pub fn picture(theme: Theme, size: Vec2) -> (DrawList, Ui, ShellIds) {
     let mut last = None;
     for _ in 0..3 {
         ui.begin_frame(size);
-        let ids = build(&mut ui, &mut s, size, None);
+        let ids = build(&mut ui, &mut s, size, None, None);
         let list = ui.end_frame().clone();
         last = Some((list, ids));
         if !ui.want_redraw() {

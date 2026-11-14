@@ -1,15 +1,19 @@
 //! preview [--data DIR] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..]
-//!         [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz]
+//!         [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y]
 //!
 //! Without --shot, opens the world preview's window. With it, draws one frame offscreen and writes the PNG: the
 //! same frame the window would show. With --data, the 2D map of an out folder fills the stage (step 14).
 //! The view keys, --biome and --structure are the page's own `?view=`, `&biome=` and `&structure=`; --camera is its
-//! `?camera=`, the 3D view's start in widths of the area (step 15).
+//! `?camera=`, the 3D view's start in widths of the area (step 15). In the section view (`--view section`, step 16),
+//! --cut is the cut shown (0-based, kept within the cuts), --ore the ores chosen in the list (their kind names, as
+//! the cut then draws them alone) and --cut-look the look at the cut: k pixels a block, and the corner at x, y pixels
+//! (settled on the first frame, so a place outside the cut is brought back into it).
 
 use std::path::PathBuf;
 
 use nui_base::{Vec2, Vec3, log};
 use nui_ui::Theme;
+use preview::cut::CutLook;
 use preview::map::Look;
 use preview::paint::View;
 use preview::scene;
@@ -18,7 +22,7 @@ use preview::{PreviewApp, PreviewState, text};
 
 fn usage() -> ! {
     eprintln!(
-        "usage: preview [--data DIR] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz]"
+        "usage: preview [--data DIR] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y]"
     );
     std::process::exit(2);
 }
@@ -33,6 +37,12 @@ fn parse_look(s: &str) -> Option<Look> {
     let &[k, x, y] = v.as_slice() else { return None };
     // The page keeps k within 1 and 16 and the corner within the frame, whatever it is asked.
     Some(Look { k: k.clamp(1.0, 16.0), x, y }.clamped())
+}
+
+fn parse_cut_look(s: &str) -> Option<CutLook> {
+    let v: Vec<f64> = s.split(',').map(|p| p.trim().parse().ok()).collect::<Option<_>>()?;
+    let &[k, x, y] = v.as_slice() else { return None };
+    (k.is_finite() && x.is_finite() && y.is_finite()).then_some(CutLook { k, x, y })
 }
 
 fn parse_camera(s: &str) -> Option<Vec3> {
@@ -59,7 +69,7 @@ fn main() {
     log::add_sink(log::stderr_sink(log::Level::Info));
     let (mut light, mut shot, mut size) = (false, None, (1400u32, 940u32));
     let (mut data, mut views, mut biomes, mut structures, mut look) = (None::<PathBuf>, Vec::new(), String::new(), String::new(), None);
-    let mut camera = None;
+    let (mut camera, mut cut, mut ores, mut cut_look) = (None, None, String::new(), None);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut value = || args.next().unwrap_or_else(|| usage());
@@ -73,6 +83,9 @@ fn main() {
             "--structure" => structures = value(),
             "--look" => look = Some(parse_look(&value()).unwrap_or_else(|| usage())),
             "--camera" => camera = Some(parse_camera(&value()).unwrap_or_else(|| usage())),
+            "--cut" => cut = Some(value().parse::<usize>().unwrap_or_else(|_| usage())),
+            "--ore" => ores = value(),
+            "--cut-look" => cut_look = Some(parse_cut_look(&value()).unwrap_or_else(|| usage())),
             _ => usage(),
         }
     }
@@ -113,6 +126,17 @@ fn main() {
     }
     if let Some(l) = look {
         state.look = l;
+    }
+    for kind in ores.split(',').filter(|s| !s.is_empty()) {
+        state.chosen_ores.insert(kind.to_string());
+    }
+    // A cut past the last is the last, once the world says how many there are; without a section there is none to name.
+    if let Some(n) = cut {
+        let cuts = world.as_ref().and_then(|w| w.section.as_ref()).map_or(0, |s| s.cuts.len());
+        state.cut_at = n.min(cuts.saturating_sub(1));
+    }
+    if let Some(l) = cut_look {
+        state.cut_look = l;
     }
     // Without a world there is nothing to look at: the page ignores it too.
     if let (Some(c), Some(w)) = (camera, world.as_ref()) {
