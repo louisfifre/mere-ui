@@ -7,7 +7,7 @@
 //! have something to hold, and nothing is checked against it.
 
 use nui_base::{Color, DrawList, Rect, Vec2};
-use nui_layout::{Dim, Edges, Margin, NodeId, Style, Tree};
+use nui_layout::{Dim, Display, Edges, Margin, NodeId, Overflow, Style, Track, Tracks, Tree};
 
 /// The three layouts of `#page`, one per media query.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -102,30 +102,30 @@ pub fn build(width: f32, height: f32) -> Shell {
     );
     let strip = add(&mut t, toolbar, "strip", Style { w: Dim::Px(360.0), h: Dim::Px(28.0), shrink: 0.0, ..Style::default() });
 
-    // #page { flex: 1; min-height: 0; width: 100%; max-width: 1480px; margin: 0 auto; display: grid }
-    // (lines 75-81). The page uses a grid with three tracks; a grid is step 8, so the same result is built
-    // with a row: fixed tracks are boxes that do not shrink, `minmax(0, 1fr)` is `flex: 1 1 0` with
-    // `min-width: 0`. Rows are implicit and auto, so the columns stretch to the page's height, which is
-    // what `align-items: stretch` does here.
+    // #page { flex: 1; min-height: 0; width: 100%; max-width: 1480px; margin: 0 auto; display: grid;
+    // grid-template-columns: Lpx minmax(0, 1fr) Rpx; gap } (lines 75-81). The gap is on both axes (line 80)
+    // but there is one implicit row: it stretches to the page's height (the grid's definite height is shared
+    // among its rows), and the three columns stretch into that row.
     let page = add(
         &mut t,
         root,
         "page",
         Style {
+            display: Display::Grid,
+            cols: Tracks::new(&[Track::Px(cols.left), Track::MinMaxFr0(1.0), Track::Px(cols.right)]),
             grow: 1.0,
             min_h: Dim::Px(0.0),
             w: Dim::Pct(100.0),
             max_w: Dim::Px(1480.0),
             margin: Margin::horizontal_auto(),
             pad: cols.pad,
-            gap: Vec2::new(cols.gap, 0.0),
+            gap: Vec2::new(cols.gap, cols.gap),
             ..Style::default()
         },
     );
-
     // Left column: world fold, tuning fold (the `grow` one), run block. The heights of the first and last
     // are PLACEHOLDER; the tuning fold takes the rest.
-    let left = add(&mut t, page, "left column", column(Style { w: Dim::Px(cols.left), shrink: 0.0, ..Style::default() }));
+    let left = add(&mut t, page, "left column", column(Style::default()));
     add(&mut t, left, "worldFold", fixed_h(130.0));
     add(&mut t, left, "tuningFold", fills());
     add(&mut t, left, "run", fixed_h(150.0));
@@ -134,12 +134,12 @@ pub fn build(width: f32, height: f32) -> Shell {
     // `--under: 64px` (same line) free below the map for its #under strip; in the page that strip is
     // inside the stage, here it is a sibling box of that height (an approximation: the stage is only
     // checked down to its column).
-    let middle = add(&mut t, page, "middle column", column(Style { grow: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..Style::default() }));
+    let middle = add(&mut t, page, "middle column", column(Style::default()));
     let stage = add(&mut t, middle, "stage", fills());
     let under = add(&mut t, middle, "under", fixed_h(64.0));
 
     // Right column (#numbers). Heights of the figures block are PLACEHOLDER; the list takes the rest.
-    let right = add(&mut t, page, "right column", column(Style { w: Dim::Px(cols.right), shrink: 0.0, ..Style::default() }));
+    let right = add(&mut t, page, "right column", column(Style::default()));
     add(&mut t, right, "figuresBlock", fixed_h(170.0));
     add(&mut t, right, "listBlock", fills());
 
@@ -187,7 +187,15 @@ fn walk(tree: &Tree, n: NodeId, depth: usize, palette: &[u32], list: &mut DrawLi
             }
         }
     }
+    // An overflow box cuts what its children draw outside it: the picture shows what the page would.
+    let clips = tree.style(n).overflow != Overflow::Visible;
+    if clips {
+        list.push_clip(rect);
+    }
     for &c in tree.children(n) {
         walk(tree, c, depth + 1, palette, list, placed);
+    }
+    if clips {
+        list.pop_clip();
     }
 }

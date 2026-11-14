@@ -1,10 +1,11 @@
 //! Step 7's checks on the world preview shell: the column widths of the three breakpoints, nothing
 //! overlapping, and the debug pictures under `target/tmp`.
 
-use nui_base::{App, Color, Event, Gfx, Rect};
+use nui_base::Rect;
 use nui_layout::{NodeId, Tree};
-use nui_win32::Renderer;
-use shell_boxes::{Columns, Shell, build, draw_boxes};
+use shell_boxes::{Columns, build, draw_boxes};
+
+mod common;
 
 const HEIGHT: f32 = 800.0;
 
@@ -33,33 +34,6 @@ fn check_tree(t: &Tree, n: NodeId) {
         }
         check_tree(t, a);
     }
-}
-
-struct Picture<'a>(&'a Shell, f32);
-
-impl App for Picture<'_> {
-    fn start(&mut self, _: &mut dyn Gfx) {}
-    fn event(&mut self, _: Event) -> bool {
-        false
-    }
-    fn frame(&mut self, gfx: &mut dyn Gfx, _: f32) -> bool {
-        gfx.begin(Color::hex(0x101214));
-        gfx.draw_list(&draw_boxes(&self.0.tree, self.0.root, self.1, HEIGHT));
-        gfx.end();
-        false
-    }
-}
-
-fn write_picture(shell: &Shell, width: f32) {
-    let (w, h) = (width as u32, HEIGHT as u32);
-    let mut r = Renderer::offscreen(w, h, 1.0).expect("offscreen renderer");
-    Picture(shell, width).frame(&mut r, 0.0);
-    let rgba = r.read_rgba().unwrap();
-    let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("shell_{width}.png"));
-    std::fs::write(&path, nui_png::encode(w, h, &rgba)).unwrap();
-    println!("wrote {}", path.display());
-    // Not all one colour: something was drawn.
-    assert!(rgba.chunks(4).any(|p| p[..3] != rgba[..3]));
 }
 
 /// width, left, middle, right, page x. The middle is what is left of the page's inner width after the
@@ -118,6 +92,8 @@ fn the_toolbar_is_centred_and_the_stage_leaves_room_for_under() {
 fn debug_pictures_at_1400_1200_and_1000() {
     nui_base::log::add_sink(nui_base::log::stderr_sink(nui_base::log::Level::Info));
     for (width, ..) in CASES {
-        write_picture(&build(width, HEIGHT), width);
+        let s = build(width, HEIGHT);
+        let list = draw_boxes(&s.tree, s.root, width, HEIGHT);
+        common::write_picture(&list, width as u32, HEIGHT as u32, &format!("shell_{width}.png"));
     }
 }
