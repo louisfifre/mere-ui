@@ -1,6 +1,6 @@
 [package]
 name = "shell-boxes"
-description = "The world preview's page shell laid out by nui-layout at three widths, drawn as named boxes in a picture."
+description = "The world preview's page shell at three widths, and a gallery of its grid rows and absolute boxes, laid out by nui-layout and drawn as named boxes in pictures."
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

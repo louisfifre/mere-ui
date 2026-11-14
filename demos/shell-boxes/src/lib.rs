@@ -6,6 +6,8 @@
 //! fix (a block's height, the toolbar strip's width) is marked PLACEHOLDER: it is only there so the boxes
 //! have something to hold, and nothing is checked against it.
 
+pub mod gallery;
+
 use nui_base::{Color, DrawList, Rect, Vec2};
 use nui_layout::{Dim, Display, Edges, Margin, NodeId, Overflow, Style, Track, Tracks, Tree};
 
