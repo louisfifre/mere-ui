@@ -306,8 +306,8 @@ fn trend_row_layout() {
     let mut plots = Vec::new();
     let col = Style { display: Display::Flex, pad: Edges::default(), ..abs_at(20.0, 20.0, 140.0) };
     ui.node("history", Style { gap: Vec2::new(0.0, 8.0), ..col }, |ui| {
-        plots.push(ui.trend_row("a", "Typical flat zone", "41.2%"));
-        plots.push(ui.trend_row("b", "Sea", "5.0%"));
+        plots.push(ui.trend_row("a", "Typical flat zone", "41.2%", Vec::new()));
+        plots.push(ui.trend_row("b", "Sea", "5.0%", Vec::new()));
     });
     let l = ui.end_frame().clone();
     // Name column: 140 - 10 (gap) - 36 ("41.2%") = 94; n = floor((94 - 7.2) / 7.2) = 12.

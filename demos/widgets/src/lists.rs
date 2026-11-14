@@ -5,7 +5,7 @@
 //! Cell A is the biome list at the 1400 px column (330 wide), B the same at 1100 px (262 wide, narrow cells)
 //! with absent rows and nothing to scroll, C the history's trend rows.
 
-use nui_base::{Color, DrawList, Event, Vec2};
+use nui_base::{Cmd, Color, DrawList, Event, Vec2};
 use nui_layout::{Dim, Style};
 use nui_ui::{Id, ListRow, RowOpts, ScrollOpts, Theme, Ui, scroll_style};
 
@@ -142,13 +142,19 @@ pub fn lists_live(ui: &mut Ui, s: &mut ListsState) {
     });
     ui.node("c", column(C_POS, C_W, 8.0), |ui| {
         for (i, (name, value)) in text::FIGURE_NAMES.into_iter().zip(C_VALUES).enumerate() {
-            plots.push(ui.trend_row(&format!("t{i}"), name, value));
+            // A small slope per row, in the slot's own coordinates, as the history draws its lines.
+            let y = |k: f32| 4.0 + ((i as f32 * 5.0 + k * 9.0) % 22.0);
+            let plot = vec![Cmd::Polyline {
+                points: vec![Vec2::new(0.0, y(0.0)), Vec2::new(46.0, y(1.0)), Vec2::new(93.0, y(2.0)), Vec2::new(139.0, y(3.0))],
+                width: 1.5,
+                color: ui.theme().text,
+            }];
+            plots.push(ui.trend_row(&format!("t{i}"), name, value, plot));
         }
     });
 }
 
-/// A hairline round each plot slot: a stand-in until step 18 draws the trend line there, so that the sheet
-/// shows where the 30 px slots are. Drawn over the Ui's list, since the Ui has no such command for a node.
+/// A hairline round each plot slot, so that the sheet shows where the 30 px slots are. Drawn over the Ui's list.
 pub fn lists_marks(ui: &Ui, s: &ListsState, theme: Theme) -> DrawList {
     let mut list = DrawList::default();
     for id in &s.plots {

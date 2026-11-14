@@ -32,7 +32,7 @@ pub(crate) enum Paint {
     Box { fill: Option<Color>, frame: Option<Color> },
     /// `ellipsis` cuts the text to its box with `ellipsize` when painting, the box being known only then.
     /// `wrap` breaks it into lines of the box's width (`wrap_lines`); neither underline nor ellipsis then.
-    Text { text: String, look: TextLook, color: Color, underline: bool, ellipsis: bool, wrap: bool },
+    Text { text: String, look: TextLook, color: Color, underline: bool, strike: bool, ellipsis: bool, wrap: bool },
     /// One flowing run: `lead` in its colour, `gap` px, then `text` wrapped on from there (`wrap_lines_after`).
     Flow { lead: String, lead_color: Color, gap: f32, text: String, look: TextLook, color: Color },
     /// The running generate button: its 1 px frame, then the bar from the padding box's left, `share` of its width.
@@ -197,6 +197,23 @@ impl Ui {
         resp
     }
 
+    /// A container that tells its body where the pointer is across it: the pointer's x as a share of the
+    /// container's width, judged against the LAST frame's rect (what the person saw), before the children are
+    /// built. None when the pointer is outside the visible part of the rect, when another widget holds the
+    /// press, or on the container's first frame. It never becomes active and never takes a click: the
+    /// widgets inside keep theirs.
+    pub fn hover_area(&mut self, key: &str, style: Style, body: impl FnOnce(&mut Ui, Option<f32>)) -> Id {
+        let id = self.key(key);
+        let share = match (self.rects.get(&id), self.hits.get(&id), self.input.pos) {
+            (Some(r), Some(seen), Some(p)) if r.w > 0.0 && seen.contains(p) && self.active.is_none() => Some((p.x - r.x) / r.w),
+            _ => None,
+        };
+        self.open(key, id, style, Paint::None);
+        body(self, share);
+        self.close();
+        id
+    }
+
     /// Where the pointer is, in window coordinates; None until it has been seen.
     pub fn pointer(&self) -> Option<Vec2> {
         self.input.pos
@@ -338,19 +355,24 @@ impl Ui {
 
     /// A text leaf: its size is arithmetic, and the closure owns what it needs, as the layout wants.
     pub(crate) fn add_text(&mut self, text: &str, look: TextLook, color: Color, underline: bool, style: Style) -> NodeId {
-        self.add_text_with(text, look, color, underline, false, style)
+        self.add_text_with(text, look, color, underline, false, false, style)
+    }
+
+    /// A text leaf whose word may be struck through (`text-decoration: line-through`).
+    pub(crate) fn add_text_struck(&mut self, text: &str, look: TextLook, color: Color, strike: bool, style: Style) -> NodeId {
+        self.add_text_with(text, look, color, false, strike, false, style)
     }
 
     /// A text leaf that may shrink below its text (`min-width: 0`) and is cut with an ellipsis when painted.
     pub(crate) fn add_ellipsis(&mut self, text: &str, look: TextLook, color: Color, underline: bool) -> NodeId {
         let style = Style { min_w: Dim::Px(0.0), ..Style::default() };
-        self.add_text_with(text, look, color, underline, true, style)
+        self.add_text_with(text, look, color, underline, false, true, style)
     }
 
-    fn add_text_with(&mut self, text: &str, look: TextLook, color: Color, underline: bool, ellipsis: bool, style: Style) -> NodeId {
+    fn add_text_with(&mut self, text: &str, look: TextLook, color: Color, underline: bool, strike: bool, ellipsis: bool, style: Style) -> NodeId {
         let owned = text.to_string();
         let width = look.width(text);
-        let n = self.add("text", style, Paint::Text { text: owned, look, color, underline, ellipsis, wrap: false });
+        let n = self.add("text", style, Paint::Text { text: owned, look, color, underline, strike, ellipsis, wrap: false });
         let measured = Measured { size: Vec2::new(width, look.line), baseline: baseline(look) };
         self.tree.set_leaf(n, Box::new(move |_: Avail| measured));
         n
@@ -361,7 +383,7 @@ impl Ui {
     /// (everything on one line). Nothing to show measures 0 x 0.
     pub(crate) fn add_paragraph(&mut self, text: &str, look: TextLook, color: Color, style: Style) -> NodeId {
         let owned = text.to_string();
-        let n = self.add("paragraph", style, Paint::Text { text: owned.clone(), look, color, underline: false, ellipsis: false, wrap: true });
+        let n = self.add("paragraph", style, Paint::Text { text: owned.clone(), look, color, underline: false, strike: false, ellipsis: false, wrap: true });
         let base = baseline(look);
         self.tree.set_leaf(
             n,
@@ -544,7 +566,7 @@ impl Painter<'_> {
                     draw_line(self.list, line, *look, *color, x, top + i as f32 * look.line);
                 }
             }
-            Paint::Text { text, look, color, underline, ellipsis, wrap } => {
+            Paint::Text { text, look, color, underline, strike, ellipsis, wrap } => {
                 if *wrap {
                     for (i, line) in wrap_lines(text, *look, r.w).iter().enumerate() {
                         let y = r.y + i as f32 * look.line + half_leading(*look);
@@ -567,6 +589,13 @@ impl Painter<'_> {
                         // against the browser.
                         let w = look.width(&drawn).min(r.w);
                         self.list.fill(Rect::new(r.x, r.y + baseline(*look) + 3.0, w, 1.0), *color);
+                    }
+                    if *strike {
+                        // A line-through sits about a third of the font size above the baseline; the exact
+                        // place and thickness are UNVERIFIED against Chrome.
+                        let w = look.width(&drawn).min(r.w);
+                        let y = r.y + baseline(*look) - (0.3 * look.size).round();
+                        self.list.fill(Rect::new(r.x, y, w, 1.0), *color);
                     }
                 }
             }

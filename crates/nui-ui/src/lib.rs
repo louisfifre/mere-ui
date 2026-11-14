@@ -30,7 +30,7 @@ mod widgets;
 
 pub use edit::MemoryClipboard;
 pub use field::{FieldLook, FieldOpts, FieldResp};
-pub use list::{ListRow, RowOpts};
+pub use list::{ListRow, PartOpts, RowOpts};
 pub use number::NumberSpec;
 pub use scroll::{GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, WHEEL_STEP, scroll_style};
 pub use fold::FoldOpts;

@@ -18,6 +18,11 @@ pub enum ButtonLook {
     /// `#generate.running` (lines 215-218): the generate button while a run is under way. Framed in the text
     /// colour, no fill but a `--line` one from the left that follows the wait: `share` of the padding box's width.
     Running { share: f32 },
+    /// `#pick button` (lines 342-343): 11 px, the text colour, no padding; a line through the word on hover.
+    Pick,
+    /// `#pick button.none` (line 344): the same, underlined always. The later rule wins at equal specificity,
+    /// so the hover strike does not apply to it.
+    PickNone,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -95,7 +100,7 @@ impl Ui {
         // The page has no :active style, so a held button looks exactly like a hovered one.
         let lit = resp.hovered || resp.held;
         let body = TextLook { size: t.body, line: t.body * 1.5, weight: Weight::Regular, tone: Tone::Text, tracking: 0.0 };
-        let (style, paint, word_look, word, underline) = match look {
+        let (style, paint, word_look, word, underline, strike) = match look {
             ButtonLook::Primary => {
                 let style = Style {
                     h: Dim::Px(34.0),
@@ -114,7 +119,7 @@ impl Ui {
                 } else {
                     (Paint::Box { fill: Some(t.text), frame: Some(t.text) }, t.ground)
                 };
-                (style, paint, TextLook { weight: Weight::SemiBold, ..body }, word, false)
+                (style, paint, TextLook { weight: Weight::SemiBold, ..body }, word, false, false)
             }
             ButtonLook::Running { share } => {
                 let style = Style {
@@ -129,7 +134,7 @@ impl Ui {
                 // `.running` sets the colour later in the file than `:disabled`, so its word stays --text. No
                 // hover rule applies (`:not(.running)`).
                 let frame = if opts.disabled { t.edge } else { t.text };
-                (style, Paint::Running { frame, bar: t.line, share }, TextLook { weight: Weight::SemiBold, ..body }, t.text, false)
+                (style, Paint::Running { frame, bar: t.line, share }, TextLook { weight: Weight::SemiBold, ..body }, t.text, false, false)
             }
             ButtonLook::Plain | ButtonLook::Link => {
                 let link = look == ButtonLook::Link;
@@ -145,11 +150,21 @@ impl Ui {
                 } else {
                     t.muted
                 };
-                (style, Paint::None, body, word, link)
+                (style, Paint::None, body, word, link, false)
+            }
+            ButtonLook::Pick | ButtonLook::PickNone => {
+                let none = look == ButtonLook::PickNone;
+                let style = Style { grow: opts.grow, ..Style::default() };
+                let small = TextLook { size: 11.0, line: 16.5, ..body };
+                (style, Paint::None, small, t.text, none, !none && lit)
             }
         };
         self.open(key, id, style, paint);
-        self.add_text(text, word_look, word, underline, Style::default());
+        if strike {
+            self.add_text_struck(text, word_look, word, true, Style::default());
+        } else {
+            self.add_text(text, word_look, word, underline, Style::default());
+        }
         self.close();
         resp
     }

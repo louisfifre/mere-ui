@@ -2,7 +2,7 @@
 //! 360-363) and the history trend row (lines 310-313). A row is its own grid, as the page's `.biome` is, so
 //! the width column of one row does not line up with the next one's: only the right edges do.
 
-use nui_base::{Color, Vec2};
+use nui_base::{Cmd, Color, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Justify, Style, Track, Tracks};
 
 use crate::id::Id;
@@ -29,6 +29,19 @@ pub struct RowOpts {
     pub absent: bool,
     /// The 1100 px column (lines 360-363): narrower width and share cells.
     pub narrow: bool,
+    /// `i.mark` (line 348): the swatch is a round mark, as a structure's on the map.
+    pub mark: bool,
+}
+
+/// What a part head of the list needs (`.part`, lines 328-335).
+#[derive(Copy, Clone, Debug, Default)]
+pub struct PartOpts {
+    /// `aria-pressed=true`: the part is the chosen one, so its head takes the text colour.
+    pub pressed: bool,
+    /// `:first-child`: 2 px above instead of 12.
+    pub first: bool,
+    /// A button (a part of structures) or a plain note (the absent biomes).
+    pub button: bool,
 }
 
 /// `grid-template-columns: 12px minmax(0, 1fr) auto auto` (line 318).
@@ -69,7 +82,17 @@ impl Ui {
         let fill = t.faded(row.swatch, swatch_o);
         let frame = t.faded(mix(Color::hex(0x808080), 0.35, row.swatch), swatch_o);
         let swatch = Style { w: Dim::Px(12.0), h: Dim::Px(12.0), ..Style::default() };
-        self.add("swatch", swatch, Paint::Box { fill: Some(fill), frame: Some(frame) });
+        if opts.mark {
+            // `border-radius: 50%` on 10 px with a 1 px outside shadow: a disc of radius 5 and a ring spanning 5 to 6.
+            let shadow = Color::rgb8(0, 0, 0).with_alpha(0.55 * swatch_o);
+            let cmds = vec![
+                Cmd::Disc { center: Vec2::new(6.0, 6.0), radius: 5.0, color: fill },
+                Cmd::Ring { center: Vec2::new(6.0, 6.0), radius: 5.5, width: 1.0, color: shadow },
+            ];
+            self.add("swatch", swatch, Paint::Cmds(cmds));
+        } else {
+            self.add("swatch", swatch, Paint::Box { fill: Some(fill), frame: Some(frame) });
+        }
         // Hover underlines the name (line 346).
         self.add_ellipsis(row.name, body, name_color, resp.hovered && !opts.absent);
         if !opts.absent {
@@ -78,6 +101,32 @@ impl Ui {
             self.cell("width", end_cell(w), row.width, body, t.faded(t.muted, o));
             self.cell("share", end_cell(s), row.share, body, t.faded(t.text, o));
         }
+        self.close();
+        resp
+    }
+
+    /// `.part` (lines 328-335): the line over a part of the list, in the rows' columns, 11 px and muted (the
+    /// text colour when pressed). With `button` a hover underlines the name and a click is reported; without
+    /// it the head is only a note.
+    pub fn list_part(&mut self, key: &str, name: &str, share: &str, opts: PartOpts) -> Resp {
+        let id = self.key(key);
+        let mut resp = self.interact(id, !opts.button);
+        if !opts.button {
+            resp.clicked = false;
+        }
+        let t = *self.theme();
+        let look = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Text) };
+        let color = if opts.pressed { t.text } else { t.muted };
+        let style = Style {
+            align_items: Align::Baseline,
+            pad: Edges::new(if opts.first { 2.0 } else { 12.0 }, 0.0, 4.0, 0.0),
+            ..grid(Edges::default())
+        };
+        self.open(key, id, style, Paint::None);
+        self.add("pad", Style { w: Dim::Px(12.0), ..Style::default() }, Paint::None);
+        self.add_ellipsis(name, look, color, opts.button && resp.hovered);
+        self.add("gap", Style::default(), Paint::None);
+        self.cell("share", end_cell(39.6), share, look, color);
         self.close();
         resp
     }
@@ -99,9 +148,9 @@ impl Ui {
     }
 
     /// One `.trend` row of the history (lines 310-313): a name that ends in an ellipsis, the value, and a
-    /// 30 px slot for the plot under both. Returns the slot's id so the application can read its rect and draw
-    /// the line there (step 18). The `#history` column (gap 8) is the caller's node.
-    pub fn trend_row(&mut self, key: &str, name: &str, value: &str) -> Id {
+    /// 30 px slot for the plot under both. `plot` is drawn in the slot's own coordinates and not clipped (the
+    /// svg's `overflow: visible`). Returns the slot's id. The `#history` column (gap 8) is the caller's node.
+    pub fn trend_row(&mut self, key: &str, name: &str, value: &str, plot: Vec<Cmd>) -> Id {
         let id = self.key(key);
         let t = *self.theme();
         let style = Style {
@@ -115,11 +164,11 @@ impl Ui {
         let body = TextLook::body(Tone::Text);
         self.add_ellipsis(name, body, t.text, false);
         self.add_text(value, body, t.text, false, Style::default());
-        let plot = self.key("plot");
-        self.open("plot", plot, Style { col_span_all: true, h: Dim::Px(30.0), ..Style::default() }, Paint::None);
+        let slot = self.key("plot");
+        self.open("plot", slot, Style { col_span_all: true, h: Dim::Px(30.0), ..Style::default() }, Paint::Cmds(plot));
         self.close();
         self.close();
-        plot
+        slot
     }
 
     /// A box with one word in it, for the cells that align their word to the right.
