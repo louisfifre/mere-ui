@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/nui-base", "crates/nui-png", "crates/nui-win32"]
+members = ["crates/nui-base", "crates/nui-png", "crates/nui-win32", "demos/relief"]
 
 [workspace.package]
 version = "0.1.0"
