@@ -166,6 +166,21 @@ warning). `rect(id)` is the widget's absolute rect of the last frame. `button(ke
 `button_with(key, text, look, ButtonOpts { disabled, grow })`; `Resp { id, rect, hovered, held, clicked }`.
 `toggle(key, &mut bool, on_word, off_word) -> Resp` takes both words, which come from the application's catalog, and flips
 the value before painting. `Theme` holds the page's variables plus `faded(color, opacity)` for CSS opacity.
+
+**As built (step 10).** No slider: neither application has one (see 2.6). `fold(key, title, &mut open, body) -> Resp` and
+`fold_with(.., FoldOpts { grow }, ..)`: the widget uppercases the title as the page's CSS does, draws the 1 px rule, the
+head (title in the heading look, `+` or `−` at the right, brighter under the pointer) and, only when open, the body (a
+closed fold never calls it). The click flips `open` before anything is built, so its own frame shows the new state; the
+state is the app's, not a map in `Ui`. `tab(key, text, TabLook::{Strip, Choice}, TabOpts { pressed, disabled }) -> Resp`,
+`detail_tab(key, word, sub, opts)`, `strip_gap()`, and the styles `strip_style()`, `choice_style()`, `details_style()`.
+The app decides which tab is pressed (the page's strip lights one tab in each of its two groups) and changes its
+selection when `Resp.clicked`; there is no `tabs(&[..], &mut usize)`. `number(key, f64) -> Resp` is the hairline box with
+the value at the right, formatted as JavaScript would; typing, arrow steps and the focused frame come with step 11.
+`Ui::paint_node` paints positioned children after the in-flow ones, as CSS does, so the pressed tab's hairline (position:
+relative, margin-left -1) covers its neighbour's grey one. Letter spacing is drawn one glyph per step (`TextLook.tracking`,
+`TextLook::width`): Plex Mono is monospaced without kerning, so it equals a spaced string and the renderer is unchanged.
+`mix(top, opacity, under)` generalises `Theme::faded`. Hovering the pressed strip tab keeps its word in the ground colour,
+unlike the page's cascade (see handoff).
 ### 1.4 nui-win32
 Implements `Window`, `Text`, `Gfx`, `Backend`. Internals: `win.rs` (class, wndproc, loop, DPI, clipboard, IME later), `d3d.rs` (device, swap chain, pipelines, meshes, depth), `d2d.rs` (device context, brushes, bitmaps, clip), `dwrite.rs` (factory, text format, layout cache, font loading), `offscreen.rs` (texture + staging readback).
 
@@ -209,7 +224,7 @@ pub fn diff(a: &[u8], b: &[u8]) -> f32;   // mean abs difference, for golden tes
 ### 2.6 Widgets and ui core (nui-ui, ~2200 lines)
 - References: microui `mu_update_control`, hover/focus rules (ESTABLISHED, microui.c): hover set when mouse is over and no button down; focus set on press; focus dropped on press elsewhere. egui for IDs and response objects (not read in detail, UNVERIFIED).
 - Approach: `Id = hash(parent id, label/index)` (FNV-1a, 10 lines). `Input` struct per frame (pointer, buttons, wheel, keys, chars). Widgets are plain functions building a styled node + emitting commands. Rough sizes: core+ids 300, button/toggle/label 200, fold 120, slider 150, number field 200 (reuses text field), tabs 120, list + scroll area 250, text field 450, viewport/canvas 80, theme 150.
-- Slider: map pointer x to value, round by `step` (microui does exactly this). Number field: a text field with a filter (digits, `.`, `-`) that parses on Enter/blur, like microui's `number_textbox` (shift-click to type); we make the field always editable because the page's number inputs are.
+- ~~Slider: map pointer x to value, round by `step` (microui does exactly this).~~ Struck in step 10: neither application has a slider (preview.html has no `input type=range`, its settings are `input type=number`; the launcher has number inputs only; `--track` is defined but used by no rule, and the word "slider" survives only in stale comments). Number field: a text field with a filter (digits, `.`, `-`) that parses on Enter/blur, like microui's `number_textbox` (shift-click to type); we make the field always editable because the page's number inputs are.
 
 ### 2.7 Text field (see section 5 below for design)
 
@@ -340,7 +355,7 @@ All screenshots are produced by `nui-shot <view-name> <w>x<h> [--scale 1.5] [--t
 | 7 | `nui-layout` pure crate: flex (steps 1-10), unit tests on rects; debug dump | No GPU: `cargo test` asserts. Then a debug PNG draws node boxes with names for the preview shell at 1400, 1200, 1000 px width: three columns 320/fluid/330, 296/fluid/280, 272/fluid/262; no overlap | 6 |
 | 8 | Grid + absolute + overflow in `nui-layout` | Debug PNG of the gallery (`demos/shell-boxes`, `target/tmp/gallery.png`): the page's own rows and boxes, not invented ones: three `.setting` rows (`minmax(0,1fr) auto 8ch`) with the hint, `#figures`, the ore head and rows (`12px 1fr 6ch 5ch 5ch 14px`), biome rows, `#details` (3 equal columns), `#generate` beside the 34 px `#stopRun`, and the `#frame` stack (`#flat` clipped, `#cutLine` out by 9 px, `#note` centred, `#under` below) and a 90 px scroll box | 5 |
 | 9 | `nui-ui` core: Ui, ids, input, draw list, theme dark/light; label, button, toggle | Gallery PNG: labels in text/muted/warn tones, buttons in normal/hover/active (hover injected by the harness), toggle on/off; dark and light variants | 5 |
-| 10 | Fold, slider, number field (without typing), tabs | Gallery: a folded and an open section with a chevron, sliders at 0/50/100 %, number fields right-aligned, tab strip with the second tab selected | 5 |
+| 10 | Fold, tabs (strip, choice, details), number field (without typing) | Controls sheet: a closed, a hovered and an open fold with its +/− sign, two strips (Flat and 2D pressed; a coarse map with three disabled), choice and details pressed, number fields right-aligned | 5 |
 | 11 | Text field: model + keys + caret + selection + clipboard (no IME) | Gallery: field with `1234567890` caret at 4; same with a selection from 2 to 6 highlighted; scrolled long text with the caret at the end. A harness script injects keys and takes PNGs after each | 7 |
 | 12 | List with scroll + ellipsis; history row layout | A list taller than its box with a scrollbar thumb at 30 %, rows with truncated text ending in an ellipsis | 3 |
 | 13 | Preview shell: three columns with the real settings sections, static values | Side by side with a browser screenshot of the current page: same section order, same column widths at the three breakpoints | 6 |

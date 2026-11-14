@@ -21,5 +21,5 @@ A small native interface toolkit in Rust, owned end to end and grown piece by pi
 - `crates/nui-ui`: the immediate-mode interface: ids, pointer input, the page's dark and light themes, label, button and toggle; hit tests use the last frame's rects. Depends on `nui-base` and `nui-layout` only.
 - `demos/shell-boxes`: the world preview's page shell laid out at 1400, 1200 and 1000 px and drawn as named boxes and the gallery of the page's grid rows and absolute boxes (`cargo test -p shell-boxes` writes `target/tmp/shell_<width>.png` and `target/tmp/gallery.png`).
 - `demos/relief`: a world preview's relief from a real `out` folder, in a window or as a picture.
-- `demos/widgets`: the widgets in the page's looks: a live window, `--shot`, and `cargo test -p widgets` writing `target/tmp/widgets_dark.png` and `widgets_light.png`.
+- `demos/widgets`: the widgets in the page's looks: a live window, `--shot`, and `cargo test -p widgets` writing `target/tmp/widgets_dark.png` and `widgets_light.png`, plus the controls sheet (folds, strip, choice, details, number fields): the same test run writes `target/tmp/controls_<theme>.png`, and `--controls` opens it live.
 - `docs/design.md`: the design dossier (module tree, reduced flex/grid, text field, build plan, risks).

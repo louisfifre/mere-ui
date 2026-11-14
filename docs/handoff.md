@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 9 done (2026-11-14)
+## Status: steps 0 to 10 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -51,7 +51,17 @@ underline's position (3 px under the baseline) and thickness (1 px) against a br
 look, so a held widget looks hovered. Disabled widgets ignore the pointer, whereas the browser still matches
 :hover on disabled `.choice` buttons: a known small difference. No transitions, cursor shapes or keyboard yet.
 
-Next: step 10 (tabs, the pressed and reversed choices, fold), then the panels, steps 11 to 13.
+Build plan step 10 is done: `nui-ui` has `fold`/`fold_with`, `tab` (strip and choice looks), `detail_tab`, `strip_gap`, `number`
+(no typing yet) and the styles of the strip, choice and details rows; text looks have a letter spacing, paint order follows
+CSS (positioned boxes last) and `mix` is public. No slider was built: neither application has one. `demos/widgets
+--controls` shows them live and `docs/shots/controls-dark.png` and `controls-light.png` are the sheet (12 new `nui-ui`
+tests with the page's numbers, 2 picture tests). Two observations read from the page's CSS, not seen in a browser:
+
+- Hovering the pressed strip tab: `.strip button:hover:not(:disabled)` (specificity 0,3,1) beats `[aria-pressed=true]` (0,2,1),
+  so the word turns `--text` on a `--text` ground and vanishes. `nui-ui` keeps the pressed word on hover on purpose.
+- The comments at preview.html line 657 and launcher line 571 still say "slider", and `--track` is used by no rule.
+
+Next: step 11 (the text field), then the panels, steps 12 and 13.
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
