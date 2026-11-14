@@ -178,6 +178,80 @@ pub fn pretty(id: &str) -> String {
     }
 }
 
+/// Line 508: what the list beside the map holds in each view, by `View::index`: its title and the name of its
+/// first column.
+pub const LISTS: [[&str; 2]; 5] = [["Biomes", "biome"], ["Ground", "ground"], ["Heights", "height"], ["Temperatures", "climate"], ["Structures", "structure"]];
+/// Line 522.
+pub const COL_SPACING: &str = "one every";
+/// Line 524.
+pub const COL_COUNT: &str = "count";
+/// Line 512: no structure is drawn until it is chosen.
+pub const PICK_HINT_MARKS: &str = "Click the rows to draw on the map. None is drawn until then.";
+/// Line 518.
+pub const PICK_NONE: &str = "Show all";
+/// Line 513.
+pub const PICK_NONE_MARKS: &str = "Draw none";
+/// Line 514.
+pub fn picked_many(count: usize) -> String {
+    format!("{count} chosen")
+}
+/// Line 515.
+pub fn picked_share(share: &str) -> String {
+    format!(" \u{b7} {share} of the area")
+}
+/// Line 516.
+pub fn picked_count(count: &str, of: &str) -> String {
+    format!(" \u{b7} {count} of {of}")
+}
+/// Line 519.
+pub const FILTER: &str = "Filter by name\u{2026}";
+/// Line 614.
+pub const ABSENT: &str = "Not in this area";
+/// Line 600: the structures' two parts, surface first.
+pub const PARTS: [&str; 2] = ["On the surface", "Under the ground"];
+/// Line 648.
+pub const LEGEND_FLAT: [&str; 3] = ["Flat", "Slopes", "Water"];
+/// Line 649.
+pub const LEGEND_TEMPERATURE: [&str; 5] = ["Frozen", "Cold", "Temperate", "Warm", "Scorching"];
+/// Line 502.
+pub const CHANGE: &str = "change";
+/// Line 504.
+pub const SAME: &str = "=";
+/// Line 505.
+pub const CLOSE: &str = "\u{2248}";
+/// Line 506.
+pub const POINTS: &str = " pt";
+/// Line 613.
+pub fn count_of(count: usize, total: usize) -> String {
+    format!("{count} of {total}")
+}
+/// Line 617: a whole number of blocks as JavaScript writes a number.
+pub fn altitude(v: f64) -> String {
+    format!("height {v}")
+}
+/// Line 495.
+pub const HISTORY_FEW: &str = "Generate again with this seed, over this area, at this detail, and each figure gets a line from run to run.";
+/// Line 496.
+pub fn history_hint(n: usize) -> String {
+    format!("The {n} runs of this seed over this area, at this detail, oldest left. Point at one to see what it changed.")
+}
+/// Line 497.
+pub fn history_run(at: usize, of: usize, what: &str) -> String {
+    format!("Run {at} of {of}: {what}.")
+}
+/// Line 498.
+pub const HISTORY_FIRST: &str = "the first one kept";
+/// Line 499.
+pub const HISTORY_SAME: &str = "same settings";
+/// Line 500: `from` and `to` as JavaScript writes a number.
+pub fn history_moved(name: &str, from: f64, to: f64) -> String {
+    format!("{name} {from} \u{2192} {to}")
+}
+/// Line 501.
+pub fn history_many(count: usize) -> String {
+    format!("{count} settings changed")
+}
+
 /// Line 620.
 pub const NO_SECTION: &str = "No section for this preview. Generate it again.";
 /// Line 621.

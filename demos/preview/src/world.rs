@@ -4,6 +4,7 @@
 use std::path::Path;
 
 use crate::colour::{biome_colour, structure_colour, underground};
+use crate::figures::{Measured, measure};
 use crate::json::Json;
 use crate::section::Section;
 
@@ -60,6 +61,11 @@ pub struct World {
     /// The page's total of biomes: those met plus the surface ones the generator can place that this area
     /// lacks. None when `preview.json` does not list what the generator can place.
     pub biome_total: Option<usize>,
+    /// The surface biomes the generator can place that this area does not hold, in the file's order (bsent,
+    /// line 1307).
+    pub absent: Vec<String>,
+    /// What measure gives: the figures, and the lists beside the map.
+    pub measured: Measured,
     /// The run that made this folder, when `run.json` says.
     pub made: Option<Made>,
 }
@@ -100,15 +106,17 @@ impl World {
             biomes.push(Biome { id, temperature: b.get("temperature").and_then(Json::num).unwrap_or(0.0) });
         }
         // As the page counts them: a biome that lives under the ground only would be called missing for ever.
-        let biome_total = json.get("possible").and_then(Json::array).map(|list| {
-            let absent = list
-                .iter()
-                .filter(|b| !b.get("underground").and_then(Json::boolean).unwrap_or(false))
-                .filter_map(|b| b.get("id").and_then(Json::text))
-                .filter(|id| !biomes.iter().any(|m| &m.id == id))
-                .count();
-            biomes.len() + absent
-        });
+        let possible = json.get("possible").and_then(Json::array);
+        let absent: Vec<String> = possible
+            .map(|list| {
+                list.iter()
+                    .filter(|b| !b.get("underground").and_then(Json::boolean).unwrap_or(false))
+                    .filter_map(|b| b.get("id").and_then(Json::text))
+                    .filter(|id| !biomes.iter().any(|m| &m.id == id))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let biome_total = possible.map(|_| biomes.len() + absent.len());
         let heights: Vec<i16> = heights_raw.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]])).collect();
         let biome_at: Vec<u16> = biomes_raw.chunks_exact(2).map(|b| u16::from_le_bytes([b[0], b[1]])).collect();
         if let Some((i, &b)) = biome_at.iter().enumerate().find(|(_, b)| **b as usize >= biomes.len()) {
@@ -117,7 +125,7 @@ impl World {
         let sea_level = number("seaLevel")?;
         let colours = biomes.iter().map(|b| biome_colour(&b.id)).collect();
         let flat_at = flat_land(&heights, samples, sea_level);
-        Ok(World {
+        let mut world = World {
             seed: json.get("seed").and_then(Json::text).unwrap_or_default(),
             samples,
             step,
@@ -132,8 +140,13 @@ impl World {
             structures: load_structures(dir),
             section: Section::load(dir),
             biome_total,
+            absent: Vec::new(),
+            measured: Measured::default(),
             made: load_made(dir),
-        })
+        };
+        world.measured = measure(&world, absent.clone(), possible.is_some());
+        world.absent = absent;
+        Ok(world)
     }
 
     /// Lowest and highest ground; (0, 0) for an empty grid.

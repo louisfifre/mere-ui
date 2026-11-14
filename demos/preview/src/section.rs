@@ -925,6 +925,8 @@ mod tests {
             structures: None,
             section: None,
             biome_total: None,
+            absent: Vec::new(),
+            measured: Default::default(),
             made: None,
         }
     }

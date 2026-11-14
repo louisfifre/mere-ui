@@ -5,6 +5,7 @@ pub mod app;
 pub mod bands;
 pub mod colour;
 pub mod cut;
+pub mod figures;
 pub mod json;
 pub mod map;
 pub mod paint;
