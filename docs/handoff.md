@@ -5,6 +5,20 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
+## Status: steps 0 to 6 done (2026-11-14)
+
+The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
+shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
+`/?view=height,relief3d`) and match in framing, colours, water and edges. A review pass then added 4x MSAA
+(the page asks WebGL for antialias), hairlines of one logical pixel, the page's biome total and wording,
+OrbitControls speeds, a camera kept above the ground within a zoom range, and robustness fixes in the window
+(no `&mut` aliasing across re-entrant calls, a cleanup guard, safe capture, device-loss rebuild).
+
+Not exercised at runtime: device loss, capture lost mid-drag, a `WM_DPICHANGED` between monitors, and a
+look at the live window's pixels (only its start, answer and clean exit were checked). Open questions for the
+maintainer: a height key in the native view (the page keeps it in its side panel), and the overlay's filled
+plate against a hairline-only frame like the page's panels. Next: IBM Plex Mono, then the page's panels.
+
 ## Goal of this run
 
 Replace the world preview's three.js view (`..\world-preview\page\preview.html`, `refresh3d()` near
