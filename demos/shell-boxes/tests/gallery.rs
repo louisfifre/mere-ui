@@ -154,3 +154,26 @@ fn gallery_picture() {
     let list = draw_boxes(&g.tree, g.root, GALLERY.0, GALLERY.1);
     common::write_picture(&list, GALLERY.0 as u32, GALLERY.1 as u32, "gallery.png");
 }
+
+/// Every label drawn lies inside its own box and inside the picture, and the content boxes keep their text.
+#[test]
+fn labels_stay_inside_their_box_and_the_picture() {
+    let g = build_gallery();
+    let labels = shell_boxes::label_rects(&g.tree, g.root, GALLERY.0, GALLERY.1);
+    assert!(labels.len() > 20, "only {} labels", labels.len());
+    for l in &labels {
+        let b = g.tree.abs_rect(l.node);
+        let inside = l.rect.x >= b.x - 0.01 && l.rect.y >= b.y - 0.01 && l.rect.x + l.rect.w <= b.x + b.w + 0.01 && l.rect.y + l.rect.h <= b.y + b.h + 0.01;
+        assert!(inside, "label {:?} leaves its box {b:?}", l.text);
+        assert!(l.rect.x >= 0.0 && l.rect.y >= 0.0 && l.rect.x + l.rect.w <= GALLERY.0 && l.rect.y + l.rect.h <= GALLERY.1, "label {:?} leaves the picture", l.text);
+    }
+    for (i, a) in labels.iter().enumerate() {
+        for b in &labels[i + 1..] {
+            assert!(!overlap(a.rect, b.rect), "labels {:?} and {:?} overlap", a.text, b.text);
+        }
+    }
+    let leaves = |name: &str| labels.iter().any(|l| g.tree.name(l.node) == name || l.text.starts_with(name));
+    for name in ["64 blocks", "1 min 30 s", "Coal", "Plains", "Forest", "1.40"] {
+        assert!(leaves(name), "no label for the leaf {name}");
+    }
+}

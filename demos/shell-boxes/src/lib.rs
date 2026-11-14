@@ -149,55 +149,108 @@ pub fn build(width: f32, height: f32) -> Shell {
     Shell { tree: t, root, toolbar, strip, page, left, middle, right, stage, under }
 }
 
-/// Draws every node as a frame with its name and size, in window coordinates: a container's label sits
-/// at its top right, a leaf's at its top left, so a column and its first child do not write over each
-/// other. The estimate of a glyph's width is Plex Mono's 0.6 em advance.
+/// Draws every node as a frame, then the labels (name and size) on top. See `label_rects` for where they go.
 pub fn draw_boxes(tree: &Tree, root: NodeId, width: f32, height: f32) -> DrawList {
     let mut list = DrawList::default();
     list.fill(Rect::new(0.0, 0.0, width, height), Color::hex(0x101214));
     let palette = [0xe0e0e0, 0x6fb3d2, 0xd2a36f, 0x8fc98f];
-    let mut placed = Vec::new();
-    walk(tree, root, 0, &palette, &mut list, &mut placed);
+    draw_frames(tree, root, 0, &palette, &mut list);
+    for l in label_rects(tree, root, width, height) {
+        list.text(Vec2::new(l.x, l.y), l.text, LABEL_SIZE, Color::hex(palette[l.depth % palette.len()]));
+    }
     list
 }
 
-/// `placed` keeps the rectangles of the labels already written: a label that would land on one of them
-/// (at 1000 px the right column's label and its first child's were 2 px apart) tries its box's bottom
-/// edge, and is left out if that is taken too, so every label that is drawn stays readable.
-fn walk(tree: &Tree, n: NodeId, depth: usize, palette: &[u32], list: &mut DrawList, placed: &mut Vec<Rect>) {
+const LABEL_SIZE: f32 = 11.0;
+/// Plex Mono's 0.6 em advance, the estimate of a glyph's width.
+const LABEL_ADVANCE: f32 = LABEL_SIZE * 0.6;
+
+/// One label as drawn: the text origin, the text (already cut to fit) and the rectangle it occupies.
+pub struct Label {
+    pub node: NodeId,
+    pub depth: usize,
+    pub x: f32,
+    pub y: f32,
+    pub text: String,
+    pub rect: Rect,
+}
+
+fn draw_frames(tree: &Tree, n: NodeId, depth: usize, palette: &[u32], list: &mut DrawList) {
     let rect = tree.abs_rect(n);
     let colour = Color::hex(palette[depth % palette.len()]);
     list.fill(rect, colour.with_alpha(0.06));
     list.frame(rect, 1.0, colour);
-    let name = tree.name(n);
-    let text = format!("{} {}x{}", name, rect.w.round(), rect.h.round());
-    let size = 11.0;
-    let text_w = text.chars().count() as f32 * size * 0.6;
-    if rect.w >= 30.0 && rect.h >= 16.0 {
-        let leaf = tree.children(n).is_empty();
-        let x = if leaf { rect.x + 4.0 } else { (rect.x + rect.w - text_w - 4.0).max(rect.x + 4.0) };
-        // The window's own label goes to the bottom, where the toolbar's does not write over it.
-        let top = if depth == 0 { rect.y + rect.h - size - 6.0 } else { rect.y + 2.0 };
-        let bottom = rect.y + rect.h - size - 4.0;
-        for y in [top, bottom] {
-            let label = Rect::new(x - 2.0, y - 1.0, text_w + 4.0, size + 2.0);
-            let hit = placed.iter().any(|p| label.x < p.x + p.w && p.x < label.x + label.w && label.y < p.y + p.h && p.y < label.y + label.h);
-            if !hit {
-                placed.push(label);
-                list.text(Vec2::new(x, y), text.clone(), size, colour);
-                break;
-            }
-        }
-    }
     // An overflow box cuts what its children draw outside it: the picture shows what the page would.
     let clips = tree.style(n).overflow != Overflow::Visible;
     if clips {
         list.push_clip(rect);
     }
     for &c in tree.children(n) {
-        walk(tree, c, depth + 1, palette, list, placed);
+        draw_frames(tree, c, depth + 1, palette, list);
     }
     if clips {
         list.pop_clip();
     }
+}
+
+/// The labels, children before their parent: a content box (an output, a field, a value) keeps its text and a
+/// container's label goes only where nothing is taken, at its top right, else its bottom edge, else nowhere.
+/// A text is cut to its own box (8 px of margin) and a label is dropped when it would leave the picture or the
+/// box of an overflow ancestor, so no label ever crosses an edge.
+pub fn label_rects(tree: &Tree, root: NodeId, width: f32, height: f32) -> Vec<Label> {
+    let mut out = Vec::new();
+    let mut placed = Vec::new();
+    collect(tree, root, 0, Rect::new(0.0, 0.0, width, height), &mut placed, &mut out);
+    out
+}
+
+fn collect(tree: &Tree, n: NodeId, depth: usize, clip: Rect, placed: &mut Vec<Rect>, out: &mut Vec<Label>) {
+    let rect = tree.abs_rect(n);
+    let inner = if tree.style(n).overflow != Overflow::Visible { intersect(clip, rect) } else { clip };
+    for &c in tree.children(n) {
+        collect(tree, c, depth + 1, inner, placed, out);
+    }
+    if rect.w < 30.0 || rect.h < 16.0 {
+        return;
+    }
+    let full = format!("{} {}x{}", tree.name(n), rect.w.round(), rect.h.round());
+    let room = ((rect.w - 8.0) / LABEL_ADVANCE).floor().max(0.0) as usize;
+    let text: String = full.chars().take(room).collect();
+    if text.chars().count() < 3 {
+        return;
+    }
+    let text_w = text.chars().count() as f32 * LABEL_ADVANCE;
+    let leaf = tree.children(n).is_empty();
+    let x = if leaf { rect.x + 4.0 } else { rect.x + rect.w - text_w - 4.0 };
+    // The window's own label goes to the bottom, where the toolbar's does not write over it.
+    let top = if depth == 0 { rect.y + rect.h - LABEL_SIZE - 6.0 } else { rect.y + 2.0 };
+    let bottom = rect.y + rect.h - LABEL_SIZE - 4.0;
+    for y in [top, bottom] {
+        let label = Rect::new(x - 2.0, y - 1.0, text_w + 4.0, LABEL_SIZE + 2.0);
+        let hit = placed.iter().any(|p| overlaps(label, *p));
+        if !hit && contains(clip_to(inner, rect), label) {
+            placed.push(label);
+            out.push(Label { node: n, depth, x, y, text, rect: label });
+            return;
+        }
+    }
+}
+
+/// The region a node's label may use: its own box cut by what its ancestors clip.
+fn clip_to(inner: Rect, rect: Rect) -> Rect {
+    intersect(inner, rect)
+}
+
+fn overlaps(a: Rect, b: Rect) -> bool {
+    a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+}
+
+fn intersect(a: Rect, b: Rect) -> Rect {
+    let x = a.x.max(b.x);
+    let y = a.y.max(b.y);
+    Rect::new(x, y, ((a.x + a.w).min(b.x + b.w) - x).max(0.0), ((a.y + a.h).min(b.y + b.h) - y).max(0.0))
+}
+
+fn contains(outer: Rect, r: Rect) -> bool {
+    r.x >= outer.x - 0.01 && r.y >= outer.y - 0.01 && r.x + r.w <= outer.x + outer.w + 0.01 && r.y + r.h <= outer.y + outer.h + 0.01
 }
