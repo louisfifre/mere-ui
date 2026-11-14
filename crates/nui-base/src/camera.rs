@@ -27,8 +27,10 @@ struct Pose {
 // Never quite level, so the ground is never seen exactly edge-on, and never past the zenith.
 const PITCH_MIN: f32 = 0.02;
 const PITCH_MAX: f32 = FRAC_PI_2 - 0.02;
-// Radians a pixel of drag turns.
-const TURN: f32 = 0.006;
+// OrbitControls (r150+, rotateSpeed 1): a drag of the window's whole height is one full turn.
+const FULL_TURN: f32 = std::f32::consts::TAU;
+// OrbitControls (zoomSpeed 1): each wheel notch scales the distance by this.
+const ZOOM_NOTCH: f32 = 0.95;
 // How fast the glide closes the gap, per second: the gap is divided by e every 1 / RATE seconds.
 const RATE: f32 = 12.0;
 
@@ -45,14 +47,17 @@ impl Orbit {
         Orbit { target, goal: pose, now: pose, fov_y: 50f32.to_radians(), near: 10.0, max_distance: distance * 2.0, min_distance: 40.0 }
     }
 
-    pub fn drag(&mut self, dx: f32, dy: f32) {
-        self.goal.yaw -= dx * TURN;
-        self.goal.pitch = (self.goal.pitch + dy * TURN).clamp(PITCH_MIN, PITCH_MAX);
+    /// dx, dy in logical pixels; height is the window's logical height, which sets the angle of a pixel
+    /// for both axes, as OrbitControls does with clientHeight.
+    pub fn drag(&mut self, dx: f32, dy: f32, height: f32) {
+        let per_pixel = FULL_TURN / height.max(1.0);
+        self.goal.yaw -= dx * per_pixel;
+        self.goal.pitch = (self.goal.pitch + dy * per_pixel).clamp(PITCH_MIN, PITCH_MAX);
     }
 
     /// One wheel notch is `delta` 1; positive comes closer.
     pub fn zoom(&mut self, delta: f32) {
-        self.goal.distance = (self.goal.distance * 0.9f32.powf(delta)).clamp(self.min_distance, self.max_distance);
+        self.goal.distance = (self.goal.distance * ZOOM_NOTCH.powf(delta)).clamp(self.min_distance, self.max_distance);
     }
 
     /// Moves towards the goal; true while still moving.
@@ -115,9 +120,23 @@ mod tests {
     }
 
     #[test]
+    fn a_drag_of_the_window_height_is_one_turn_and_a_notch_is_five_percent() {
+        let mut o = Orbit::new(Vec3::default(), Vec3::new(0.0, 500.0, 500.0));
+        let before = o.eye();
+        o.drag(800.0, 0.0, 800.0);
+        while o.step(1.0 / 60.0) {}
+        assert!((o.eye() - before).length() < 1.0, "a full height of drag comes back round");
+        let d = (o.eye() - o.target).length();
+        o.min_distance = 1.0;
+        o.zoom(2.0);
+        while o.step(1.0 / 60.0) {}
+        assert!(((o.eye() - o.target).length() / d - 0.95 * 0.95).abs() < 1e-3);
+    }
+
+    #[test]
     fn glides_to_rest_and_then_stops_asking_for_frames() {
         let mut o = Orbit::new(Vec3::default(), Vec3::new(0.0, 500.0, 500.0));
-        o.drag(100.0, 0.0);
+        o.drag(100.0, 0.0, 800.0);
         let mut frames = 0;
         while o.step(1.0 / 60.0) {
             frames += 1;

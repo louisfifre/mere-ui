@@ -36,6 +36,13 @@ impl Json {
         }
     }
 
+    pub fn boolean(&self) -> Option<bool> {
+        match self {
+            Json::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+
     pub fn array(&self) -> Option<&[Json]> {
         match self {
             Json::Arr(a) => Some(a),

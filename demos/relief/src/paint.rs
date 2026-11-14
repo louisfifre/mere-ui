@@ -102,8 +102,8 @@ mod tests {
             step: 16.0,
             sea_level: 63,
             heights,
-            biomes_used: 1,
             biome_count: 1,
+            biome_total: None,
         };
         let flat = paint(&world(vec![80; 9]));
         let c = height_colour(80.0, 63.0);

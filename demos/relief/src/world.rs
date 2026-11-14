@@ -12,9 +12,11 @@ pub struct World {
     pub sea_level: i32,
     /// One height per point, row by row from the north-west corner.
     pub heights: Vec<i16>,
-    /// Biomes the grid actually uses, out of `biome_count` named in `preview.json`.
-    pub biomes_used: usize,
+    /// Biomes named in `preview.json`: the ones this area holds, as the page counts them.
     pub biome_count: usize,
+    /// The page's total: those biomes plus the surface ones the generator can place that this area lacks.
+    /// None when the file does not list what the generator can place.
+    pub biome_total: Option<usize>,
 }
 
 impl World {
@@ -36,18 +38,29 @@ impl World {
                 biomes_raw.len()
             ));
         }
+        let ids = |key: &str, keep: &dyn Fn(&Json) -> bool| -> Vec<String> {
+            json.get(key).and_then(Json::array).map_or(Vec::new(), |a| {
+                a.iter().filter(|b| keep(b)).filter_map(|b| b.get("id").and_then(Json::text)).collect()
+            })
+        };
+        let met = ids("biomes", &|_| true);
+        // As the page counts them: biomes met plus the surface-only ones possible and not met (a biome that
+        // lives under the ground only would be called missing for ever).
+        let biome_total = json.get("possible").and_then(Json::array).map(|_| {
+            let absent = ids("possible", &|b| !b.get("underground").and_then(Json::boolean).unwrap_or(false))
+                .into_iter()
+                .filter(|id| !met.contains(id))
+                .count();
+            met.len() + absent
+        });
         Ok(World {
             seed: json.get("seed").and_then(Json::text).unwrap_or_default(),
             samples,
             step: number("step")? as f32,
             sea_level: number("seaLevel")? as i32,
             heights: heights_raw.chunks_exact(2).map(|b| i16::from_le_bytes([b[0], b[1]])).collect(),
-            biomes_used: biomes_raw
-                .chunks_exact(2)
-                .map(|b| u16::from_le_bytes([b[0], b[1]]))
-                .collect::<std::collections::BTreeSet<u16>>()
-                .len(),
             biome_count: json.get("biomes").and_then(Json::array).map_or(0, <[Json]>::len),
+            biome_total,
         })
     }
 
@@ -97,7 +110,8 @@ mod tests {
         assert_eq!(w.step, 16.0);
         let (lo, hi) = w.height_range();
         assert!(lo < w.sea_level as i16 && hi > w.sea_level as i16, "{lo}..{hi}");
-        assert!(w.biomes_used > 1 && w.biomes_used <= w.biome_count);
+        assert!(w.biome_count > 1);
+        assert!(w.biome_total.is_none_or(|t| t >= w.biome_count));
     }
 
     #[test]

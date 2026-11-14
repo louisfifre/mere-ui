@@ -27,6 +27,8 @@ pub struct Relief {
     orbit: Orbit,
     /// Where the pointer was at the last move while a button holds the drag.
     drag_from: Option<Vec2>,
+    /// The window's logical height, which sets how far a pixel of drag turns the camera.
+    height: f32,
 }
 
 impl Relief {
@@ -37,20 +39,21 @@ impl Relief {
         // The page's target sits at height 0, well under the land: closer than this the camera is lifted to
         // clear the ground and looks at one huge triangle, which says nothing.
         orbit.min_distance = world.step * 40.0;
-        Relief { world, orbit, drag_from: None }
+        Relief { world, orbit, drag_from: None, height: 800.0 }
     }
 
     fn overlay(&self) -> DrawList {
         let mut list = DrawList::default();
-        let plate = Rect::new(16.0, 16.0, 290.0, 122.0);
+        let plate = Rect::new(16.0, 16.0, 290.0, 138.0);
         list.fill(plate, PLATE);
         list.frame(plate, 1.0, LINE);
         list.text(Vec2::new(28.0, 26.0), text::TITLE, 16.0, INK);
-        list.text(Vec2::new(28.0, 50.0), text::seed(&self.world), 12.0, INK);
+        list.text(Vec2::new(28.0, 50.0), text::area(&self.world), 12.0, INK);
         list.text(Vec2::new(28.0, 66.0), text::grid(&self.world), 12.0, MUTED);
-        list.text(Vec2::new(28.0, 82.0), text::heights(&self.world), 12.0, MUTED);
-        list.text(Vec2::new(28.0, 98.0), text::biomes(&self.world), 12.0, MUTED);
-        list.text(Vec2::new(28.0, 114.0), text::HINT, 12.0, MUTED);
+        list.text(Vec2::new(28.0, 82.0), text::seed(&self.world), 12.0, MUTED);
+        list.text(Vec2::new(28.0, 98.0), text::heights(&self.world), 12.0, MUTED);
+        list.text(Vec2::new(28.0, 114.0), text::biomes(&self.world), 12.0, MUTED);
+        list.text(Vec2::new(28.0, 130.0), text::HINT, 12.0, MUTED);
         list
     }
 }
@@ -67,7 +70,10 @@ impl App for Relief {
 
     fn event(&mut self, event: Event) -> bool {
         match event {
-            Event::Resized { .. } => true,
+            Event::Resized { height_px, scale, .. } => {
+                self.height = height_px as f32 / scale;
+                true
+            }
             Event::PointerDown { pos, button: Button::Left } => {
                 self.drag_from = Some(pos);
                 false
@@ -78,7 +84,7 @@ impl App for Relief {
             }
             Event::PointerMoved { pos } => match self.drag_from {
                 Some(from) => {
-                    self.orbit.drag(pos.x - from.x, pos.y - from.y);
+                    self.orbit.drag(pos.x - from.x, pos.y - from.y, self.height);
                     self.drag_from = Some(pos);
                     true
                 }
@@ -96,6 +102,7 @@ impl App for Relief {
         let (wp, hp) = gfx.size_px();
         let s = gfx.scale();
         let (w, h) = (wp as f32 / s, hp as f32 / s);
+        self.height = h;
         let moving = self.orbit.step(seconds);
         // A block and a half of air over the ground: the near plane is ten blocks, and the camera must not
         // pass through the land it is turning round.
@@ -189,12 +196,12 @@ mod tests {
 
         // Dragging right: three.js lowers the camera's angle round the vertical, so the camera goes to -x
         // and the scene seems to turn to the right.
-        drag(&mut app, Vec2::new(600.0, 300.0), Vec2::new(300.0, 300.0));
-        // Left by 300 px: the camera goes to +x.
+        drag(&mut app, Vec2::new(400.0, 300.0), Vec2::new(300.0, 300.0));
+        // Left by 100 px (60 degrees at this height): the camera goes to +x.
         let left = rest(&mut app);
         assert!(left.x > 0.0, "a drag to the left must bring the camera to +x, got {left:?}");
         shot(&mut app, &mut r, "1-drag-left");
-        drag(&mut app, Vec2::new(300.0, 300.0), Vec2::new(600.0, 300.0));
+        drag(&mut app, Vec2::new(300.0, 300.0), Vec2::new(400.0, 300.0));
         let back = rest(&mut app);
         assert!((back.x - start.x).abs() < 1.0 && (back.z - start.z).abs() < 1.0, "right undoes left");
         let height = back.y;

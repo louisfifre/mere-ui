@@ -64,8 +64,8 @@ mod tests {
             step: 16.0,
             sea_level: 63,
             heights: (0..samples * samples).map(|i| (i % 100) as i16).collect(),
-            biomes_used: 1,
             biome_count: 1,
+            biome_total: None,
         }
     }
 
