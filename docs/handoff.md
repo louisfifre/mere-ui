@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 16 done (2026-11-14)
+## Status: steps 0 to 17 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -230,8 +230,81 @@ cut then draws it alone, the other rows fade).
   probe is empty until then; "Another cut" is built in the section view only; `--cut` is kept within the cuts and `--ore`
   names are not checked; a test also writes `target/tmp/section_none.png` (no section).
 
-Next: step 17 (data and runs).
-Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
+Build plan step 17 is done: data and runs (`docs/shots/run-progress.png`, `export-done.png`). `preview` reads
+`--data` (default `C:\Games\preview\out`; without a `preview.json` there it starts with no world, as the page shows
+`noPreview`; an explicit `--data` that fails exits 1) including `run.json` (`world::Made`: the seed and the 43 values the
+map was made from, which fill the form: `PreviewState::for_world`, the page's `loadWorld`). Generate starts the
+generator given by `--generator` (no default: without it the status says the run failed) as serve.ps1 does:
+`powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "& '<generator>' -Dir … -Out … -Seed '…'
+-Samples N -Detail D -Tectonic @{ 'key' = v; … }"` (all 43 keys, switches as `$true`/`$false`, `-Pack` only with
+`--pack`), after deleting `coarse.json`, `progress.json` and `partial.json` from the out folder, with stdout and stderr in
+`run.log`. `--runs DIR` (default `target/tmp/runs`, refused with exit 2 unless inside this repository's `target/tmp`)
+holds `out/`, `server/`, `run.log`, `pace.json` and `exports/`: nothing a run or an export writes goes anywhere else,
+and the data of `--data` is never written. The app reads `<out>\progress.json` (`{pass, step, done, total}`) once a
+second (the first time one second after the start), and `Follow` (the page's `follow()`) turns it into the done steps
+with the second each ended at, the step under way with its percent, the hairline's share and the status line. The
+run block has the page's looks: the generate button `Running { share }` (frame in `--text`, a `--line` fill from the
+left, "Generating…"), the 34 x 34 stop square beside it (`Ui::stop_button`), the status ("20 s of about 50 s.", the
+first-run "measuring" line, "Preview ready in …", "Stopped. The map is the one from before.", the failure and the
+refused seed in the warning tone, "The map shows these settings."), the detail tabs' small wait line from the learned
+pace (`run::Pace`, the page's `timing` kept in `pace.json`, learned from `timing.json`'s `workMillis`), `#steps` under
+the map (the hairline and the line of ✓ steps and the step under way), the busy veil over the frame (the ground at 0.7
+over the map, the 3D view or the cut, not over the note and the lines under), and the queued re-run (a setting moved
+during a run: the button offers a new run, which stops this one and starts by itself). A finished run (the generator
+ended with a status of 0 and `preview.json` in out) is read again as the world, the form takes its settings, the pace
+learns. Stop is `taskkill /PID … /T /F` through `nui_base::Launcher` (new, no OS code; `nui_win32::SystemLauncher`
+implements it with `std::process` and `CREATE_NO_WINDOW`, no new `windows` feature): it takes the generator's whole
+tree, the game server included; the app does the same when it is dropped (serve.ps1's `finally`). Export writes
+`biomes.png`, `flat.png` (not for a coarse map), `height.png`, `temperature.png` (each the whole map, whatever is
+chosen: `paint()` encoded as is) and `section.png` (the last uploaded sheet, alpha kept) into
+`exports/<seed>_<UTC stamp>/`, then shows "Exported to <folder>" with "Open the folder" (Explorer through the launcher)
+and "Close" under the map.
+
+Tests: `tools/stub_run.ps1` stands for `preview.ps1` (same parameters, same deleted files, `progress.json` written
+atomically, `timing.json`, `run.json`, the same throw when killed; modes `finish`, `hold` and `fail` by
+`$env:NUI_STUB`; it refuses any Out or Dir outside `target/tmp` before it creates anything and downloads nothing).
+`tests/run.rs` R1 to R7 drive the whole application against it offscreen (R1: the 40 % picture
+`target/tmp/run_40.png` and the stop that ends the stub's grandchild process; R2: the finished run becomes the map and
+the pace learns 1.5 s of work; R3 failed, R4 refused, R5 queued, R6 dropped while running, R7 the guard), `tests/export.rs`
+E1 to E4 (E1: the four PNGs equal `paint()` byte for byte and 200 stage pixels of `target/tmp/export_done.png` each equal
+a texel of `biomes.png` around their place; E2 a chosen biome is not exported; E3 `section.png` is the sheet; E4 the
+notice's two links, through a recording launcher), `nui-win32/tests/process.rs` X1 (stop takes the grandchild),
+`nui-ui/tests/run_bits.rs` N1 to N3, 10 unit tests in `run.rs` and `text.rs` (the command line, seeds, the pace, the
+follow, durations, folder names, `same_as`, the progress file) and `tests/data.rs` d5 (`run.json` of the real folder). The
+workspace has 305 passing tests, none skipped. The step-13 test P5 (generate disabled) and the section CLI shot test
+followed the page: with no map Generate is enabled and filled; the CLI picture is built from `PreviewState::for_world`.
+
+- PLACEHOLDER: the figures and the band widths and shares of the right column (step 18), unchanged; nothing new.
+- UNVERIFIED: **the real generator was never run.** `preview.ps1` was read, not executed: it downloads the Fabric server
+  jar and the pack tools, may build the mod with gradle inside `world-preview\mod` (writes `mod\build`), needs a pack
+  (`WORLD_PREVIEW_PACK` is not set on this machine), the Minecraft EULA and Java 25. Only its protocol, read from
+  serve.ps1, preview.ps1 and Progress.java, is followed, and tested with the stub. That the command line works in the real
+  script (quoting of a path with spaces, the hashtable), that `-Samples` means what the page means by `samples` for it,
+  and the 0.5 s atomic rename on Windows are therefore unproven. Also: the ✓ glyph (it drew as a check-like sign in the
+  picture, DirectWrite may be falling back from Plex Mono), the stop icon's half-pixel place (13.5 px), the export
+  folder's UTC stamp (the page uses local time), the seed check being ASCII only (serve.ps1's `\w` takes every script's
+  letters), the "Exported to" label and the path standing side by side (the page flows the path on after its label),
+  the links' 1 px of vertical padding (the page's `.saved button` has none), and the run's last step after a
+  finish: the look may or may not have caught the extras pass, so the last done step is the map or "Cuts, ores and
+  structures".
+- Not built: sketches and drafts during a run (`coarse-*.bin`, `partial-*.bin`: the map stays the old one, veiled, for
+  the whole run), `#numbers.stale`, joining a run found under way on opening (`/api/preview/run`), the close
+  confirmation (`beforeunload`), the tray icon, `tell()` to a host page, the area select's menu (samples stay the loaded
+  world's, 256 by default), the tooltips and titles, the history and `remember()` (step 18), `export.json` (it needs the
+  figures, step 18), `structures.png` (it needs the 2048 px marks rasteriser), and the `*-3d.png` pictures (they need a
+  second offscreen 3D render at 1600). The "Pictures: view" steps of an export are not shown one by one: it is
+  synchronous. The window redraws without rest while a run is under way (a wake timer is step 19's).
+- Choices where the brief was silent: the stub's `finish` copies `heights.bin`, `biomes.bin`, `section*` and the JSON
+  files named in the brief and nothing else; `Want` is recorded by the shell and acted on inside the app's build loop (up
+  to four builds a frame, so the frame shows the result of the press); the generate button is disabled while the stop is
+  being taken whichever look it has, as the page disables both; the `reload` field of the brief was not needed (a finished
+  run uploads the meshes inside `poll`, before the frame begins) and is not there; `Link` buttons are 12 px already, so no
+  smaller look was added; the veil is painted before the note so the note stays undimmed; the unit tests of `run.rs` write
+  in `target/tmp/run_unit*`; R1 reads the button's fill 4 px under its top edge (mid-height would meet the word's
+  glyphs); `--runs` and the generator path are made plain (without `\\?\`) because the stub's guard compares plain paths.
+
+Next: step 18 (the figures column, the history and the light/dark switch with the OS setting); `runs/pace.json` is
+the file for the learned pace, and the history (`preview.history`) could live beside it in the runs folder.Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
 
 - No height key over the 3D view: applied in step 15. Nothing is drawn over the 3D in the preview (no key, no plate, no facts); the height list stays the right column's list, which does not follow the view yet.
