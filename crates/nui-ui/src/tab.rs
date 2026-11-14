@@ -114,7 +114,10 @@ impl Ui {
         // `small` inherits the unitless 1.5 line height; pressed, colour inherit at opacity .7 over the fill.
         let small = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Text) };
         let sub_color = if opts.pressed { mix(t.ground, 0.7, t.text) } else { t.muted };
-        self.add_text(sub, small, fade(sub_color), false, Style::default());
+        // An empty small block is 0 high, so the button has one line then: no leaf at all.
+        if !sub.is_empty() {
+            self.add_text(sub, small, fade(sub_color), false, Style::default());
+        }
         self.close();
         resp
     }

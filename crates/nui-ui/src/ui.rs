@@ -10,7 +10,7 @@ use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::id::Id;
 use crate::input::Input;
 use crate::scroll::{ScrollMetrics, ScrollPaint, thumb_rect};
-use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading};
+use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading, wrap_lines};
 use crate::theme::Theme;
 
 /// What the pointer did to a widget this frame.
@@ -28,7 +28,10 @@ pub(crate) enum Paint {
     None,
     Box { fill: Option<Color>, frame: Option<Color> },
     /// `ellipsis` cuts the text to its box with `ellipsize` when painting, the box being known only then.
-    Text { text: String, look: TextLook, color: Color, underline: bool, ellipsis: bool },
+    /// `wrap` breaks it into lines of the box's width (`wrap_lines`); neither underline nor ellipsis then.
+    Text { text: String, look: TextLook, color: Color, underline: bool, ellipsis: bool, wrap: bool },
+    /// The select's arrow: 8 x 5 px, painted as filled 1 px rows, as Chrome's is at 1x.
+    Chevron { color: Color },
     /// A text field: its own frame, clip, selection, text and caret (field.rs).
     Field(Box<FieldPaint>),
     /// A scroll area: it offsets its children and draws its thumb and fade after them (scroll.rs).
@@ -305,9 +308,41 @@ impl Ui {
     fn add_text_with(&mut self, text: &str, look: TextLook, color: Color, underline: bool, ellipsis: bool, style: Style) -> NodeId {
         let owned = text.to_string();
         let width = look.width(text);
-        let n = self.add("text", style, Paint::Text { text: owned, look, color, underline, ellipsis });
+        let n = self.add("text", style, Paint::Text { text: owned, look, color, underline, ellipsis, wrap: false });
         let measured = Measured { size: Vec2::new(width, look.line), baseline: baseline(look) };
         self.tree.set_leaf(n, Box::new(move |_: Avail| measured));
+        n
+    }
+
+    /// A text leaf that breaks into lines at its box's width. Its measure answers the three questions the
+    /// layout asks: min-content (`Some(0)`: the widest word, one word to a line), a given width, and none
+    /// (everything on one line). Nothing to show measures 0 x 0.
+    pub(crate) fn add_paragraph(&mut self, text: &str, look: TextLook, color: Color, style: Style) -> NodeId {
+        let owned = text.to_string();
+        let n = self.add("paragraph", style, Paint::Text { text: owned.clone(), look, color, underline: false, ellipsis: false, wrap: true });
+        let base = baseline(look);
+        self.tree.set_leaf(
+            n,
+            Box::new(move |a: Avail| {
+                let words: Vec<&str> = owned.split_whitespace().collect();
+                if words.is_empty() {
+                    return Measured::default();
+                }
+                let size = match a.w {
+                    Some(w) if w == 0.0 => {
+                        let widest = words.iter().map(|x| look.width(x)).fold(0.0, f32::max);
+                        Vec2::new(widest, words.len() as f32 * look.line)
+                    }
+                    Some(w) => {
+                        let lines = wrap_lines(&owned, look, w);
+                        let widest = lines.iter().map(|l| look.width(l)).fold(0.0, f32::max);
+                        Vec2::new(widest, lines.len() as f32 * look.line)
+                    }
+                    None => Vec2::new(look.width(&words.join(" ")), look.line),
+                };
+                Measured { size, baseline: base }
+            }),
+        );
         n
     }
 
@@ -344,6 +379,19 @@ impl Ui {
             observe!(Debug, "click {:x}", id.0);
         }
         Resp { id, rect, hovered, held, clicked }
+    }
+}
+
+/// One line of text at `x`, `y` (the top of its content box).
+fn draw_line(list: &mut DrawList, s: &str, look: TextLook, color: Color, x: f32, y: f32) {
+    if look.tracking == 0.0 {
+        list.text_weighted(Vec2::new(x, y), s, look.size, color, look.weight);
+    } else {
+        // Plex Mono is monospaced and has no kerning, so one glyph per step equals a spaced string.
+        let mut buf = [0u8; 4];
+        for (i, ch) in s.chars().enumerate() {
+            list.text_weighted(Vec2::new(x + i as f32 * look.step(), y), &*ch.encode_utf8(&mut buf), look.size, color, look.weight);
+        }
     }
 }
 
@@ -398,32 +446,39 @@ impl Painter<'_> {
                 }
             }
             Paint::Field(f) => paint_field(self.list, f, r, self.tree.style(n).pad),
-            Paint::Text { text, look, color, underline, ellipsis } => {
-                let y = r.y + half_leading(*look);
-                let drawn = if *ellipsis { ellipsize(text, *look, r.w) } else { text.clone() };
-                // A box narrower than the ellipsis cell still shows one: cut it to the box.
-                let cut = *ellipsis && drawn == "\u{2026}" && r.w < look.step();
-                if cut {
-                    self.list.push_clip(r);
-                }
-                if look.tracking == 0.0 {
-                    self.list.text_weighted(Vec2::new(r.x, y), drawn.clone(), look.size, *color, look.weight);
-                } else {
-                    // Plex Mono is monospaced and has no kerning, so one glyph per step equals a spaced string.
-                    let mut buf = [0u8; 4];
-                    for (i, ch) in drawn.chars().enumerate() {
-                        let x = r.x + i as f32 * look.step();
-                        self.list.text_weighted(Vec2::new(x, y), &*ch.encode_utf8(&mut buf), look.size, *color, look.weight);
+            Paint::Chevron { color } => {
+                // [from, to) of each 1 px row, relative to the leaf's top-left.
+                const ROWS: [&[(f32, f32)]; 5] = [&[(0.0, 2.0), (6.0, 8.0)], &[(0.0, 3.0), (5.0, 8.0)], &[(1.0, 7.0)], &[(2.0, 6.0)], &[(3.0, 5.0)]];
+                for (i, row) in ROWS.iter().enumerate() {
+                    for &(a, b) in *row {
+                        self.list.fill(Rect::new(r.x + a, r.y + i as f32, b - a, 1.0), *color);
                     }
                 }
-                if cut {
-                    self.list.pop_clip();
-                }
-                if *underline {
-                    // text-underline-offset 3px from the baseline (line 152); the 1 px thickness is UNVERIFIED
-                    // against the browser.
-                    let w = look.width(&drawn).min(r.w);
-                    self.list.fill(Rect::new(r.x, r.y + baseline(*look) + 3.0, w, 1.0), *color);
+            }
+            Paint::Text { text, look, color, underline, ellipsis, wrap } => {
+                if *wrap {
+                    for (i, line) in wrap_lines(text, *look, r.w).iter().enumerate() {
+                        let y = r.y + i as f32 * look.line + half_leading(*look);
+                        draw_line(self.list, line, *look, *color, r.x, y);
+                    }
+                } else {
+                    let y = r.y + half_leading(*look);
+                    let drawn = if *ellipsis { ellipsize(text, *look, r.w) } else { text.clone() };
+                    // A box narrower than the ellipsis cell still shows one: cut it to the box.
+                    let cut = *ellipsis && drawn == "\u{2026}" && r.w < look.step();
+                    if cut {
+                        self.list.push_clip(r);
+                    }
+                    draw_line(self.list, &drawn, *look, *color, r.x, y);
+                    if cut {
+                        self.list.pop_clip();
+                    }
+                    if *underline {
+                        // text-underline-offset 3px from the baseline (line 152); the 1 px thickness is UNVERIFIED
+                        // against the browser.
+                        let w = look.width(&drawn).min(r.w);
+                        self.list.fill(Rect::new(r.x, r.y + baseline(*look) + 3.0, w, 1.0), *color);
+                    }
                 }
             }
         }

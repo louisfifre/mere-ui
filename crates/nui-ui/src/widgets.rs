@@ -1,7 +1,8 @@
 //! Label, button and toggle in the page's looks.
 
 use nui_base::Weight;
-use nui_layout::{Align, Dim, Edges, Justify, Style};
+use nui_base::Color;
+use nui_layout::{Align, Dim, Edges, Justify, Margin, Side, Style};
 
 use crate::text::{TextLook, Tone};
 use crate::ui::{Paint, Resp, Ui};
@@ -34,6 +35,39 @@ impl Ui {
     pub fn text(&mut self, s: &str, look: TextLook) {
         let color = self.tone_color(look.tone);
         self.add_text(s, look, color, false, Style::default());
+    }
+
+    /// A text that wraps at its box's width, in the tone's colour: the page's `white-space: normal` text.
+    pub fn paragraph(&mut self, s: &str, look: TextLook) {
+        let color = self.tone_color(look.tone);
+        self.add_paragraph(s, look, color, Style::default());
+    }
+
+    /// An unkeyed box painted in one colour: a one-side border, a rule, a slot.
+    pub fn fill(&mut self, style: Style, color: Color) {
+        self.add("fill", style, Paint::Box { fill: Some(color), frame: None });
+    }
+
+    /// `select.field` (lines 123 and 127), display only: it shows its value and an arrow and reports clicks.
+    /// Its menu comes with the step that needs it. UNVERIFIED: the value's place (7 px from the left, centred
+    /// vertically); the reference capture's select was empty. The height and the arrow were measured in Chrome.
+    pub fn select(&mut self, key: &str, value: &str) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, false);
+        let t = *self.theme();
+        let style = Style { h: Dim::Px(23.0), pad: Edges::new(3.0, 5.0, 3.0, 7.0), align_items: Align::Center, ..Style::default() };
+        self.open(key, id, style, Paint::Box { fill: None, frame: Some(t.edge) });
+        self.add_text(value, TextLook::body(Tone::Text), t.text, false, Style::default());
+        let chevron = Style {
+            w: Dim::Px(8.0),
+            h: Dim::Px(5.0),
+            shrink: 0.0,
+            margin: Margin { left: Side::Auto, ..Margin::default() },
+            ..Style::default()
+        };
+        self.add("chevron", chevron, Paint::Chevron { color: t.text });
+        self.close();
+        resp
     }
 
     /// A text leaf that ends in an ellipsis when its box is narrower than the text. `min-width: 0` lets it

@@ -1,5 +1,5 @@
 //! Text metrics as arithmetic: IBM Plex Mono is monospaced, so a width is a count times a constant and no
-//! text-measuring trait is needed. Single line only: the ellipsis is here (`ellipsize`), wrapping is step 13.
+//! text-measuring trait is needed. The ellipsis (`ellipsize`) and the wrapping of a paragraph (`wrap_lines`) are here.
 
 use nui_base::Weight;
 
@@ -41,6 +41,14 @@ impl TextLook {
     pub fn heading() -> TextLook {
         TextLook { size: 12.0, line: 15.0, weight: Weight::SemiBold, tone: Tone::Text, tracking: 0.72 }
     }
+    /// `small`, line 109: 11 px with the body's unitless 1.5 line height inherited.
+    pub fn small(tone: Tone) -> TextLook {
+        TextLook { size: 11.0, line: 16.5, weight: Weight::Regular, tone, tracking: 0.0 }
+    }
+    /// `.label`, line 105: 11 px muted with `letter-spacing: 0.08em` (0.88 px). The caller uppercases.
+    pub fn label() -> TextLook {
+        TextLook { size: 11.0, line: 16.5, weight: Weight::Regular, tone: Tone::Muted, tracking: 0.88 }
+    }
     /// One char's step: the glyph advance plus the tracking.
     pub(crate) fn step(&self) -> f32 {
         ADVANCE_EM * self.size + self.tracking
@@ -62,6 +70,55 @@ pub fn ellipsize(s: &str, look: TextLook, w: f32) -> String {
     let mut out: String = s.chars().take(n).collect();
     out.push('\u{2026}');
     out
+}
+
+/// CSS `white-space: normal` with `overflow-wrap: break-word`: words (split on any whitespace) are joined
+/// by single spaces, a line takes as many as fit in `w`, and a word wider than `w` by itself is cut at whole
+/// glyphs. Its last piece goes on as the current line, so the next word may follow it.
+pub fn wrap_lines(s: &str, look: TextLook, w: f32) -> Vec<String> {
+    let step = look.step();
+    let room = w + 0.01;
+    // A column narrower than one glyph still takes one glyph per line, as the browser does.
+    let per = (room / step).floor().max(1.0) as usize;
+    let mut lines = Vec::new();
+    let mut cur = String::new();
+    let mut cur_n = 0usize;
+    for word in s.split_whitespace() {
+        let n = word.chars().count();
+        let joined = if cur_n == 0 { n } else { cur_n + 1 + n };
+        if joined as f32 * step <= room {
+            if cur_n > 0 {
+                cur.push(' ');
+            }
+            cur.push_str(word);
+            cur_n = joined;
+            continue;
+        }
+        if cur_n > 0 {
+            lines.push(std::mem::take(&mut cur));
+            cur_n = 0;
+        }
+        if n as f32 * step <= room {
+            cur.push_str(word);
+            cur_n = n;
+            continue;
+        }
+        let chars: Vec<char> = word.chars().collect();
+        let mut pieces = chars.chunks(per).peekable();
+        while let Some(p) = pieces.next() {
+            let piece: String = p.iter().collect();
+            if pieces.peek().is_some() {
+                lines.push(piece);
+            } else {
+                cur_n = p.len();
+                cur = piece;
+            }
+        }
+    }
+    if cur_n > 0 {
+        lines.push(cur);
+    }
+    lines
 }
 
 pub fn text_width(s: &str, size: f32) -> f32 {
