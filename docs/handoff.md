@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 14 done (2026-11-14)
+## Status: steps 0 to 15 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -134,14 +134,44 @@ sharp boundaries (so Direct2D's nearest-neighbour is exact at a fractional scale
 - Not built: the `#nav`, `#navFrame` and `#navNote` of the cut (step 16); the list switching with the view and its rows mirroring the choice, the `#pick` line, the tooltips (the `needsFull` title) and cursor shapes; `openGroupsFor`; sketches and drafts (`coarse-*` and `partial-*` files), the busy opacity, export and the 3D view. A click on the map chooses (the dimming), but nothing beside the map shows the choice yet.
 - Choices where the brief was silent: a biome without a `temperature` reads 0; a point whose biome index is out of range is an error; `Look::wheel` treats a fraction of a notch as one step; the drag is read until the press ends, so the last movement before the release counts; `PreviewApp` also has `ui_mut` (for the clipboard); `ShellIds.probe_text` holds the probe's whole text because the line is cut with an ellipsis at 1400 px; commit 4 carries `colour.rs` because the world needs it, and commit 5 holds the paint, the map and the stage together because they depend on each other.
 
-Next: step 15 (the 3D view in the stage).
+Build plan step 15 is done: the 3D view is in the stage (`docs/shots/stage-3d-relief.png`, `stage-3d-zoom.png`,
+`stage-3d-relief-light.png`, `stage-3d-biomes.png`). `demos/preview/src/scene.rs` is the page's `refresh3d` as a
+shared module (land and water meshes, `ground_at`, the orbit set-up with `?camera=`, `settle`, `upload`,
+`water_alpha`, `draw`); `demos/relief` is now a thin client of it and of preview's `World`, and its `json.rs`,
+`world.rs`, `mesh.rs` and `paint.rs` are gone (one copy of `land()` and `ground_at()` left). In the stage, a canvas
+`relief` of side x side takes the left-drag (a full turn per side, as OrbitControls does with `clientHeight`) and the
+wheel; the app draws the two meshes with the D3D viewport set to that canvas's rect, before the interface list, and
+the toolbar's tabs repaint the draped picture (the camera is kept across views and 2D/3D). In Section the 2D/3D
+tabs and the gap before them are not built. `preview --camera cx,cy,cz` is the page's `?camera=`. `Orbit` is `Clone`,
+`Debug` and `PartialEq` because it lives in `PreviewState`.
 
+- Evidence: before `paint.rs` was deleted, `relief`'s `paint()` against `preview::paint::paint(Height, dark, none)`
+  on `C:\Games\preview\out` differed in 0 of 262,144 bytes; `relief C:\Games\preview\out --shot ... --size 1280x800` is
+  byte-identical to `docs/shots/relief-1280.png` (0 differing pixels, same file hash). The CLI shot
+  `preview --data C:\Games\preview\out --view height,relief3d --shot` is byte-identical to the test's `relief3d_1400.png`
+  (same file hash), and `--camera 0.3,0.25,0.6` differs from it.
+- Tests: `tests/relief3d.rs` (4) through `PreviewApp` and the offscreen renderer: S1 the square is (376, 56, 638,
+  638), every pixel outside it equals the interface list drawn alone, 43.8 % of the square is not ground, Relief and
+  3D are pressed, 2D is not, the square's corner is `--ground`, the probe has no "Ticks"; S2 after zooming in all four
+  edge lines 1 px inside the square are 100 % terrain and nothing outside differs; S3 the light ground `#fafaf8`;
+  S4 Biomes repaints (43.8 % of the square changes), 2D brings the map back, 3D brings back the identical orbit,
+  Section leaves 6 tabs and no relief. `tests/interact.rs` O1 to O4 (yaw `2 pi x 100 / 638` within 0.01 and back, a
+  press outside does not turn, one notch is 0.95 of the distance and the list's wheel does not zoom, a drag that
+  leaves the square keeps turning). Also 5 unit tests in `scene.rs`. The workspace has 244 passing tests, none skipped.
+- The D3D viewport alone clips the scene at the square's edges (S2 saw no leak), so no scissor rect was added to
+  `nui-win32`. S2 asks for 30 notches, which the zoom range stops at its near end (`min_distance` = 40 steps).
+
+- PLACEHOLDER: the section's slot (a `--line` fill; step 16), the figures and band widths of the right column, and the list there, which still shows the height bands whatever the view.
+- UNVERIFIED: the glide's speed against OrbitControls' damping (`RATE` is ours), the 0.95 per wheel notch against three.js r160, nearest against linear sampling for the structures drape (the page draws its marks into a 2048 px canvas with linear filtering), and the live window (not looked at: only the offscreen pictures).
+- Not built: structure marks in 3D (the Structures drape is `paint(Structures)`, the land under the marks, nearest); right-drag pan, middle-drag dolly, keys and touch of OrbitControls; cursor shapes, the busy opacity and the export of the 3D; the `no3d` note; resetting the camera when a new area of another width loads (step 17 brings runs); the list following the view.
+- Choices where the brief was silent: `scene::settle` is relief's frame code unchanged; the drag scale is the canvas's `rect.h` (equal to the side); the 3D water alpha follows the view the drape was painted for; `--camera` is ignored without `--data`; relief keeps `scene::water_alpha(Height)` since it only shows the relief tab.
+
+Next: step 16 (the cross-section view).
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
 
-- No height key over the 3D view: the height list now exists in the right column of demos/preview (swatch, band, width, share); putting it beside the 3D view is for the step that joins the two.
-- The overlay's facts move into a side panel with a hairline frame, beside the view as on the page; until
-  then the filled plate stays, because grey text without a ground is unreadable over bright snow.
+- No height key over the 3D view: applied in step 15. Nothing is drawn over the 3D in the preview (no key, no plate, no facts); the height list stays the right column's list, which does not follow the view yet.
+- The overlay's facts belong to the side panel, which is the right column: applied in step 15 for the preview. The relief demo, a standalone window with no side panel, keeps its filled plate, because grey text without a ground is unreadable over bright snow.
 
 ## Goal of this run
 
