@@ -19,6 +19,8 @@ use nui_ui::{
 };
 
 use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
+use crate::figures::Figures;
+use crate::history::Entry;
 use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
 use crate::paint::{View, rows};
 use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Steps, duration};
@@ -129,6 +131,12 @@ pub struct PreviewState {
     pub want: Option<Want>,
     /// A copy of the learned pace the shell reads for the detail tabs' waits; the application owns the file.
     pub pace: Pace,
+    /// The history of the figures, every seed: the shell follows the runs of the map on screen (history::here).
+    pub history: Vec<Entry>,
+    /// The figures of the run before the one on screen (the page's preview.before).
+    pub before: Option<Figures>,
+    /// What the list's filter holds.
+    pub filter: String,
 }
 
 impl PreviewState {
@@ -176,6 +184,9 @@ impl Default for PreviewState {
             steps: Steps::Empty,
             want: None,
             pace: Pace::default(),
+            history: Vec::new(),
+            before: None,
+            filter: String::new(),
         }
     }
 }

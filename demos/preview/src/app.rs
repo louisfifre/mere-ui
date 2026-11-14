@@ -11,6 +11,9 @@ use nui_base::{App, DrawList, Event, Gfx, Vec2, observe};
 use nui_ui::{Id, Theme, Ui};
 
 use crate::cut::{self, CUT_IMAGE, NAV_H, NAV_IMAGE, CutLook};
+use crate::figures::Figures;
+use crate::history;
+use crate::json::Json;
 use crate::map::MAP_IMAGE;
 use crate::paint::{View, paint};
 use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Runs, Steps};
@@ -71,7 +74,7 @@ impl PreviewApp {
         state.made = world.as_ref().and_then(run::ask_of);
         // The look a caller gave (--cut-look) is for the cut it also named: it is not fresh at the first sync.
         let last_at = Some(state.cut_at);
-        PreviewApp {
+        let mut app = PreviewApp {
             ui: Ui::new(theme),
             theme,
             dark,
@@ -90,15 +93,38 @@ impl PreviewApp {
             pace: Pace::default(),
             last_sheet: None,
             queued: false,
-        }
+        };
+        // Line 2815: the map that opens the page is kept like any other (in memory until there are runs).
+        app.remember();
+        app
     }
 
-    /// Lets the window run a generator: the learned pace is read from the runs' folder.
+    /// Lets the window run a generator: the learned pace is read from the runs' folder, and so are the history
+    /// and the figures of the run before, which the page keeps in its localStorage.
     pub fn with_runs(mut self, runs: Runs) -> PreviewApp {
         self.pace = Pace::load(&runs.pace());
         self.state.pace = self.pace.clone();
+        self.state.history = history::load(&runs.history());
+        self.state.before = std::fs::read_to_string(runs.before()).ok().and_then(|t| Json::parse(&t).ok()).and_then(|j| Figures::from_json(&j));
         self.runs = Some(runs);
+        self.remember();
         self
+    }
+
+    /// `remember` (1546-1560): the map on screen is added to the history unless it is the one kept last, and the
+    /// file is written when there are runs to keep it in. There is no quota natively, so nothing is evicted.
+    fn remember(&mut self) {
+        let (Some(world), Some(made)) = (&self.world, &self.state.made) else { return };
+        let at = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0.0, |d| d.as_millis() as f64);
+        let entry = history::entry(made, &world.measured.figures, at);
+        if !history::remember(&mut self.state.history, entry) {
+            return;
+        }
+        if let Some(runs) = &self.runs {
+            if let Err(e) = history::save(&runs.history(), &self.state.history) {
+                observe!(Warn, "the history could not be kept in {}: {e}", runs.history().display());
+            }
+        }
     }
 
     /// Whether a generator is under way.
@@ -272,7 +298,7 @@ impl PreviewApp {
     fn finish(&mut self, status: Option<ExitStatus>, gfx: &mut dyn Gfx) {
         let (Some(run), Some(mut follow)) = (self.running.take(), self.state.follow.take()) else { return };
         let Some(runs) = self.runs.as_ref() else { return };
-        let out = runs.out();
+        let (out, pace_file, before_file, log_file) = (runs.out(), runs.pace(), runs.before(), runs.log());
         let seconds = run.started.elapsed().as_secs();
         follow.seconds = seconds;
         let mut finished = false;
@@ -287,6 +313,13 @@ impl PreviewApp {
                         self.state.orbit = None;
                     }
                     scene::upload(gfx, &world);
+                    // The figures of the map being replaced are the run before (lines 2656-2658).
+                    if let Some(old) = self.world.as_ref().map(|w| w.measured.figures) {
+                        self.state.before = Some(old);
+                        if let Err(e) = std::fs::write(&before_file, old.to_json()) {
+                            observe!(Warn, "the figures of the run before could not be kept: {e}");
+                        }
+                    }
                     self.world = Some(world);
                     self.painted = None;
                     self.nav_painted = None;
@@ -304,10 +337,12 @@ impl PreviewApp {
                     self.state.trouble.clear();
                     self.state.said = text::done(&run::duration(seconds));
                     self.pace.learn(follow.ask.samples, follow.ask.detail, seconds as f64, run::work_seconds(&out));
-                    if let Err(e) = self.pace.save(&runs.pace()) {
+                    if let Err(e) = self.pace.save(&pace_file) {
                         observe!(Warn, "the pace could not be kept: {e}");
                     }
                     self.state.pace = self.pace.clone();
+                    // Line 2661: the new map is kept in the history.
+                    self.remember();
                     finished = true;
                 }
                 Err(e) => {
@@ -316,7 +351,7 @@ impl PreviewApp {
                 }
             }
         } else {
-            observe!(Warn, "the run failed: {} (see {})", status.map_or("no status".to_string(), |s| s.to_string()), runs.log().display());
+            observe!(Warn, "the run failed: {} (see {})", status.map_or("no status".to_string(), |s| s.to_string()), log_file.display());
             self.state.trouble = text::FAILED.to_string();
             self.state.said.clear();
         }

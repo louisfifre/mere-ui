@@ -318,6 +318,14 @@ impl Runs {
     pub fn log(&self) -> PathBuf {
         self.root.join("run.log")
     }
+    /// The page's localStorage `preview.history`, as a file of the same JSON.
+    pub fn history(&self) -> PathBuf {
+        self.root.join("history.json")
+    }
+    /// The page's localStorage `preview.before`: the figures of the run before the one on screen.
+    pub fn before(&self) -> PathBuf {
+        self.root.join("before.json")
+    }
 }
 
 #[cfg(test)]
