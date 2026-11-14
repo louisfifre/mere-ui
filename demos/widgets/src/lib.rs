@@ -1,6 +1,9 @@
 //! The widgets of `nui-ui` in the page's looks: live in a window, and as a sheet of every state.
 
+pub mod controls;
 pub mod text;
+
+pub use controls::{CONTROLS, ControlsState, controls_live, controls_sheet};
 
 use nui_base::{DrawList, Event, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Position, Style, Track, Tracks};
