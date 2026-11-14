@@ -11,11 +11,19 @@ use windows::Win32::Graphics::Direct3D11::*;
 use windows::Win32::Graphics::DirectWrite::*;
 use windows::Win32::Graphics::Dxgi::Common::*;
 use windows::Win32::Graphics::Dxgi::*;
-use windows::core::{Interface, PCSTR, Result, s, w};
+use windows::core::{Error, HRESULT, Interface, PCSTR, Result, s, w};
 
 // Direct2D draws only into B8G8R8A8 surfaces, so the picture is in that order; textures uploaded by the
 // application stay RGBA, which a shader reads the same way.
 const PICTURE: DXGI_FORMAT = DXGI_FORMAT_B8G8R8A8_UNORM;
+const DEPTH: DXGI_FORMAT = DXGI_FORMAT_D32_FLOAT;
+
+// What the web view gets from WebGL's antialias:true. 4 is the count every Direct3D 11 card must support
+// for the formats used here; it is still asked, because WARP or a remote adapter may differ.
+const WANTED_SAMPLES: u32 = 4;
+
+// Direct2D's "make the target again" (D2DERR_RECREATE_TARGET), which windows-rs does not export.
+const D2DERR_RECREATE_TARGET: HRESULT = HRESULT(0x8899000C_u32 as i32);
 
 const SHADERS: &str = r#"
 cbuffer Frame : register(b0) { float4x4 view_proj; float4 tint; };
@@ -48,8 +56,13 @@ struct Mesh {
 
 /// Everything that lives as long as the picture's size: dropped and made again on a resize.
 struct Views {
+    // The 3D pass draws into this: the multisampled image when samples > 1, else the picture itself.
     rtv: ID3D11RenderTargetView,
     dsv: ID3D11DepthStencilView,
+    // The single-sample image Direct2D draws on and the screen shows.
+    picture: ID3D11Texture2D,
+    // Only with multisampling: resolved into picture before the interface is drawn.
+    multisampled: Option<ID3D11Texture2D>,
     // Kept so Direct2D draws into the same texture as Direct3D.
     _bitmap: ID2D1Bitmap1,
 }
@@ -65,6 +78,10 @@ pub struct Renderer {
     width: u32,
     height: u32,
     scale: f32,
+    samples: u32,
+    // True from `begin` until the 3D pass is resolved into the picture (a no-op without multisampling).
+    unresolved: bool,
+    lost: bool,
     vs: ID3D11VertexShader,
     ps_image: ID3D11PixelShader,
     ps_flat: ID3D11PixelShader,
@@ -217,11 +234,13 @@ impl Renderer {
                     // A terrain is seen from both sides when the camera dips under a cliff.
                     CullMode: D3D11_CULL_NONE,
                     DepthClipEnable: true.into(),
+                    MultisampleEnable: true.into(),
                     ..Default::default()
                 },
                 Some(&mut raster),
             )?;
 
+            let samples = pick_samples(&device);
             let mut r = Renderer {
                 device,
                 ctx,
@@ -233,6 +252,9 @@ impl Renderer {
                 width,
                 height,
                 scale,
+                samples,
+                unresolved: false,
+                lost: false,
                 vs: vs.unwrap(),
                 ps_image: ps_image.unwrap(),
                 ps_flat: ps_flat.unwrap(),
@@ -263,18 +285,44 @@ impl Renderer {
     fn make_views(&mut self) -> Result<()> {
         unsafe {
             let picture = self.picture()?;
+            let (w, h) = (self.width.max(1), self.height.max(1));
+            let ms = self.samples > 1;
+
+            // With multisampling the 3D pass cannot draw on the picture (one sample a pixel): it gets an
+            // image of its own, with a depth buffer of the same count, and is resolved into the picture.
+            let multisampled = if ms {
+                let mut t = None;
+                self.device.CreateTexture2D(
+                    &D3D11_TEXTURE2D_DESC {
+                        Width: w,
+                        Height: h,
+                        MipLevels: 1,
+                        ArraySize: 1,
+                        Format: PICTURE,
+                        SampleDesc: DXGI_SAMPLE_DESC { Count: self.samples, Quality: 0 },
+                        Usage: D3D11_USAGE_DEFAULT,
+                        BindFlags: D3D11_BIND_RENDER_TARGET.0 as u32,
+                        ..Default::default()
+                    },
+                    None,
+                    Some(&mut t),
+                )?;
+                t
+            } else {
+                None
+            };
             let mut rtv = None;
-            self.device.CreateRenderTargetView(&picture, None, Some(&mut rtv))?;
+            self.device.CreateRenderTargetView(multisampled.as_ref().unwrap_or(&picture), None, Some(&mut rtv))?;
 
             let mut depth = None;
             self.device.CreateTexture2D(
                 &D3D11_TEXTURE2D_DESC {
-                    Width: self.width.max(1),
-                    Height: self.height.max(1),
+                    Width: w,
+                    Height: h,
                     MipLevels: 1,
                     ArraySize: 1,
-                    Format: DXGI_FORMAT_D32_FLOAT,
-                    SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+                    Format: DEPTH,
+                    SampleDesc: DXGI_SAMPLE_DESC { Count: self.samples, Quality: 0 },
                     Usage: D3D11_USAGE_DEFAULT,
                     BindFlags: D3D11_BIND_DEPTH_STENCIL.0 as u32,
                     ..Default::default()
@@ -298,15 +346,58 @@ impl Renderer {
             )?;
             self.d2d.SetTarget(&bitmap);
             self.d2d.SetDpi(dpi, dpi);
-            self.views = Some(Views { rtv: rtv.unwrap(), dsv: dsv.unwrap(), _bitmap: bitmap });
+            self.views = Some(Views { rtv: rtv.unwrap(), dsv: dsv.unwrap(), picture, multisampled, _bitmap: bitmap });
         }
         Ok(())
+    }
+
+    /// True once the graphics device is gone (driver reset, card removed, Direct2D asking for a new
+    /// target). From then on every call draws nothing and logs nothing more: the window loop must drop
+    /// this `Renderer`, build a new one with `for_window` and upload its meshes and images again, since
+    /// they lived on the lost device. Set by `end` (Present), `resize` (ResizeBuffers) and `draw_list`
+    /// (EndDraw).
+    pub fn lost(&self) -> bool {
+        self.lost
+    }
+
+    /// Records a failure, and flags the device as lost when the error says so.
+    fn failed(&mut self, what: &str, e: &Error) {
+        let code = e.code();
+        let gone = code == DXGI_ERROR_DEVICE_REMOVED
+            || code == DXGI_ERROR_DEVICE_RESET
+            || code == D2DERR_RECREATE_TARGET
+            // Some drivers report a vanished device through other errors; the device knows for sure.
+            || unsafe { self.device.GetDeviceRemovedReason() }.is_err();
+        if gone {
+            if !self.lost {
+                observe!(Error, "{what}: device lost ({e}), the renderer must be rebuilt");
+            }
+            self.lost = true;
+        } else {
+            observe!(Error, "{what}: {e}");
+        }
+    }
+
+    /// Copies the multisampled 3D pass into the picture. Whatever Direct2D drew there before is
+    /// replaced, so the interface must come after the last mesh of a frame.
+    fn resolve(&mut self) {
+        if !self.unresolved {
+            return;
+        }
+        self.unresolved = false;
+        if let Some(Views { picture, multisampled: Some(ms), .. }) = &self.views {
+            unsafe { self.ctx.ResolveSubresource(picture, 0, ms, 0, PICTURE) };
+        }
     }
 
     /// A new size or scale for a window's picture. Every view on the old images must be released first, or
     /// the swap chain refuses to resize.
     pub fn resize(&mut self, width: u32, height: u32, scale: f32) -> Result<()> {
-        if (width, height, scale) == (self.width, self.height, self.scale) || width == 0 || height == 0 {
+        if width == 0 || height == 0 || self.lost {
+            return Ok(());
+        }
+        // Without views the last resize failed halfway: the same size must be tried again, not skipped.
+        if (width, height, scale) == (self.width, self.height, self.scale) && self.views.is_some() {
             return Ok(());
         }
         unsafe {
@@ -314,15 +405,25 @@ impl Renderer {
             self.ctx.OMSetRenderTargets(None, None);
             self.views = None;
             self.ctx.Flush();
-            match &self.target {
-                Target::Window(chain) => chain.ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG(0))?,
-                Target::Offscreen(_) => self.target = Target::Offscreen(picture_texture(&self.device, width, height)?),
+            let resized = if let Target::Window(chain) = &self.target {
+                chain.ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG(0))
+            } else {
+                picture_texture(&self.device, width, height).map(|t| self.target = Target::Offscreen(t))
+            };
+            if let Err(e) = resized {
+                // The buffers kept their old size, so the stored size stays the old one too.
+                self.failed("resize buffers", &e);
+                return Err(e);
             }
         }
+        // From here the buffers have the new size, whatever happens to the views.
         (self.width, self.height, self.scale) = (width, height, scale);
-        self.make_views()
+        let made = self.make_views();
+        if let Err(e) = &made {
+            self.failed("make views", e);
+        }
+        made
     }
-
     /// The offscreen picture as RGBA rows, top to bottom.
     pub fn read_rgba(&self) -> Result<Vec<u8>> {
         let Target::Offscreen(texture) = &self.target else {
@@ -463,9 +564,13 @@ impl Renderer {
                         self.d2d.FillRectangle(&d2d_rect(*rect), &self.brush);
                     }
                     Cmd::Frame { rect, width_px, color } => {
-                        // A line of n physical pixels centred on a pixel edge would straddle two pixels and
-                        // blur; centring it half a line inside the rectangle lands it on whole pixels.
-                        let wd = width_px / self.scale;
+                        // `width_px` counts logical pixels, so a hairline is one of them: `scale` device
+                        // pixels, rounded to whole ones (at least 1) because a fractional stroke would be
+                        // blurred by coverage. A line of n device pixels centred on a pixel edge would
+                        // straddle two pixels; centring it half a line inside the rectangle, whose edges
+                        // are snapped to device pixels, lands it on whole pixels.
+                        let device_px = (width_px * self.scale).round().max(1.0);
+                        let wd = device_px / self.scale;
                         let half = wd / 2.0;
                         let snapped = snap(*rect, self.scale);
                         let r = D2D_RECT_F {
@@ -508,6 +613,12 @@ impl Gfx for Renderer {
     }
 
     fn upload_image(&mut self, id: ImageId, width: u32, height: u32, rgba: &[u8]) {
+        // The driver reads width*height*4 bytes from the pointer: a short slice would be read past its end.
+        let expected = (width as usize).checked_mul(height as usize).and_then(|n| n.checked_mul(4));
+        if width == 0 || height == 0 || expected != Some(rgba.len()) {
+            observe!(Error, "image {:?} of {width}x{height} refused: {} bytes given, {:?} expected", id, rgba.len(), expected);
+            return;
+        }
         let made = unsafe {
             let mut texture = None;
             let init = D3D11_SUBRESOURCE_DATA { pSysMem: rgba.as_ptr() as *const _, SysMemPitch: width * 4, SysMemSlicePitch: 0 };
@@ -569,7 +680,11 @@ impl Gfx for Renderer {
     }
 
     fn begin(&mut self, ground: Color) {
+        if self.lost {
+            return;
+        }
         let Some(views) = &self.views else { return };
+        self.unresolved = true;
         unsafe {
             self.ctx.ClearRenderTargetView(&views.rtv, &[ground.r, ground.g, ground.b, ground.a]);
             self.ctx.ClearDepthStencilView(&views.dsv, D3D11_CLEAR_DEPTH.0 as u32, 0.0, 0);
@@ -577,27 +692,45 @@ impl Gfx for Renderer {
     }
 
     fn draw_mesh(&mut self, viewport: Rect, mesh: MeshId, view_proj: &Mat4, material: Material) {
+        if self.lost {
+            return;
+        }
+        // A mesh drawn after a list is resolved over that list again: lists belong after the meshes.
+        self.unresolved = true;
         if let Err(e) = self.try_draw_mesh(viewport, mesh, view_proj, material) {
-            observe!(Error, "draw mesh {:?}: {e}", mesh);
+            self.failed(&format!("draw mesh {mesh:?}"), &e);
         }
     }
 
+    /// Meshes first, lists after: the multisampled 3D pass is resolved into the picture on the first
+    /// list of a frame, and the interface is drawn on that.
     fn draw_list(&mut self, list: &DrawList) {
+        if self.lost {
+            return;
+        }
+        self.resolve();
         if let Err(e) = self.try_draw_list(list) {
-            observe!(Error, "draw list: {e}");
+            self.failed("draw list", &e);
         }
     }
 
+    /// Shows the frame. After it, `Renderer::lost` says whether the device went away and the renderer has
+    /// to be rebuilt.
     fn end(&mut self) {
-        match &self.target {
-            Target::Window(chain) => {
-                // Waits for the next refresh of the screen: one frame a refresh at most, never torn.
-                let hr = unsafe { chain.Present(1, DXGI_PRESENT(0)) };
-                if hr.is_err() {
-                    observe!(Error, "present: {hr:?}");
-                }
+        if self.lost {
+            return;
+        }
+        self.resolve();
+        let presented = match &self.target {
+            // Waits for the next refresh of the screen: one frame a refresh at most, never torn.
+            Target::Window(chain) => unsafe { chain.Present(1, DXGI_PRESENT(0)).ok() },
+            Target::Offscreen(_) => {
+                unsafe { self.ctx.Flush() };
+                Ok(())
             }
-            Target::Offscreen(_) => unsafe { self.ctx.Flush() },
+        };
+        if let Err(e) = presented {
+            self.failed("present", &e);
         }
     }
 }
@@ -627,6 +760,21 @@ fn create_device() -> Result<(ID3D11Device, ID3D11DeviceContext)> {
         observe!(Warn, "no hardware device ({e}), using WARP");
         try_kind(D3D_DRIVER_TYPE_WARP)
     })
+}
+
+/// The largest sample count up to `WANTED_SAMPLES` that both the picture and the depth format support;
+/// 1 (no antialiasing) when none does.
+fn pick_samples(device: &ID3D11Device) -> u32 {
+    let supported = |format, count| unsafe { device.CheckMultisampleQualityLevels(format, count) }.is_ok_and(|levels| levels > 0);
+    let mut count = WANTED_SAMPLES;
+    while count > 1 {
+        if supported(PICTURE, count) && supported(DEPTH, count) {
+            return count;
+        }
+        count /= 2;
+    }
+    observe!(Warn, "no multisampling up to {WANTED_SAMPLES}x, drawing without antialiasing");
+    1
 }
 
 fn picture_texture(device: &ID3D11Device, width: u32, height: u32) -> Result<ID3D11Texture2D> {
