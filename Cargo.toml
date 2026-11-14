@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["crates/nui-base", "crates/nui-png"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+nui-base = { path = "crates/nui-base" }
+nui-png = { path = "crates/nui-png" }
+nui-win32 = { path = "crates/nui-win32" }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true

@@ -1,0 +1,8 @@
+[package]
+name = "nui-png"
+description = "PNG writer (deflate with fixed Huffman codes) and a reader for the files it writes."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
