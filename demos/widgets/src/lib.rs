@@ -1,9 +1,11 @@
 //! The widgets of `nui-ui` in the page's looks: live in a window, and as a sheet of every state.
 
 pub mod controls;
+pub mod fields;
 pub mod text;
 
 pub use controls::{CONTROLS, ControlsState, controls_live, controls_sheet};
+pub use fields::{FIELDS, FieldsState, fields_live, fields_sheet};
 
 use nui_base::{DrawList, Event, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Position, Style, Track, Tracks};
@@ -45,6 +47,19 @@ pub fn at(s: Sample, col: usize) -> Vec2 {
         Sample::ToggleOn => 204.0,
     };
     Vec2::new(COLS[col], y)
+}
+
+/// `.setting` (line 164): label, output, field; the field column is `8ch`.
+pub(crate) fn setting_style(w: Dim) -> Style {
+    Style {
+        display: Display::Grid,
+        cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto, Track::Px(57.6)]),
+        gap: Vec2::new(10.0, 0.0),
+        align_items: Align::Center,
+        pad: Edges::vh(2.0, 0.0),
+        w,
+        ..Style::default()
+    }
 }
 
 fn absolute_at(p: Vec2) -> Style {

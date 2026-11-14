@@ -2,10 +2,10 @@
 //! cell is its own `Ui` so that one pointer can rest on each.
 
 use nui_base::{DrawList, Event, Vec2};
-use nui_layout::{Align, Dim, Display, Edges, Style, Track, Tracks};
+use nui_layout::{Dim, Style};
 use nui_ui::{FoldOpts, Id, NumberSpec, TabLook, TabOpts, TextLook, Theme, Tone, Ui, choice_style, details_style, strip_style};
 
-use crate::{absolute_at, text};
+use crate::{absolute_at, setting_style, text};
 
 pub const CONTROLS: (u32, u32) = (860, 440);
 
@@ -32,19 +32,6 @@ impl Default for ControlsState {
 }
 
 type Cell = fn(&mut Ui, &mut ControlsState) -> Option<Id>;
-
-/// `.setting` (line 164): label, output, field; the field column is `8ch`.
-fn setting_style(w: Dim) -> Style {
-    Style {
-        display: Display::Grid,
-        cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto, Track::Px(57.6)]),
-        gap: Vec2::new(10.0, 0.0),
-        align_items: Align::Center,
-        pad: Edges::vh(2.0, 0.0),
-        w,
-        ..Style::default()
-    }
-}
 
 /// A column of width `w` placed at (x, y).
 fn col_at(x: f32, y: f32, w: f32) -> Style {

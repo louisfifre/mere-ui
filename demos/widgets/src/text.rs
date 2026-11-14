@@ -60,4 +60,43 @@ pub const HOVER: &str = "hover";
 pub const HELD: &str = "held";
 pub const DISABLED: &str = "disabled";
 
+/// Line 457, `text.seedRandom`: the seed field's placeholder.
+pub const SEED_RANDOM: &str = "random";
+/// Line 519: the filter field's placeholder (the ellipsis is U+2026).
+pub const FILTER: &str = "Filter by name\u{2026}";
+/// Line 586: the profile name field's placeholder.
+pub const PROFILE_NAME: &str = "Name";
+/// PLACEHOLDER: demo wording, not the page's (the second number row of the live mode).
+pub const ELEVATION_BOOST: &str = "Elevation boost";
+
+/// Demo values, not the page's.
+pub const DEMO_DIGITS: &str = "1234567890";
+pub const DEMO_FILTER: &str = "deep ocean";
+pub const DEMO_LONG: &str = " the quick brown fox jumps over the lazy dog";
+pub const DEMO_SEED: &str = "4242";
+
+pub const CAP_FILTER: &str = "filter: double click on ocean";
+pub const CAP_NAME: &str = "profile name on creation: focused, all selected";
+pub const CAP_STEP: &str = "setting: two steps up from 1";
+pub const CAP_CLAMP: &str = "setting: 9 typed, Enter: clamped to 3";
+pub const CAP_TAB: &str = "Tab from the seed: the setting, all selected";
+pub const CAP_EMPTY: &str = "seed, empty: the placeholder";
+pub const CAP_SCRIPT: &str = "seed field, after each step";
+/// What each row of the script did, in order.
+pub const SCRIPT: [&str; 13] = [
+    "start",
+    "click",
+    "type 1234567890",
+    "Home",
+    "Right x4",
+    "Left x2",
+    "Shift+Right x4",
+    "Ctrl+C, End, Ctrl+V",
+    "Backspace x2",
+    // Cut short: the page's 25-char caption would run under the field at x 600.
+    "type the quick brown\u{2026}",
+    "Ctrl+Backspace",
+    "Ctrl+A",
+    "Escape",
+];
 pub const WINDOW_TITLE: &str = "Widgets";
