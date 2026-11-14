@@ -137,6 +137,8 @@ pub struct ShellIds {
     pub map: Id,
     pub under: Id,
     pub probe: Id,
+    /// What the probe line says, whole (the line itself is cut with an ellipsis when it does not fit).
+    pub probe_text: String,
     pub export: Id,
     pub figures_grid: Id,
     pub goal_values: Vec<Id>,
@@ -176,6 +178,7 @@ impl Default for ShellIds {
             map: o,
             under: o,
             probe: o,
+            probe_text: String::new(),
             export: o,
             figures_grid: o,
             goal_values: Vec::new(),
@@ -442,6 +445,7 @@ fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
                 ..Style::default()
             };
             let probe_text = probe_text(ui, s, ids, side, world);
+            ids.probe_text = probe_text.clone();
             ids.under = ui.node("under", under, |ui| {
                 ui.node("probeRow", Style { gap: Vec2::new(18.0, 0.0), align_items: Align::Baseline, ..Style::default() }, |ui| {
                     let probe = Style { grow: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..Style::default() };
