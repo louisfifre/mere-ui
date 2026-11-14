@@ -41,9 +41,9 @@ fn check(theme: Theme, w: u32, name: &str) {
     let (left, middle) = (rect(ids.left), rect(ids.middle));
     same(at((left.x + left.w + middle.x) / 2.0, 500.0), theme.ground, "column gap");
 
-    // P2: the map slot, a placeholder painted in --line.
+    // P2: no world, so the frame is empty ground; its note is centred, far from the corner.
     let f = rect(ids.frame);
-    same(at(f.x + f.w / 2.0, f.y + f.h / 2.0), theme.line, "map slot");
+    same(at(f.x + 5.0, f.y + 5.0), theme.ground, "empty frame");
 
     // P3: the pressed Relief tab is filled with --text (inside its 1 px frame).
     let relief = rect(ids.tabs[2]);

@@ -50,7 +50,63 @@ pub const GROUPS: [&str; 5] = ["Biome size and climate", "Relief", "Continents, 
 /// Lines 605-611, in key order.
 pub const FIGURE_NAMES: [&str; 7] = ["Flat land", "Typical flat zone", "Typical biome", "Sea", "High land", "Highest peak", "Biomes present"];
 
-/// Line 597 with `cut` false.
-pub fn area_probe(blocks: &str, square: &str) -> String {
-    format!("{blocks} \u{d7} {blocks} blocks, north up. One square: {square} blocks. Cross: 0,0.")
+/// Line 593.
+pub const NO_PREVIEW: &str = "No preview yet. Choose a seed and generate one.";
+/// Line 599.
+pub const NO_STRUCTURES: &str = "No structures for this preview. Generate it again.";
+
+/// Line 597: `cut` says the ticks of the section's cut are on the frame.
+pub fn area_probe(blocks: &str, square: &str, cut: bool) -> String {
+    format!("{blocks} \u{d7} {blocks} blocks, north up. One square: {square} blocks. Cross: 0,0.{}", if cut { " Ticks: the cut." } else { "" })
+}
+
+/// Line 596: three spaces between the fields.
+pub fn probe(x: &str, z: &str, y: &str, biome: &str) -> String {
+    format!("x {x}   z {z}   height {y}   {biome}")
+}
+
+/// Line 602.
+pub fn structure_probe(x: &str, z: &str, name: &str) -> String {
+    format!("x {x}   z {z}   {name}")
+}
+
+/// Line 652 with no decimals: `toLocaleString('en-US')`, groups of three, halves away from zero.
+pub fn num(v: f64) -> String {
+    let r = (v.abs() + 0.5).floor() as u64;
+    let digits = r.to_string();
+    let mut grouped = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i) % 3 == 0 {
+            grouped.push(',');
+        }
+        grouped.push(c);
+    }
+    if v < 0.0 && r != 0 { format!("-{grouped}") } else { grouped }
+}
+
+/// Lines 1120-1123: the name alone, without the mod it comes from, in words.
+pub fn pretty(id: &str) -> String {
+    let name = id.rsplit(':').next().unwrap_or("");
+    let mut words = String::new();
+    let mut gap = false;
+    for c in name.chars() {
+        if c == '_' || c == '/' {
+            // A run of them is one space.
+            gap = true;
+        } else {
+            if gap {
+                words.push(' ');
+                gap = false;
+            }
+            words.push(c);
+        }
+    }
+    if gap {
+        words.push(' ');
+    }
+    let mut chars = words.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
 }

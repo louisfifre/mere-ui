@@ -6,6 +6,8 @@
 //! band widths and shares (step 18 computes them). Not built yet: changed marks, hints and tooltips, the
 //! select's menu, the ores group, the filter, the tabs that switch the list, the map, runs and export.
 
+use std::collections::BTreeSet;
+
 use nui_base::{Color, DrawList, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
@@ -13,6 +15,9 @@ use nui_ui::{
     choice_style, details_style, scroll_style, strip_style,
 };
 
+use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
+use crate::paint::{View, rows};
+use crate::world::World;
 use crate::bands::{BAND_FIGURES, HEIGHT_STEPS, SEA, SEA_DEPTHS, band_colours, band_names};
 use crate::settings::{Kind, SETTINGS, grouped, pack_values};
 use crate::text;
@@ -72,6 +77,11 @@ pub struct PreviewState {
     pub detail: usize,
     pub settings_y: f32,
     pub list_y: f32,
+    /// How the 2D map is looked at, and the press that may become a carry or a click.
+    pub look: Look,
+    pub carry: Option<Carry>,
+    /// What is chosen in each of the five views (by id): what the map shows alone.
+    pub chosen: [BTreeSet<String>; 5],
 }
 
 impl Default for PreviewState {
@@ -89,6 +99,9 @@ impl Default for PreviewState {
             detail: 2,
             settings_y: 0.0,
             list_y: 0.0,
+            look: Look::REST,
+            carry: None,
+            chosen: Default::default(),
         }
     }
 }
@@ -120,6 +133,8 @@ pub struct ShellIds {
     pub generate: Id,
     pub stage: Id,
     pub frame: Id,
+    /// The map itself (a canvas), when the frame holds one.
+    pub map: Id,
     pub under: Id,
     pub probe: Id,
     pub export: Id,
@@ -158,6 +173,7 @@ impl Default for ShellIds {
             generate: o,
             stage: o,
             frame: o,
+            map: o,
             under: o,
             probe: o,
             export: o,
@@ -215,11 +231,15 @@ fn rgb(c: [u8; 3]) -> Color {
 
 /// Builds the shell into the frame the caller began (`begin_frame(size)` before, `end_frame` after). `size` is
 /// the window's: the map's side is arithmetic from it, because the square needs the column's height before
-/// layout.
-pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2) -> ShellIds {
+/// layout. `world` is the preview on the map, if there is one.
+pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World>) -> ShellIds {
     let t = *ui.theme();
     let cols = Columns::for_width(size.x);
     let mut ids = ShellIds::default();
+    // A map stopped at a coarser detail cannot give these views (line 2509): the page goes back to the biomes.
+    if world.is_some_and(World::coarse) && matches!(s.view, 1 | 4 | 5) {
+        s.view = 0;
+    }
 
     // Line 227: `side = min(the column's width, its height - --under)`.
     let middle_w = size.x.min(1480.0) - cols.pad.left - cols.pad.right - cols.left - cols.right - 2.0 * cols.gap;
@@ -228,7 +248,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2) -> ShellIds {
 
     // body (lines 63-72): a column filling the window.
     ui.node("body", Style { column: true, ..fills() }, |ui| {
-        toolbar(ui, s, &mut ids);
+        toolbar(ui, s, &mut ids, world);
         let page = Style {
             display: Display::Grid,
             cols: Tracks::new(&[Track::Px(cols.left), Track::MinMaxFr0(1.0), Track::Px(cols.right)]),
@@ -241,7 +261,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2) -> ShellIds {
         };
         ids.page = ui.node("page", page, |ui| {
             ids.left = ui.node("left", column(), |ui| left_column(ui, s, &mut ids, &t));
-            ids.middle = ui.node("middle", column(), |ui| middle_column(ui, &mut ids, &t, side));
+            ids.middle = ui.node("middle", column(), |ui| middle_column(ui, s, &mut ids, &t, side, world));
             ids.right = ui.node("right", column(), |ui| right_column(ui, s, &mut ids, &t, &cols));
         });
     });
@@ -249,7 +269,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2) -> ShellIds {
 }
 
 /// `#toolbar` (line 93) and the strip of lines 2543-2555: six views, a gap, then 2D and 3D.
-fn toolbar(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds) {
+fn toolbar(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>) {
     let style = Style {
         justify: Justify::Center,
         pad: Edges::new(10.0, 16.0, 0.0, 16.0),
@@ -260,8 +280,11 @@ fn toolbar(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds) {
     ui.node("toolbar", style, |ui| {
         ids.strip = ui.node("strip", strip_style(), |ui| {
             let views = text::VIEWS.iter().copied().chain([text::SECTION]);
+            // Flat, Structures and Section come after the full map only (line 2506).
+            let coarse = world.is_some_and(World::coarse);
             for (i, word) in views.enumerate() {
-                let r = ui.tab(&format!("view{i}"), word, TabLook::Strip, TabOpts { pressed: i == s.view, disabled: false });
+                let disabled = coarse && matches!(i, 1 | 4 | 5);
+                let r = ui.tab(&format!("view{i}"), word, TabLook::Strip, TabOpts { pressed: i == s.view, disabled });
                 ids.tabs.push(r.id);
                 if r.clicked {
                     s.view = i;
@@ -395,13 +418,21 @@ fn run_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme) {
 }
 
 /// The middle column: the stage holds the map's square and the strip under it (line 226).
-fn middle_column(ui: &mut Ui, ids: &mut ShellIds, t: &Theme, side: f32) {
+fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, side: f32, world: Option<&World>) {
     let stage = Style { align_items: Align::Center, ..Style { column: true, ..fills() } };
     ids.stage = ui.node("stage", stage, |ui| {
         let frame = Style { position: Position::Relative, w: Dim::Px(side), h: Dim::Px(side), shrink: 0.0, ..Style::default() };
         ids.frame = ui.node("frame", frame, |ui| {
-            // PLACEHOLDER: the map slot. Step 14 paints the map here.
-            ui.fill(Style { w: Dim::Px(side), h: Dim::Px(side), shrink: 0.0, ..Style::default() }, t.line);
+            let view = View::from_index(s.view);
+            let slot = Style { w: Dim::Px(side), h: Dim::Px(side), shrink: 0.0, ..Style::default() };
+            match (world, view) {
+                (None, _) => note(ui, text::NO_PREVIEW),
+                // PLACEHOLDER: the 3D view and the section draw here in steps 15 and 16.
+                (Some(_), None) => ui.fill(slot, t.line),
+                (Some(_), Some(_)) if s.in3d => ui.fill(slot, t.line),
+                (Some(w), Some(View::Structures)) if w.structures.is_none() => note(ui, text::NO_STRUCTURES),
+                (Some(w), Some(view)) => ids.map = map_canvas(ui, s, t, side, w, view),
+            }
             // `#under` (line 260): 10 px below the map, as wide as it.
             let under = Style {
                 position: Position::Absolute,
@@ -410,10 +441,11 @@ fn middle_column(ui: &mut Ui, ids: &mut ShellIds, t: &Theme, side: f32) {
                 gap: Vec2::new(0.0, 6.0),
                 ..Style::default()
             };
+            let probe_text = probe_text(ui, s, ids, side, world);
             ids.under = ui.node("under", under, |ui| {
                 ui.node("probeRow", Style { gap: Vec2::new(18.0, 0.0), align_items: Align::Baseline, ..Style::default() }, |ui| {
                     let probe = Style { grow: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..Style::default() };
-                    ids.probe = ui.node("probe", probe, |ui| ui.ellipsis(&text::area_probe("4,096", "512"), TextLook::body(Tone::Muted)));
+                    ids.probe = ui.node("probe", probe, |ui| ui.ellipsis(&probe_text, TextLook::body(Tone::Muted)));
                     let r = ui.button("export", text::EXPORT, ButtonLook::Link);
                     ids.export = r.id;
                     if r.clicked {
@@ -427,6 +459,96 @@ fn middle_column(ui: &mut Ui, ids: &mut ShellIds, t: &Theme, side: f32) {
     });
 }
 
+/// `#note` (line 257): over the whole frame, its words centred in 40 px of padding, in the muted colour. The
+/// lines of a wrapped note are left-aligned in a block that is centred, not centred one by one: UNVERIFIED
+/// against the page, which centres each line.
+fn note(ui: &mut Ui, words: &str) {
+    let style = Style {
+        position: Position::Absolute,
+        inset: Insets { left: Dim::Px(0.0), right: Dim::Px(0.0), top: Dim::Px(0.0), bottom: Dim::Px(0.0) },
+        pad: Edges::all(40.0),
+        align_items: Align::Center,
+        justify: Justify::Center,
+        ..Style::default()
+    };
+    ui.node("note", style, |ui| ui.paragraph(words, TextLook::body(Tone::Muted)));
+}
+
+/// What `#probe` says: the point or structure under the pointer when it is over the map, else the area
+/// (`restProbe`, 1761-1765, and the `mousemove` of 1828-1835). The pointer is judged against the last frame.
+fn probe_text(ui: &Ui, s: &PreviewState, ids: &ShellIds, side: f32, world: Option<&World>) -> String {
+    let Some(w) = world else { return text::area_probe("4,096", "512", false) };
+    let map_shown = ids.map != Id::ROOT;
+    let rest = || text::area_probe(&text::num(w.span()), &text::num(w.span() / 8.0), map_shown && tick_at(w, s.look).is_some());
+    let (Some(p), Some(rect), Some(view)) = (ui.pointer(), ui.rect(ids.map), View::from_index(s.view)) else { return rest() };
+    if !map_shown || !rect.contains(p) {
+        return rest();
+    }
+    let local = Vec2::new(p.x - rect.x, p.y - rect.y);
+    if view == View::Structures {
+        if let Some((kind, x, z)) = structure_near(w, &s.chosen[4], s.look, side, local) {
+            let name = text::pretty(&w.structures.as_ref().expect("a near structure needs structures").ids[kind]);
+            return text::structure_probe(&text::num(x), &text::num(z), &name);
+        }
+    }
+    let (col, row, i) = point_under(w, s.look, side, local);
+    text::probe(
+        &text::num(w.origin_x + col as f64 * w.step),
+        &text::num(w.origin_z + row as f64 * w.step),
+        &text::num(w.heights[i] as f64),
+        &text::pretty(&w.biomes[w.biome_at[i] as usize].id),
+    )
+}
+
+/// The 2D map: a canvas that takes the wheel, the carry and the click, and draws the picture, the marks, the
+/// grid, the cross and the ticks (`map::frame_cmds`). Returns its id.
+fn map_canvas(ui: &mut Ui, s: &mut PreviewState, t: &Theme, side: f32, world: &World, view: View) -> Id {
+    let style = Style { w: Dim::Px(side), h: Dim::Px(side), shrink: 0.0, ..Style::default() };
+    let (grid, muted) = (t.grid, t.muted);
+    let resp = ui.canvas("map", style, |ui, resp| {
+        if let Some(rect) = resp.rect {
+            // The wheel comes closer to the point under it (lines 1796-1803).
+            if let Some((notches, p)) = ui.take_wheel(resp.id) {
+                s.look = s.look.wheel(Vec2::new((p.x - rect.x) / rect.w, (p.y - rect.y) / rect.h), notches);
+            }
+            let pointer = ui.pointer();
+            if resp.pressed {
+                if let Some(from) = pointer {
+                    s.carry = Some(Carry { from, look: s.look, carried: false });
+                }
+            }
+            // A press that travels carries the map. Read until the press is over, not only while held, so the
+            // last movement before the release is not lost.
+            if let (Some(c), Some(p)) = (s.carry.as_mut(), pointer) {
+                let d = Vec2::new(p.x - c.from.x, p.y - c.from.y);
+                // A hand is never still: a few pixels are not yet a move.
+                if !c.carried && d.x.hypot(d.y) >= 4.0 {
+                    c.carried = true;
+                }
+                if c.carried {
+                    s.look = Look::dragged(c.look, d, side);
+                }
+            }
+            // A press that stays in place is the click that chooses (lines 1821-1827); the structures are
+            // chosen in the list only.
+            if resp.clicked && view != View::Structures && s.carry.is_some_and(|c| !c.carried) {
+                if let (Some(p), Some((at, ids))) = (pointer, rows(world, view)) {
+                    let (_, _, i) = point_under(world, s.look, side, Vec2::new(p.x - rect.x, p.y - rect.y));
+                    let id = ids[at[i] as usize].clone();
+                    let set = &mut s.chosen[view.index()];
+                    if !set.remove(&id) {
+                        set.insert(id);
+                    }
+                }
+            }
+            if !resp.held {
+                s.carry = None;
+            }
+        }
+        frame_cmds(world, view, &s.chosen[view.index()], s.look, side, grid, muted)
+    });
+    resp.id
+}
 /// The right column (lines 429-449): the figures and the history, then the list of height bands.
 fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns) {
     let body = TextLook::body(Tone::Text);
@@ -506,7 +628,7 @@ pub fn picture(theme: Theme, size: Vec2) -> (DrawList, Ui, ShellIds) {
     let mut last = None;
     for _ in 0..3 {
         ui.begin_frame(size);
-        let ids = build(&mut ui, &mut s, size);
+        let ids = build(&mut ui, &mut s, size, None);
         let list = ui.end_frame().clone();
         last = Some((list, ids));
         if !ui.want_redraw() {

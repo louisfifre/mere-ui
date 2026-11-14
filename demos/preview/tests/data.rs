@@ -43,5 +43,6 @@ fn d3_band_colours() {
 
 #[test]
 fn d4_area_probe() {
-    assert_eq!(area_probe("4,096", "512"), "4,096 \u{d7} 4,096 blocks, north up. One square: 512 blocks. Cross: 0,0.");
+    assert_eq!(area_probe("4,096", "512", false), "4,096 \u{d7} 4,096 blocks, north up. One square: 512 blocks. Cross: 0,0.");
+    assert!(area_probe("4,096", "512", true).ends_with(" Ticks: the cut."));
 }
