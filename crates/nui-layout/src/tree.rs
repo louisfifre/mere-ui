@@ -128,7 +128,10 @@ impl Tree {
         let out = if is_leaf {
             self.leaf(id, req)
         } else {
-            self.container(id, req, place)
+            match self.nodes[id.0].style.display {
+                Display::Grid => self.grid(id, req, place),
+                _ => self.container(id, req, place),
+            }
         };
         if place && !is_leaf {
             // The reach is taken after the absolute boxes are placed: they count in a scroll area's content.

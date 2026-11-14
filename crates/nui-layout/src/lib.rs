@@ -6,6 +6,7 @@
 //! Drawing a layout as a picture needs a backend, so it lives outside this crate (`demos/shell-boxes`).
 
 mod flex;
+mod grid;
 mod style;
 mod tree;
 
