@@ -2,16 +2,20 @@
 //! draws frames only when something asks for one.
 
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicIsize, Ordering};
 use std::time::Instant;
 
-use nui_base::{App, Button, Event, Vec2, observe};
+use nui_base::{App, Button, Event, Key, Mods, Vec2, observe};
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{InvalidateRect, ScreenToClient, ValidateRect};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::HiDpi::{
     AdjustWindowRectExForDpi, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForWindow, SetProcessDpiAwarenessContext,
 };
-use windows::Win32::UI::Input::KeyboardAndMouse::{ReleaseCapture, SetCapture};
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetDoubleClickTime, GetKeyState, ReleaseCapture, SetCapture, VIRTUAL_KEY, VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT,
+    VK_MENU, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_TAB, VK_UP,
+};
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{Error, PCWSTR, Result, w};
 
@@ -24,6 +28,17 @@ const START_H: f32 = 800.0;
 const MAX_STEP: f32 = 0.1;
 /// The step of a frame that follows a rest or an event-driven frame, when there is no moving frame to measure.
 const NOMINAL_STEP: f32 = 1.0 / 60.0;
+
+/// The window, for the clipboard: `OpenClipboard` ties the clipboard to a window when it is given one.
+/// One window per process is all `run` makes.
+static WINDOW: AtomicIsize = AtomicIsize::new(0);
+
+pub(crate) fn clipboard_owner() -> Option<HWND> {
+    match WINDOW.load(Ordering::Relaxed) {
+        0 => None,
+        h => Some(HWND(h as *mut std::ffi::c_void)),
+    }
+}
 
 /// What the window procedure needs, reached through the window's user-data slot. The procedure is called
 /// by the system, so it cannot be given arguments: this is how it finds the application.
@@ -54,6 +69,12 @@ struct State {
     /// Which buttons went down in this window and have not come up, by `slot`.
     held: [bool; 3],
     last_pos: Vec2,
+    /// The last button press: button, message time (ms), physical position and the count it reached. The
+    /// class has no CS_DBLCLKS, so the system never merges presses and the count is ours to keep.
+    last_down: Option<(Button, u32, i32, i32, u8)>,
+    /// The first half of a character outside the Basic Multilingual Plane, which WM_CHAR delivers as two
+    /// messages.
+    high: Option<u16>,
 }
 
 impl State {
@@ -266,6 +287,7 @@ pub fn run(title: &str, app: &mut dyn App) -> Result<()> {
             None,
         )?;
         guard.hwnd = Some(hwnd);
+        WINDOW.store(hwnd.0 as isize, Ordering::Relaxed);
 
         // The erasure is sound because the guard, which frees the state, drops before this function returns
         // and so before `app` can be used again by the caller.
@@ -285,6 +307,8 @@ pub fn run(title: &str, app: &mut dyn App) -> Result<()> {
             rebuild: false,
             held: [false; 3],
             last_pos: Vec2::new(0.0, 0.0),
+            last_down: None,
+            high: None,
         }));
         guard.state = state;
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, state as isize);
@@ -414,7 +438,9 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 (*state).held[slot(button)] = true;
                 // Captured, so a drag keeps reporting after the pointer leaves the window.
                 SetCapture(hwnd);
-                send(state, Event::PointerDown { pos, button, clicks: 1 });
+                let (x, y) = halves(lparam);
+                let clicks = count_click(state, button, GetMessageTime() as u32, x, y);
+                send(state, Event::PointerDown { pos, button, clicks });
                 LRESULT(0)
             }
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => {
@@ -451,12 +477,94 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 let _ = DestroyWindow(hwnd);
                 LRESULT(0)
             }
+            WM_KEYDOWN => {
+                let down = |k: VIRTUAL_KEY| GetKeyState(k.0 as i32) < 0;
+                let (ctrl, shift, alt) = (down(VK_CONTROL), down(VK_SHIFT), down(VK_MENU));
+                match key_of(wparam.0 as u16, ctrl && !alt) {
+                    Some(key) => {
+                        send(state, Event::Key { key, mods: Mods { ctrl, shift } });
+                        LRESULT(0)
+                    }
+                    None => DefWindowProcW(hwnd, msg, wparam, lparam),
+                }
+            }
+            WM_CHAR => {
+                if let Some(ch) = char_of(state, wparam.0 as u16) {
+                    send(state, Event::Char { ch });
+                }
+                LRESULT(0)
+            }
             WM_DESTROY => {
+                WINDOW.store(0, Ordering::Relaxed);
                 PostQuitMessage(0);
                 LRESULT(0)
             }
             _ => DefWindowProcW(hwnd, msg, wparam, lparam),
         }
+    }
+}
+
+/// The count a press reaches: one more than the last press of the same button when it came within the
+/// system's double-click time and distance, else 1. Only the left button counts up.
+unsafe fn count_click(state: *mut State, button: Button, time: u32, x: i32, y: i32) -> u8 {
+    unsafe {
+        let count = match (*state).last_down {
+            Some((b, t, lx, ly, n))
+                if button == Button::Left
+                    && b == button
+                    && time.wrapping_sub(t) <= GetDoubleClickTime()
+                    && (x - lx).abs() <= GetSystemMetrics(SM_CXDOUBLECLK) / 2
+                    && (y - ly).abs() <= GetSystemMetrics(SM_CYDOUBLECLK) / 2 =>
+            {
+                (n + 1).min(3)
+            }
+            _ => 1,
+        };
+        (*state).last_down = Some((button, time, x, y, count));
+        count
+    }
+}
+
+/// The key a virtual-key code stands for, if the interface acts on it. The letters count only as Ctrl
+/// shortcuts: plain typing reaches the application as `WM_CHAR`.
+fn key_of(vk: u16, shortcut: bool) -> Option<Key> {
+    Some(match VIRTUAL_KEY(vk) {
+        VK_LEFT => Key::Left,
+        VK_RIGHT => Key::Right,
+        VK_UP => Key::Up,
+        VK_DOWN => Key::Down,
+        VK_HOME => Key::Home,
+        VK_END => Key::End,
+        VK_BACK => Key::Backspace,
+        VK_DELETE => Key::Delete,
+        VK_RETURN => Key::Enter,
+        VK_ESCAPE => Key::Escape,
+        VK_TAB => Key::Tab,
+        // Letters have no VK_ names: they are their capital's ASCII code.
+        VIRTUAL_KEY(0x41) if shortcut => Key::A,
+        VIRTUAL_KEY(0x43) if shortcut => Key::C,
+        VIRTUAL_KEY(0x56) if shortcut => Key::V,
+        VIRTUAL_KEY(0x58) if shortcut => Key::X,
+        VIRTUAL_KEY(0x5A) if shortcut => Key::Z,
+        _ => return None,
+    })
+}
+
+/// The character a `WM_CHAR` unit completes: a high surrogate waits for its low half, and control
+/// characters (Ctrl+letter, Backspace, Tab, Enter, Ctrl+Backspace's 0x7F) are dropped because the keys
+/// that made them travel as `Event::Key`.
+unsafe fn char_of(state: *mut State, unit: u16) -> Option<char> {
+    unsafe {
+        if (0xD800..=0xDBFF).contains(&unit) {
+            (*state).high = Some(unit);
+            return None;
+        }
+        let high = (*state).high.take();
+        let ch = match high {
+            Some(h) if (0xDC00..=0xDFFF).contains(&unit) => char::decode_utf16([h, unit]).next()?.ok()?,
+            _ => char::from_u32(unit as u32)?,
+        };
+        (ch >= ' ' && ch != '\x7f').then_some(ch)
     }
 }
 
