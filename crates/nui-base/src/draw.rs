@@ -28,6 +28,9 @@ pub enum Cmd {
     Disc { center: Vec2, radius: f32, color: Color },
     /// An antialiased circle outline of `width` DIP, centred on `radius` (a canvas stroke).
     Ring { center: Vec2, radius: f32, width: f32, color: Color },
+    /// An open stroke of width DIP through the points: round joins, flat ends (SVG stroke-linejoin: round
+    /// with the default butt caps). Fewer than two points draw nothing.
+    Polyline { points: Vec<Vec2>, width: f32, color: Color },
 }
 
 impl Cmd {
@@ -47,6 +50,9 @@ impl Cmd {
             Cmd::Disc { center, radius, color } => Cmd::Disc { center: mp(*center), radius: *radius, color: *color },
             Cmd::Ring { center, radius, width, color } => {
                 Cmd::Ring { center: mp(*center), radius: *radius, width: *width, color: *color }
+            }
+            Cmd::Polyline { points, width, color } => {
+                Cmd::Polyline { points: points.iter().map(|p| mp(*p)).collect(), width: *width, color: *color }
             }
         }
     }
@@ -90,6 +96,9 @@ impl DrawList {
     pub fn ring(&mut self, center: Vec2, radius: f32, width: f32, color: Color) {
         self.cmds.push(Cmd::Ring { center, radius, width, color });
     }
+    pub fn polyline(&mut self, points: Vec<Vec2>, width: f32, color: Color) {
+        self.cmds.push(Cmd::Polyline { points, width, color });
+    }
 }
 
 #[cfg(test)]
@@ -129,6 +138,12 @@ mod tests {
         }
         match (Cmd::Ring { center: Vec2::new(1.0, 2.0), radius: 5.0, width: 2.0, color: c }).translated(d) {
             Cmd::Ring { center, radius, width, .. } => assert_eq!((center, radius, width), (Vec2::new(11.0, 22.0), 5.0, 2.0)),
+            _ => panic!(),
+        }
+        match (Cmd::Polyline { points: vec![Vec2::new(1.0, 2.0), Vec2::new(3.0, 4.0)], width: 1.5, color: c }).translated(d) {
+            Cmd::Polyline { points, width, .. } => {
+                assert_eq!((points, width), (vec![Vec2::new(11.0, 22.0), Vec2::new(13.0, 24.0)], 1.5))
+            }
             _ => panic!(),
         }
     }

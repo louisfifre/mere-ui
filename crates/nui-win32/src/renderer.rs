@@ -73,6 +73,9 @@ pub struct Renderer {
     d2d: ID2D1DeviceContext,
     dwrite: IDWriteFactory,
     brush: ID2D1SolidColorBrush,
+    // For the polylines' path geometries, and the one stroke style they share.
+    factory: ID2D1Factory1,
+    stroke: ID2D1StrokeStyle,
     target: Target,
     views: Option<Views>,
     width: u32,
@@ -145,6 +148,20 @@ impl Renderer {
                 }
             };
             let brush = d2d.CreateSolidColorBrush(&D2D1_COLOR_F { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }, None)?;
+            // SVG's stroke-linejoin: round with the default butt caps and miter limit.
+            let stroke: ID2D1StrokeStyle = factory.CreateStrokeStyle(
+                &D2D1_STROKE_STYLE_PROPERTIES1 {
+                    startCap: D2D1_CAP_STYLE_FLAT,
+                    endCap: D2D1_CAP_STYLE_FLAT,
+                    dashCap: D2D1_CAP_STYLE_FLAT,
+                    lineJoin: D2D1_LINE_JOIN_ROUND,
+                    miterLimit: 10.0,
+                    dashStyle: D2D1_DASH_STYLE_SOLID,
+                    dashOffset: 0.0,
+                    transformType: D2D1_STROKE_TRANSFORM_TYPE_NORMAL,
+                },
+                None,
+            )?.into();
 
             let vs_code = compile(s!("vs"), s!("vs_5_0"))?;
             let mut vs = None;
@@ -258,6 +275,8 @@ impl Renderer {
                 d2d,
                 dwrite,
                 brush,
+                factory,
+                stroke,
                 target,
                 views: None,
                 width,
@@ -645,6 +664,27 @@ impl Renderer {
                     Cmd::Ring { center, radius, width, color } => {
                         self.brush.SetColor(&d2d_color(*color));
                         self.d2d.DrawEllipse(&ellipse(*center, *radius), &self.brush, *width, None);
+                    }
+                    Cmd::Polyline { points, width, color } => {
+                        if points.len() < 2 {
+                            continue;
+                        }
+                        let geometry = self.factory.CreatePathGeometry()?;
+                        let sink = geometry.Open()?;
+                        // The point type belongs to a crate this one may not name, so it is taken from an ellipse's centre.
+                        let pt = |p: &nui_base::Vec2| {
+                            let mut v = D2D1_ELLIPSE::default().point;
+                            v.X = p.x;
+                            v.Y = p.y;
+                            v
+                        };
+                        sink.BeginFigure(pt(&points[0]), D2D1_FIGURE_BEGIN_HOLLOW);
+                        let rest: Vec<_> = points[1..].iter().map(pt).collect();
+                        sink.AddLines(&rest);
+                        sink.EndFigure(D2D1_FIGURE_END_OPEN);
+                        sink.Close()?;
+                        self.brush.SetColor(&d2d_color(*color));
+                        self.d2d.DrawGeometry(&geometry, &self.brush, *width, &self.stroke);
                     }
                     Cmd::Text { at, text, size, color, weight } => {
                         let Some(format) = self.format(*size, *weight) else { continue };

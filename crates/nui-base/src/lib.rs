@@ -89,6 +89,8 @@ pub enum Event {
     /// A typed character, never a control character.
     Char { ch: char },
     CloseRequested,
+    /// The system's light or dark setting changed, as the page's prefers-color-scheme.
+    Scheme { dark: bool },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
