@@ -74,7 +74,7 @@ impl App for Relief {
                 self.height = height_px as f32 / scale;
                 true
             }
-            Event::PointerDown { pos, button: Button::Left } => {
+            Event::PointerDown { pos, button: Button::Left, .. } => {
                 self.drag_from = Some(pos);
                 false
             }
@@ -157,7 +157,7 @@ mod tests {
     }
 
     fn drag(app: &mut Relief, from: Vec2, to: Vec2) {
-        app.event(Event::PointerDown { pos: from, button: Button::Left });
+        app.event(Event::PointerDown { pos: from, button: Button::Left, clicks: 1 });
         // In small steps, like a real hand.
         for i in 1..=10 {
             let t = i as f32 / 10.0;

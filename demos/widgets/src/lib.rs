@@ -152,7 +152,7 @@ pub fn sheet(theme: Theme) -> DrawList {
             }
             State::Held => {
                 ui.event(&Event::PointerMoved { pos: c });
-                ui.event(&Event::PointerDown { pos: c, button: nui_base::Button::Left });
+                ui.event(&Event::PointerDown { pos: c, button: nui_base::Button::Left, clicks: 1 });
             }
         }
         ui.begin_frame(size);

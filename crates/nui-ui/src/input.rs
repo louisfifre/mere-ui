@@ -22,7 +22,7 @@ impl Input {
                 self.pos = Some(pos);
                 true
             }
-            Event::PointerDown { pos, button: Button::Left } => {
+            Event::PointerDown { pos, button: Button::Left, .. } => {
                 self.pos = Some(pos);
                 self.down = true;
                 self.pressed = true;

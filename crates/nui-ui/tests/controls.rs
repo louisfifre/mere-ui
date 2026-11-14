@@ -29,7 +29,7 @@ fn mv(ui: &mut Ui, p: Vec2) {
     ui.event(&Event::PointerMoved { pos: p });
 }
 fn down(ui: &mut Ui, p: Vec2) {
-    ui.event(&Event::PointerDown { pos: p, button: Button::Left });
+    ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: 1 });
 }
 fn up(ui: &mut Ui, p: Vec2) {
     ui.event(&Event::PointerUp { pos: p, button: Button::Left });

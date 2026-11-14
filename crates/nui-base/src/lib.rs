@@ -78,9 +78,14 @@ pub trait Gfx {
 pub enum Event {
     Resized { width_px: u32, height_px: u32, scale: f32 },
     PointerMoved { pos: Vec2 },
-    PointerDown { pos: Vec2, button: Button },
+    /// `clicks` counts presses in a row at one spot: 1, 2, 3 (capped) for the left button, always 1 for the others.
+    PointerDown { pos: Vec2, button: Button, clicks: u8 },
     PointerUp { pos: Vec2, button: Button },
     Wheel { pos: Vec2, delta: f32 },
+    /// A key the interface acts on, pressed (auto-repeat sends it again).
+    Key { key: Key, mods: Mods },
+    /// A typed character, never a control character.
+    Char { ch: char },
     CloseRequested,
 }
 
@@ -89,6 +94,40 @@ pub enum Button {
     Left,
     Right,
     Middle,
+}
+
+/// The keys the interface acts on; a backend sends no others. The letters exist only as Ctrl shortcuts: a
+/// backend sends them only with Ctrl held and Alt up, so typing a letter arrives as Event::Char.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Key {
+    Left,
+    Right,
+    Up,
+    Down,
+    Home,
+    End,
+    Backspace,
+    Delete,
+    Enter,
+    Escape,
+    Tab,
+    A,
+    C,
+    V,
+    X,
+    Z,
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Mods {
+    pub ctrl: bool,
+    pub shift: bool,
+}
+
+/// The system clipboard as text. A backend implements it; tests use a memory one.
+pub trait Clipboard {
+    fn get(&mut self) -> Option<String>;
+    fn set(&mut self, text: &str);
 }
 
 /// An application, driven by a backend. Frames are drawn on demand: after an event that asked for one, or

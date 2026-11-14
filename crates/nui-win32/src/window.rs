@@ -414,7 +414,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 (*state).held[slot(button)] = true;
                 // Captured, so a drag keeps reporting after the pointer leaves the window.
                 SetCapture(hwnd);
-                send(state, Event::PointerDown { pos, button });
+                send(state, Event::PointerDown { pos, button, clicks: 1 });
                 LRESULT(0)
             }
             WM_LBUTTONUP | WM_RBUTTONUP | WM_MBUTTONUP => {
