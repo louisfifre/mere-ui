@@ -18,6 +18,16 @@ name = "nui-png"
 version = "0.1.0"
 
 [[package]]
+name = "nui-ui"
+version = "0.1.0"
+dependencies = [
+ "nui-base",
+ "nui-layout",
+ "nui-png",
+ "nui-win32",
+]
+
+[[package]]
 name = "nui-win32"
 version = "0.1.0"
 dependencies = [
