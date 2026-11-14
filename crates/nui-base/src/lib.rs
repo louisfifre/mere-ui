@@ -5,10 +5,12 @@ pub mod camera;
 pub mod draw;
 pub mod log;
 pub mod math;
+pub mod process;
 
 pub use camera::Orbit;
 pub use draw::{Cmd, DrawList, Weight};
 pub use math::{Mat4, Rect, Vec2, Vec3};
+pub use process::Launcher;
 
 /// An sRGB colour, each channel 0..1, alpha straight (not premultiplied).
 #[derive(Copy, Clone, Debug, PartialEq)]
