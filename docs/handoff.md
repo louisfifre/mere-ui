@@ -15,8 +15,17 @@ OrbitControls speeds, a camera kept above the ground within a zoom range, and ro
 (no `&mut` aliasing across re-entrant calls, a cleanup guard, safe capture, device-loss rebuild).
 
 Not exercised at runtime: device loss, capture lost mid-drag, a `WM_DPICHANGED` between monitors, and a
-look at the live window's pixels (only its start, answer and clean exit were checked). Next: IBM Plex Mono,
-then the page's panels (build plan steps 7 to 13 in `docs/design.md`, starting with `nui-layout`).
+look at the live window's pixels (only its start, answer and clean exit were checked).
+
+Later the same day: text is in IBM Plex Mono (`fonts/`, loaded by `nui-win32/src/fonts.rs` through
+`IDWriteFactory5::UnpackFontFile`; the Pi cut's arrows and signs are reached by DirectWrite's coverage
+matching inside the one family, seen in `tests/fonts.rs`'s picture, not a documented guarantee; the 600 face
+is loaded but unused). `fonts/OFL.txt` was written from memory, as no copy was on the machine: compare it
+with IBM's official LICENSE.txt before anything is published. Build plan step 7 is done: `nui-layout` (flex,
+28 rect tests, dump) and `demos/shell-boxes`, whose pictures at 1400, 1200 and 1000 px match the page's
+column widths; heights and the strip width the page does not fix are marked PLACEHOLDER there.
+
+Next: the rest of the page's panels, build plan steps 8 to 13 (grid, absolute and overflow, then `nui-ui`).
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
