@@ -14,7 +14,7 @@ pub use clipboard::SystemClipboard;
 pub use process::SystemLauncher;
 pub use renderer::Renderer;
 pub use scheme::system_dark;
-pub use window::run;
+pub use window::{Frame, run, run_with};
 
 /// Draws one frame of `app` offscreen, at `width` x `height` physical pixels and `scale` physical pixels
 /// per device-independent pixel, and returns it as RGBA rows. The same code path as the window, minus the

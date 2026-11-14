@@ -5,15 +5,18 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::time::Instant;
 
-use nui_base::{App, Button, Event, Key, Mods, Vec2, observe};
+use nui_base::{App, Button, Cursor, Edge, Event, Hit, Key, Mods, Vec2, WindowRequest, observe};
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
+use windows::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
 use windows::Win32::Graphics::Gdi::{InvalidateRect, ScreenToClient, ValidateRect};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::UI::Controls::{MARGINS, WM_MOUSELEAVE};
 use windows::Win32::UI::HiDpi::{
-    AdjustWindowRectExForDpi, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForWindow, SetProcessDpiAwarenessContext,
+    AdjustWindowRectExForDpi, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForWindow, GetSystemMetricsForDpi, SetProcessDpiAwarenessContext,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetDoubleClickTime, GetKeyState, ReleaseCapture, SetCapture, VIRTUAL_KEY, VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT,
+    GetDoubleClickTime, GetKeyState, ReleaseCapture, SetCapture, TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TRACKMOUSEEVENT_FLAGS, TrackMouseEvent,
+    VIRTUAL_KEY, VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT,
     VK_MENU, VK_RETURN, VK_RIGHT, VK_SHIFT, VK_TAB, VK_UP,
 };
 use windows::Win32::UI::WindowsAndMessaging::*;
@@ -28,6 +31,72 @@ const START_H: f32 = 800.0;
 const MAX_STEP: f32 = 0.1;
 /// The step of a frame that follows a rest or an event-driven frame, when there is no moving frame to measure.
 const NOMINAL_STEP: f32 = 1.0 / 60.0;
+/// The one timer: the application's `wake_in`, or a tick while the window is hidden.
+const WAKE_TIMER: usize = 1;
+/// Posted by the system when the window is covered or shows again (`RegisterOcclusionStatusWindow`).
+const WM_OCCLUSION: u32 = WM_APP + 1;
+/// The shortest timer: below a frame a wake would only spin.
+const MIN_WAKE_MS: u32 = 16;
+
+/// What the window is asked to be: `own` draws its own title bar and borders (the application answers
+/// `App::hit`), `min` is the smallest size in device-independent pixels, 0 for the system's.
+#[derive(Copy, Clone, Debug)]
+pub struct Frame {
+    pub own: bool,
+    pub min: (f32, f32),
+}
+
+/// What the loop does while no event is waiting.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Wait {
+    /// Frame after frame: something moves and the window is seen.
+    Spin,
+    /// Sleep until this many milliseconds pass, or an event.
+    Timer(u32),
+    Sleep,
+}
+
+/// A moving window nobody sees never spins: what moves is not drawn.
+fn next_wait(moving: bool, hidden: bool, wake: Option<f32>) -> Wait {
+    if moving && !hidden {
+        return Wait::Spin;
+    }
+    match wake {
+        Some(s) => Wait::Timer(((s.max(0.0) * 1000.0).ceil() as u32).max(MIN_WAKE_MS)),
+        None => Wait::Sleep,
+    }
+}
+
+/// The hit-test code the system wants for a `Hit`.
+fn hit_code(hit: Hit) -> u32 {
+    match hit {
+        Hit::Client => HTCLIENT,
+        Hit::Caption => HTCAPTION,
+        Hit::Resize(Edge::N) => HTTOP,
+        Hit::Resize(Edge::S) => HTBOTTOM,
+        Hit::Resize(Edge::E) => HTRIGHT,
+        Hit::Resize(Edge::W) => HTLEFT,
+        Hit::Resize(Edge::NW) => HTTOPLEFT,
+        Hit::Resize(Edge::NE) => HTTOPRIGHT,
+        Hit::Resize(Edge::SW) => HTBOTTOMLEFT,
+        Hit::Resize(Edge::SE) => HTBOTTOMRIGHT,
+    }
+}
+
+/// The system cursor for a shape. Windows has no grab hand: the four arrows are its "can be dragged".
+fn idc(cursor: Cursor) -> PCWSTR {
+    match cursor {
+        Cursor::Arrow => IDC_ARROW,
+        Cursor::Hand => IDC_HAND,
+        Cursor::IBeam => IDC_IBEAM,
+        Cursor::Crosshair => IDC_CROSS,
+        Cursor::Grab => IDC_SIZEALL,
+        Cursor::ResizeNS => IDC_SIZENS,
+        Cursor::ResizeEW => IDC_SIZEWE,
+        Cursor::ResizeNWSE => IDC_SIZENWSE,
+        Cursor::ResizeNESW => IDC_SIZENESW,
+    }
+}
 
 /// The window, for the clipboard: `OpenClipboard` ties the clipboard to a window when it is given one.
 /// One window per process is all `run` makes.
@@ -77,6 +146,19 @@ struct State {
     high: Option<u16>,
     /// The light/dark setting last read or sent, so a change message that changes nothing sends nothing.
     dark: bool,
+    frame: Frame,
+    /// `start` has run: events may reach the application.
+    started: bool,
+    maximized: bool,
+    /// A tick said a frame is wanted while the window was hidden; it is drawn when the window shows.
+    due: bool,
+    /// The pointer is over the client area, so a cursor change can be applied without a move.
+    inside: bool,
+    /// A leave notification is asked for, for the client area and for the frame.
+    tracking: bool,
+    tracking_nc: bool,
+    /// The shape last set, so the next frame sets one only when it differs.
+    cursor: Cursor,
 }
 
 impl State {
@@ -115,6 +197,75 @@ unsafe fn flush(state: *mut State) {
                 (*state).redraw = true;
             }
         }
+        pump(state);
+    }
+}
+
+/// Does what the application asked of its window, until it asks no more. Each can send messages back into
+/// the procedure at once (a minimise sends `WM_SIZE`), which is safe: nothing is borrowed here.
+unsafe fn pump(state: *mut State) {
+    unsafe {
+        while !(*state).in_app {
+            let Some(request) = call_app(state, |app| app.take_request()) else { break };
+            let hwnd = (*state).hwnd;
+            match request {
+                WindowRequest::Minimize => {
+                    let _ = ShowWindow(hwnd, SW_MINIMIZE);
+                }
+                WindowRequest::ToggleMaximize => {
+                    let _ = ShowWindow(hwnd, if IsZoomed(hwnd).as_bool() { SW_RESTORE } else { SW_MAXIMIZE });
+                }
+                // The ordinary close path: `CloseRequested` is sent, then the window is destroyed.
+                WindowRequest::Close => {
+                    let _ = PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0));
+                }
+                WindowRequest::Title(title) => {
+                    let wide: Vec<u16> = title.encode_utf16().chain(Some(0)).collect();
+                    let _ = SetWindowTextW(hwnd, PCWSTR(wide.as_ptr()));
+                }
+            }
+        }
+    }
+}
+
+/// Not drawn at all: minimised, or covered (the last present said so).
+unsafe fn hidden(state: *mut State) -> bool {
+    unsafe { IsIconic((*state).hwnd).as_bool() || (*state).renderer.as_ref().is_some_and(Renderer::occluded) }
+}
+
+/// Sets the timer the application's `wake_in` asks for, or removes it. A moving, visible window needs none:
+/// it draws frame after frame.
+unsafe fn rearm(state: *mut State) {
+    unsafe {
+        if (*state).in_app {
+            return;
+        }
+        let hwnd = (*state).hwnd;
+        let wake = call_app(state, |app| app.wake_in());
+        match next_wait((*state).moving, hidden(state), wake) {
+            Wait::Timer(ms) => {
+                SetTimer(Some(hwnd), WAKE_TIMER, ms, None);
+            }
+            Wait::Spin | Wait::Sleep => {
+                let _ = KillTimer(Some(hwnd), WAKE_TIMER);
+            }
+        }
+    }
+}
+
+/// Sets the system cursor again when the application's shape changed while the pointer stayed still.
+unsafe fn sync_cursor(state: *mut State) {
+    unsafe {
+        if !(*state).inside || (*state).in_app {
+            return;
+        }
+        let wanted = call_app(state, |app| app.cursor());
+        if wanted != (*state).cursor {
+            (*state).cursor = wanted;
+            if let Ok(c) = LoadCursorW(None, idc(wanted)) {
+                SetCursor(Some(c));
+            }
+        }
     }
 }
 
@@ -133,6 +284,20 @@ unsafe fn draw(state: *mut State) {
         if (*state).rebuild {
             recover(state);
         }
+        // A covered window may show again with no message yet: ask the system before giving up on a frame.
+        if let Some(r) = (*state).renderer.as_mut() {
+            if r.occluded() && !IsIconic((*state).hwnd).as_bool() {
+                r.still_occluded();
+            }
+        }
+        if hidden(state) {
+            // Nothing to see, so nothing to draw; the wake timer keeps ticking the application, and showing
+            // the window again redraws.
+            (*state).redraw = false;
+            (*state).moving = false;
+            rearm(state);
+            return;
+        }
         let Some(mut renderer) = (*state).renderer.take() else {
             // Nothing to draw on: staying "busy" would spin the loop.
             (*state).redraw = false;
@@ -148,8 +313,11 @@ unsafe fn draw(state: *mut State) {
         let moving = call_app(state, |app| app.frame(&mut renderer, seconds));
         (*state).moving = moving;
         (*state).renderer = Some(renderer);
+        (*state).due = false;
         flush(state);
         settle(state);
+        sync_cursor(state);
+        rearm(state);
     }
 }
 
@@ -180,6 +348,7 @@ unsafe fn recover(state: *mut State) {
         match Renderer::for_window(hwnd, width, height, scale) {
             Ok(mut renderer) => {
                 observe!(Warn, "graphics device lost: renderer rebuilt at {width}x{height}, application restarted");
+                renderer.watch_occlusion(hwnd, WM_OCCLUSION);
                 call_app(state, |app| app.start(&mut renderer));
                 (*state).rebuild = false;
                 (*state).renderer = Some(renderer);
@@ -250,8 +419,15 @@ impl Drop for Guard {
     }
 }
 
-/// Opens a window for `app` and runs until it closes.
+/// Opens a window with the system's own frame for `app` and runs until it closes.
 pub fn run(title: &str, app: &mut dyn App) -> Result<()> {
+    run_with(title, app, Frame { own: false, min: (0.0, 0.0) })
+}
+
+/// Opens a window for `app` and runs until it closes. With `frame.own` the window keeps the system's
+/// overlapped style (snapping, the system menu, Win+arrows and the animations come with it) but has no
+/// title bar or border of its own: the application draws them and answers `App::hit`.
+pub fn run_with(title: &str, app: &mut dyn App, frame: Frame) -> Result<()> {
     unsafe {
         // Per monitor, version 2: the window gets the real pixel size of its screen and is told when it
         // moves to another one, instead of being stretched blurry by the system. Fails harmlessly when a
@@ -312,6 +488,14 @@ pub fn run(title: &str, app: &mut dyn App) -> Result<()> {
             last_down: None,
             high: None,
             dark: crate::scheme::system_dark(),
+            frame,
+            started: false,
+            maximized: false,
+            due: false,
+            inside: false,
+            tracking: false,
+            tracking_nc: false,
+            cursor: Cursor::Arrow,
         }));
         guard.state = state;
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, state as isize);
@@ -321,15 +505,29 @@ pub fn run(title: &str, app: &mut dyn App) -> Result<()> {
         let dpi = GetDpiForWindow(hwnd);
         let scale = dpi as f32 / 96.0;
         let mut rect = RECT { left: 0, top: 0, right: (START_W * scale) as i32, bottom: (START_H * scale) as i32 };
-        AdjustWindowRectExForDpi(&mut rect, WS_OVERLAPPEDWINDOW, false, WINDOW_EX_STYLE(0), dpi)?;
+        if frame.own {
+            // Without a frame of the system's the window rectangle is the client area.
+            // WM_NCCALCSIZE must be asked again for the change of frame to count.
+            SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER)?;
+            // One pixel of extended frame keeps the system's shadow around a window with no border.
+            let margins = MARGINS { cxLeftWidth: 1, cxRightWidth: 1, cyTopHeight: 1, cyBottomHeight: 1 };
+            if let Err(e) = DwmExtendFrameIntoClientArea(hwnd, &margins) {
+                observe!(Warn, "frame shadow not kept: {e}");
+            }
+        } else {
+            AdjustWindowRectExForDpi(&mut rect, WS_OVERLAPPEDWINDOW, false, WINDOW_EX_STYLE(0), dpi)?;
+        }
         SetWindowPos(hwnd, None, 0, 0, rect.right - rect.left, rect.bottom - rect.top, SWP_NOMOVE | SWP_NOZORDER)?;
 
         let (width, height, scale) = client_size(hwnd);
         let mut renderer = Renderer::for_window(hwnd, width, height, scale)?;
+        renderer.watch_occlusion(hwnd, WM_OCCLUSION);
         call_app(state, |app| app.start(&mut renderer));
         (*state).renderer = Some(renderer);
         (*state).size_dirty = false;
+        (*state).started = true;
         send(state, Event::Resized { width_px: width, height_px: height, scale });
+        send(state, Event::Window { maximized: (*state).maximized });
         (*state).redraw = true;
         let _ = ShowWindow(hwnd, SW_SHOW);
 
@@ -337,8 +535,9 @@ pub fn run(title: &str, app: &mut dyn App) -> Result<()> {
     }
 }
 
-/// Sleeps in `GetMessageW` while nothing is wanted, which costs no processor; spins through
-/// `PeekMessageW` only while a frame is wanted, the frame's own `Present` being what paces it.
+/// Sleeps in `GetMessageW` while nothing is wanted, which costs no processor (a wake timer ends the sleep
+/// when the application asked for one); spins through `PeekMessageW` only while a frame is wanted, the
+/// frame's own `Present` being what paces it.
 unsafe fn message_loop(state: *mut State) -> Result<()> {
     let mut msg = MSG::default();
     loop {
@@ -367,6 +566,21 @@ unsafe fn message_loop(state: *mut State) -> Result<()> {
         }
     }
 }
+
+/// The smallest window the frame allows, in physical pixels of the window rectangle.
+fn min_track(hwnd: HWND, frame: Frame) -> Option<(i32, i32)> {
+    if frame.min == (0.0, 0.0) {
+        return None;
+    }
+    let dpi = unsafe { GetDpiForWindow(hwnd) };
+    let s = dpi as f32 / 96.0;
+    let mut rect = RECT { left: 0, top: 0, right: (frame.min.0 * s).ceil() as i32, bottom: (frame.min.1 * s).ceil() as i32 };
+    if !frame.own {
+        // The minimum is of the client area; the system's frame comes on top.
+        let _ = unsafe { AdjustWindowRectExForDpi(&mut rect, WS_OVERLAPPEDWINDOW, false, WINDOW_EX_STYLE(0), dpi) };
+    }
+    Some((rect.right - rect.left, rect.bottom - rect.top))
+}
 /// The client area in physical pixels, and the physical pixels per device-independent pixel.
 fn client_size(hwnd: HWND) -> (u32, u32, f32) {
     let mut rect = RECT::default();
@@ -374,6 +588,12 @@ fn client_size(hwnd: HWND) -> (u32, u32, f32) {
         let _ = GetClientRect(hwnd, &mut rect);
         (rect.right.max(0) as u32, rect.bottom.max(0) as u32, GetDpiForWindow(hwnd) as f32 / 96.0)
     }
+}
+
+/// Asks the system for a leave message; false when it refuses (then the next move asks again).
+fn track(hwnd: HWND, flags: TRACKMOUSEEVENT_FLAGS) -> bool {
+    let mut request = TRACKMOUSEEVENT { cbSize: size_of::<TRACKMOUSEEVENT>() as u32, dwFlags: flags, hwndTrack: hwnd, dwHoverTime: 0 };
+    unsafe { TrackMouseEvent(&mut request) }.is_ok()
 }
 
 /// The two signed 16-bit halves of an `LPARAM`.
@@ -398,9 +618,90 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
 
     unsafe {
         match msg {
+            WM_NCCALCSIZE if (*state).frame.own => {
+                // No border and no title bar: the client area is the whole window. A maximised window
+                // overhangs the screen by its frame, so it is pulled back in.
+                if wparam.0 != 0 && IsZoomed(hwnd).as_bool() {
+                    let params = &mut *(lparam.0 as *mut NCCALCSIZE_PARAMS);
+                    let dpi = GetDpiForWindow(hwnd);
+                    let pad = GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
+                    let (dx, dy) = (GetSystemMetricsForDpi(SM_CXFRAME, dpi) + pad, GetSystemMetricsForDpi(SM_CYFRAME, dpi) + pad);
+                    let r = &mut params.rgrc[0];
+                    r.left += dx;
+                    r.right -= dx;
+                    r.top += dy;
+                    r.bottom -= dy;
+                }
+                LRESULT(0)
+            }
+            WM_NCHITTEST if (*state).frame.own => {
+                if (*state).in_app {
+                    return LRESULT(HTCLIENT as isize);
+                }
+                let (x, y) = halves(lparam);
+                let mut p = POINT { x, y };
+                let _ = ScreenToClient(hwnd, &mut p);
+                let s = scale();
+                let hit = call_app(state, |app| app.hit(Vec2::new(p.x as f32 / s, p.y as f32 / s)));
+                LRESULT(hit_code(hit) as isize)
+            }
+            WM_SETCURSOR => {
+                if (lparam.0 & 0xffff) as u32 == HTCLIENT {
+                    let shape = if (*state).in_app { (*state).cursor } else { call_app(state, |app| app.cursor()) };
+                    (*state).cursor = shape;
+                    if let Ok(c) = LoadCursorW(None, idc(shape)) {
+                        SetCursor(Some(c));
+                    }
+                    return LRESULT(1);
+                }
+                // The sizing arrows of the edges, and the arrow elsewhere.
+                DefWindowProcW(hwnd, msg, wparam, lparam)
+            }
+            WM_GETMINMAXINFO => {
+                if let Some((w, h)) = min_track(hwnd, (*state).frame) {
+                    let info = &mut *(lparam.0 as *mut MINMAXINFO);
+                    info.ptMinTrackSize.x = w;
+                    info.ptMinTrackSize.y = h;
+                    return LRESULT(0);
+                }
+                DefWindowProcW(hwnd, msg, wparam, lparam)
+            }
             WM_SIZE => {
-                if wparam.0 as u32 != SIZE_MINIMIZED {
+                let kind = wparam.0 as u32;
+                if kind != SIZE_MINIMIZED {
+                    if kind == SIZE_MAXIMIZED || kind == SIZE_RESTORED {
+                        let now = kind == SIZE_MAXIMIZED;
+                        if now != (*state).maximized {
+                            (*state).maximized = now;
+                            if (*state).started {
+                                send(state, Event::Window { maximized: now });
+                            }
+                        }
+                    }
+                    // Shown again after a minimise: what the application missed is drawn now.
+                    (*state).redraw = true;
                     resized(state);
+                }
+                LRESULT(0)
+            }
+            WM_TIMER if wparam.0 == WAKE_TIMER => {
+                let _ = KillTimer(Some(hwnd), WAKE_TIMER);
+                if hidden(state) {
+                    // Nothing is drawn, but a run goes on and its end is told in the title.
+                    if call_app(state, |app| app.tick()) {
+                        (*state).due = true;
+                    }
+                    pump(state);
+                    rearm(state);
+                } else {
+                    (*state).redraw = true;
+                }
+                LRESULT(0)
+            }
+            WM_OCCLUSION => {
+                let seen = (*state).renderer.as_mut().is_some_and(|r| !r.still_occluded());
+                if seen && !IsIconic(hwnd).as_bool() {
+                    (*state).redraw = true;
                 }
                 LRESULT(0)
             }
@@ -431,8 +732,38 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             WM_MOUSEMOVE => {
                 let pos = point(lparam, scale());
                 (*state).last_pos = pos;
+                (*state).inside = true;
+                if !(*state).tracking {
+                    (*state).tracking = track(hwnd, TME_LEAVE);
+                }
                 send(state, Event::PointerMoved { pos });
                 LRESULT(0)
+            }
+            // Over the frame (the drag space of the bar): the application is told, so hover clears there.
+            WM_NCMOUSEMOVE => {
+                let (x, y) = halves(lparam);
+                let mut p = POINT { x, y };
+                let _ = ScreenToClient(hwnd, &mut p);
+                let s = scale();
+                let pos = Vec2::new(p.x as f32 / s, p.y as f32 / s);
+                (*state).last_pos = pos;
+                (*state).inside = false;
+                if !(*state).tracking_nc {
+                    (*state).tracking_nc = track(hwnd, TME_LEAVE | TME_NONCLIENT);
+                }
+                send(state, Event::PointerMoved { pos });
+                DefWindowProcW(hwnd, msg, wparam, lparam)
+            }
+            WM_MOUSELEAVE => {
+                (*state).tracking = false;
+                (*state).inside = false;
+                send(state, Event::PointerLeft);
+                LRESULT(0)
+            }
+            WM_NCMOUSELEAVE => {
+                (*state).tracking_nc = false;
+                send(state, Event::PointerLeft);
+                DefWindowProcW(hwnd, msg, wparam, lparam)
             }
             WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN => {
                 let pos = point(lparam, scale());
@@ -622,5 +953,64 @@ unsafe fn resized(state: *mut State) {
             (*state).size_dirty = false;
             resized(state);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hit_codes_are_the_systems() {
+        let cases = [
+            (Hit::Client, HTCLIENT),
+            (Hit::Caption, HTCAPTION),
+            (Hit::Resize(Edge::N), HTTOP),
+            (Hit::Resize(Edge::S), HTBOTTOM),
+            (Hit::Resize(Edge::E), HTRIGHT),
+            (Hit::Resize(Edge::W), HTLEFT),
+            (Hit::Resize(Edge::NW), HTTOPLEFT),
+            (Hit::Resize(Edge::NE), HTTOPRIGHT),
+            (Hit::Resize(Edge::SW), HTBOTTOMLEFT),
+            (Hit::Resize(Edge::SE), HTBOTTOMRIGHT),
+        ];
+        for (hit, code) in cases {
+            assert_eq!(hit_code(hit), code, "{hit:?}");
+        }
+        // The numbers the system documents, so a wrong constant cannot hide behind its own name.
+        assert_eq!([HTCLIENT, HTCAPTION, HTLEFT, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT], [1, 2, 10, 11, 12, 13, 14, 15, 16, 17]);
+    }
+
+    #[test]
+    fn every_cursor_has_its_system_shape() {
+        let cases = [
+            (Cursor::Arrow, IDC_ARROW),
+            (Cursor::Hand, IDC_HAND),
+            (Cursor::IBeam, IDC_IBEAM),
+            (Cursor::Crosshair, IDC_CROSS),
+            (Cursor::Grab, IDC_SIZEALL),
+            (Cursor::ResizeNS, IDC_SIZENS),
+            (Cursor::ResizeEW, IDC_SIZEWE),
+            (Cursor::ResizeNWSE, IDC_SIZENWSE),
+            (Cursor::ResizeNESW, IDC_SIZENESW),
+        ];
+        for (cursor, want) in cases {
+            assert_eq!(idc(cursor), want, "{cursor:?}");
+            // The shape exists on this system.
+            assert!(unsafe { LoadCursorW(None, idc(cursor)) }.is_ok(), "{cursor:?}");
+        }
+    }
+
+    #[test]
+    fn the_loop_never_spins_on_a_window_nobody_sees() {
+        assert_eq!(next_wait(true, false, None), Wait::Spin);
+        assert_eq!(next_wait(true, false, Some(0.5)), Wait::Spin);
+        assert_eq!(next_wait(true, true, None), Wait::Sleep);
+        assert_eq!(next_wait(true, true, Some(1.0)), Wait::Timer(1000));
+        assert_eq!(next_wait(false, false, Some(0.1)), Wait::Timer(100));
+        assert_eq!(next_wait(false, false, Some(0.0)), Wait::Timer(MIN_WAKE_MS));
+        assert_eq!(next_wait(false, true, Some(0.001)), Wait::Timer(MIN_WAKE_MS));
+        assert_eq!(next_wait(false, false, None), Wait::Sleep);
+        assert_eq!(next_wait(false, true, None), Wait::Sleep);
     }
 }
