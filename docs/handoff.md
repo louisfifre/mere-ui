@@ -15,9 +15,15 @@ OrbitControls speeds, a camera kept above the ground within a zoom range, and ro
 (no `&mut` aliasing across re-entrant calls, a cleanup guard, safe capture, device-loss rebuild).
 
 Not exercised at runtime: device loss, capture lost mid-drag, a `WM_DPICHANGED` between monitors, and a
-look at the live window's pixels (only its start, answer and clean exit were checked). Open questions for the
-maintainer: a height key in the native view (the page keeps it in its side panel), and the overlay's filled
-plate against a hairline-only frame like the page's panels. Next: IBM Plex Mono, then the page's panels.
+look at the live window's pixels (only its start, answer and clean exit were checked). Next: IBM Plex Mono,
+then the page's panels (build plan steps 7 to 13 in `docs/design.md`, starting with `nui-layout`).
+
+Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
+own and asked to see the result first, so revisit both once the panels can be looked at.
+
+- No height key over the 3D view: it comes with the panels, as the page's list (swatch, band, width, share).
+- The overlay's facts move into a side panel with a hairline frame, beside the view as on the page; until
+  then the filled plate stays, because grey text without a ground is unreadable over bright snow.
 
 ## Goal of this run
 
