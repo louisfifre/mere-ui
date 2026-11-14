@@ -29,7 +29,7 @@ use preview::paint::View;
 use preview::run::Runs;
 use preview::scene;
 use preview::world::World;
-use preview::{PreviewApp, PreviewState, text};
+use preview::{MIN_SIZE, PreviewApp, PreviewState, text};
 
 fn usage() -> ! {
     eprintln!(
@@ -262,7 +262,9 @@ fn main() {
             nui_base::observe!(Info, "wrote {path}");
         }
         None => {
-            if let Err(e) = nui_win32::run(text::WINDOW_TITLE, &mut app) {
+            // The window draws its own bar (src/bar.rs) and holds the minimum size the layout needs.
+            let frame = nui_win32::Frame { own: true, min: MIN_SIZE };
+            if let Err(e) = nui_win32::run_with(text::BAR_TITLE, &mut app, frame) {
                 eprintln!("preview: {e}");
                 std::process::exit(1);
             }

@@ -7,8 +7,10 @@ use std::path::PathBuf;
 use std::process::{Child, ExitStatus, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use nui_base::{App, DrawList, Event, Gfx, Vec2, observe};
-use nui_ui::{Id, Theme, Ui};
+use std::collections::VecDeque;
+
+use nui_base::{App, Cursor, DrawList, Event, Gfx, Hit, Vec2, WindowRequest, observe};
+use nui_ui::{Id, Theme, Ui, chrome_hit};
 
 use crate::cut::{self, CUT_IMAGE, NAV_H, NAV_IMAGE, CutLook};
 use crate::figures::Figures;
@@ -19,7 +21,7 @@ use crate::paint::{View, paint};
 use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Runs, Steps};
 use crate::scene;
 use crate::section::Shown;
-use crate::shell::{PreviewState, ShellIds, Want, build, raise_to_min};
+use crate::shell::{Mode, PreviewState, RunEnd, ShellIds, Want, build, raise_to_min};
 use crate::text;
 use crate::world::World;
 
@@ -66,6 +68,9 @@ pub struct PreviewApp {
     queued: bool,
     /// The window follows the system's light or dark setting (Event::Scheme); a fixed theme ignores it.
     follows_scheme: bool,
+    /// What the window was asked for (the bar's buttons), and the title it was last given.
+    requests: VecDeque<WindowRequest>,
+    title_sent: Option<String>,
 }
 
 type CutKey = (usize, usize, usize, usize, usize, bool, BTreeSet<String>, u32);
@@ -96,6 +101,8 @@ impl PreviewApp {
             last_sheet: None,
             queued: false,
             follows_scheme: false,
+            requests: VecDeque::new(),
+            title_sent: None,
         };
         // Line 2815: the map that opens the page is kept like any other (in memory until there are runs).
         app.remember();
@@ -366,6 +373,7 @@ impl PreviewApp {
                     // Line 2661: the new map is kept in the history.
                     self.remember();
                     finished = true;
+                    self.state.ended = RunEnd::Ready;
                 }
                 Err(e) => {
                     observe!(Warn, "the run's result could not be read: {e}");
@@ -376,6 +384,14 @@ impl PreviewApp {
             observe!(Warn, "the run failed: {} (see {})", status.map_or("no status".to_string(), |s| s.to_string()), log_file.display());
             self.state.trouble = text::FAILED.to_string();
             self.state.said.clear();
+        }
+        // `tell(finished ? 'ready' : trouble ? 'failed' : 'idle')` (line 2673).
+        if !finished {
+            self.state.ended = if !self.state.trouble.is_empty() { RunEnd::Failed } else { RunEnd::Idle };
+        }
+        // A run that ends while another tool is on screen has not been seen (the launcher's line 881).
+        if self.state.mode != Mode::Preview && self.state.ended != RunEnd::Idle {
+            self.state.preview_seen = false;
         }
         // The steps stay, to see where the time went; the one that did not end is left out.
         self.state.steps = Steps::Run { done: follow.done.clone(), now: String::new(), share: if finished { 1.0 } else { follow.share() } };
@@ -402,6 +418,9 @@ impl PreviewApp {
                 }
             }
             Want::Stop => self.stop(),
+            Want::Minimize => self.requests.push_back(WindowRequest::Minimize),
+            Want::Maximize => self.requests.push_back(WindowRequest::ToggleMaximize),
+            Want::Close => self.requests.push_back(WindowRequest::Close),
             Want::Export => self.export(),
             Want::OpenFolder => {
                 if let (Steps::Saved { folder }, Some(runs)) = (&self.state.steps, &self.runs) {
@@ -538,6 +557,11 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
             self.size = raise_to_min(Vec2::new(width_px as f32 / scale, height_px as f32 / scale));
             return true;
         }
+        if let Event::Window { maximized } = e {
+            let changed = self.state.maximized != maximized;
+            self.state.maximized = maximized;
+            return changed;
+        }
         if let Event::Scheme { dark } = e {
             observe!(Info, "the system is now {}{}", if dark { "dark" } else { "light" }, if self.follows_scheme { "" } else { " (not followed)" });
             if self.follows_scheme && dark != self.dark {
@@ -602,6 +626,24 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
         self.last = list;
         gfx.end();
         self.ui.want_redraw() || moving || self.running.is_some()
+    }
+
+    fn hit(&self, pos: Vec2) -> Hit {
+        chrome_hit(&self.ui, pos, self.size, self.state.maximized, self.ids.bar, &self.ids.bar_buttons)
+    }
+
+    fn cursor(&self) -> Cursor {
+        self.ui.cursor()
+    }
+
+    fn take_request(&mut self) -> Option<WindowRequest> {
+        // The title follows the marker (renderModes, line 794); the first frame sets it too.
+        let title = crate::bar::window_title(&self.state);
+        if self.title_sent.as_deref() != Some(title.as_str()) {
+            self.title_sent = Some(title.clone());
+            self.requests.push_back(WindowRequest::Title(title));
+        }
+        self.requests.pop_front()
     }
 }
 

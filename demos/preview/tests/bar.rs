@@ -1,0 +1,393 @@
+//! The launcher's bar on the preview's own frame: its form at every width, where a press on the window goes, the
+//! window's requests, the tool switch, and its pixels at the scales a screen has. The pictures go to target/tmp;
+//! the ones worth keeping are copied to docs/shots.
+
+mod common;
+
+use std::path::Path;
+
+use nui_base::{App, Button, Event, Hit, Rect, Vec2, WindowRequest, Edge};
+use nui_ui::{Id, Theme, Ui};
+use nui_win32::Renderer;
+use preview::world::World;
+use preview::{Mode, PreviewApp, PreviewState, ShellIds, picture};
+
+fn load() -> Option<World> {
+    let dir = Path::new(r"C:\Games\preview\out");
+    if !dir.join("preview.json").exists() {
+        println!("skipped: no C:\\Games\\preview\\out");
+        return None;
+    }
+    Some(World::load(dir).expect("the data loads"))
+}
+
+/// The app and its offscreen renderer at a size in DIP and a scale, as the window would drive them.
+struct Rig {
+    app: PreviewApp,
+    r: Renderer,
+    w: u32,
+    h: u32,
+    scale: f32,
+    theme: Theme,
+}
+
+impl Rig {
+    fn new(world: Option<&World>, state: PreviewState, w: u32, h: u32, scale: f32, dark: bool) -> Rig {
+        let theme = if dark { Theme::dark() } else { Theme::light() };
+        let (pw, ph) = ((w as f32 * scale) as u32, (h as f32 * scale) as u32);
+        let mut r = Renderer::offscreen(pw, ph, scale).expect("offscreen renderer");
+        let mut app = PreviewApp::new(theme, dark, Vec2::new(w as f32, h as f32), state, world.cloned());
+        app.start(&mut r);
+        app.event(Event::Resized { width_px: pw, height_px: ph, scale });
+        app.event(Event::Window { maximized: false });
+        app.frame(&mut r, 0.0);
+        app.frame(&mut r, 0.0);
+        Rig { app, r, w, h, scale, theme }
+    }
+
+    fn standard(world: &World) -> Rig {
+        Rig::new(Some(world), PreviewState::for_world(Some(world)), 1400, 940, 1.0, true)
+    }
+
+    fn frame(&mut self) {
+        self.app.frame(&mut self.r, 0.0);
+        self.app.frame(&mut self.r, 0.0);
+    }
+
+    fn rgba(&mut self) -> Vec<u8> {
+        self.r.read_rgba().unwrap()
+    }
+
+    fn write(&mut self, name: &str) -> Vec<u8> {
+        let rgba = self.rgba();
+        let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+        std::fs::write(&path, nui_png::encode((self.w as f32 * self.scale) as u32, (self.h as f32 * self.scale) as u32, &rgba)).unwrap();
+        println!("wrote {}", path.display());
+        rgba
+    }
+
+    fn rect(&self, id: Id) -> Rect {
+        assert_ne!(id, Id::ROOT, "the widget is not built");
+        self.app.ui().rect(id).expect("the widget was built")
+    }
+
+    fn click(&mut self, at: Vec2) {
+        self.app.event(Event::PointerMoved { pos: at });
+        self.app.event(Event::PointerDown { pos: at, button: Button::Left, clicks: 1 });
+        self.frame();
+        self.app.event(Event::PointerUp { pos: at, button: Button::Left });
+        self.frame();
+    }
+
+    fn click_on(&mut self, id: Id) {
+        let c = centre(self.rect(id));
+        self.click(c);
+    }
+
+    fn hover(&mut self, at: Vec2) {
+        self.app.event(Event::PointerMoved { pos: at });
+        self.frame();
+    }
+
+    /// The device pixel at (x, y) of the picture (physical coordinates).
+    fn px(&self, rgba: &[u8], x: u32, y: u32) -> [u8; 3] {
+        let pw = (self.w as f32 * self.scale) as usize;
+        let i = (y as usize * pw + x as usize) * 4;
+        [rgba[i], rgba[i + 1], rgba[i + 2]]
+    }
+
+    fn drain(&mut self) -> Vec<WindowRequest> {
+        std::iter::from_fn(|| self.app.take_request()).collect()
+    }
+}
+
+fn centre(r: Rect) -> Vec2 {
+    Vec2::new(r.x + r.w / 2.0, r.y + r.h / 2.0)
+}
+
+fn rgb(c: nui_base::Color) -> [u8; 3] {
+    [c.r, c.g, c.b].map(|v| (v * 255.0).round() as u8)
+}
+
+fn near(a: f32, b: f32, what: &str) {
+    assert!((a - b).abs() < 0.01, "{what}: {a} != {b}");
+}
+
+fn rect_of(ui: &Ui, id: Id) -> Rect {
+    assert_ne!(id, Id::ROOT);
+    ui.rect(id).expect("built")
+}
+
+/// B1: the bar has one form. Over 1000..1920 the brand, each tool, each tab and each window button are the same
+/// size; the tools are centred; the window's buttons end at the right edge; and nothing overlaps, at 1000 included.
+#[test]
+fn b1_the_bar_keeps_its_form_at_every_width() {
+    let sizes = |ids: &ShellIds, ui: &Ui| -> Vec<(f32, f32)> {
+        let mut parts = vec![ids.brand, ids.tools[0], ids.tools[1], ids.ends[0], ids.ends[1], ids.ends[2]];
+        parts.extend(ids.tabs.iter().copied());
+        parts.iter().map(|&p| (rect_of(ui, p).w, rect_of(ui, p).h)).collect()
+    };
+    let (_, ui14, ids14) = picture(Theme::dark(), Vec2::new(1400.0, 940.0));
+    let reference = sizes(&ids14, &ui14);
+    assert_eq!(ids14.tabs.len(), 8, "six views, 2D and 3D, always as words");
+    near(rect_of(&ui14, ids14.bar).h, 40.0, "bar height");
+    let mut w = 1000.0;
+    while w <= 1920.0 {
+        let (_, ui, ids) = picture(Theme::dark(), Vec2::new(w, 940.0));
+        assert_eq!(sizes(&ids, &ui), reference, "the parts' sizes at {w}");
+        let (brand, strip) = (rect_of(&ui, ids.brand), rect_of(&ui, ids.strip));
+        assert!((strip.x + strip.w / 2.0 - w / 2.0).abs() <= 0.5, "tools centred at {w}: {strip:?}");
+        for (i, e) in ids.ends.iter().enumerate() {
+            near(rect_of(&ui, *e).x, w - 138.0 + 46.0 * i as f32, &format!("end {i} at {w}"));
+        }
+        assert!(brand.x + brand.w < strip.x, "the brand ends before the tools at {w}: {brand:?} {strip:?}");
+        assert!(strip.x + strip.w < w - 138.0, "the tools end before the window's buttons at {w}: {strip:?}");
+        let tabs: Vec<Rect> = ids.tabs.iter().map(|&t| rect_of(&ui, t)).collect();
+        assert!(tabs.windows(2).all(|p| p[0].x + p[0].w <= p[1].x + 1.01), "tabs do not overlap at {w}");
+        w += if w < 1010.0 || w > 1900.0 { 1.0 } else { 7.0 };
+    }
+    println!("B1: brand {:?}, tools {:?}, tabs {:?}", rect_of(&ui14, ids14.brand), rect_of(&ui14, ids14.strip), ids14.tabs.iter().map(|&t| rect_of(&ui14, t).w).collect::<Vec<_>>());
+}
+
+/// B2: what a press at a point does, at 1400 x 940.
+#[test]
+fn b2_hit_regions() {
+    let Some(world) = load() else { return };
+    let mut rig = Rig::standard(&world);
+    let hit = |rig: &Rig, x: f32, y: f32| rig.app.hit(Vec2::new(x, y));
+    for ((x, y), edge) in [
+        ((1.0, 1.0), Edge::NW),
+        ((7.0, 7.0), Edge::NW),
+        ((9.0, 3.0), Edge::N),
+        ((700.0, 2.0), Edge::N),
+        ((2.0, 470.0), Edge::W),
+        ((1398.0, 470.0), Edge::E),
+        ((700.0, 938.0), Edge::S),
+        ((1392.0, 932.0), Edge::SE),
+        ((1398.0, 1.0), Edge::NE),
+        ((1.0, 938.0), Edge::SW),
+        // The grips lie over the close button's edge.
+        ((1395.0, 20.0), Edge::E),
+        ((1380.0, 2.0), Edge::N),
+    ] {
+        assert_eq!(hit(&rig, x, y), Hit::Resize(edge), "({x}, {y})");
+    }
+    assert_eq!(hit(&rig, 1380.0, 20.0), Hit::Client, "the close button");
+    assert_eq!(hit(&rig, 700.0, 500.0), Hit::Client, "the page");
+    let ids = rig.app.ids().clone();
+    let brand = centre(rig.rect(ids.brand));
+    assert_eq!(hit(&rig, brand.x, brand.y), Hit::Caption, "the brand");
+    let (brand_r, strip_r) = (rig.rect(ids.brand), rig.rect(ids.strip));
+    let between = ((brand_r.x + brand_r.w) + strip_r.x) / 2.0;
+    assert_eq!(hit(&rig, between, 20.0), Hit::Caption, "between the brand and the tools");
+    let free = (strip_r.x + strip_r.w + 1400.0 - 138.0) / 2.0;
+    assert_eq!(hit(&rig, free, 20.0), Hit::Caption, "between the tools and the window's buttons");
+    let mut buttons: Vec<Id> = ids.tabs.clone();
+    buttons.extend(ids.tools);
+    buttons.extend(ids.ends);
+    for b in buttons {
+        let c = centre(rig.rect(b));
+        assert_eq!(hit(&rig, c.x, c.y), Hit::Client, "button at {c:?}");
+    }
+    // Maximised: no edge to pull, so the corner and the sides belong to what is under them.
+    rig.app.event(Event::Window { maximized: true });
+    rig.frame();
+    assert_eq!(hit(&rig, 1.0, 1.0), Hit::Caption);
+    assert_eq!(hit(&rig, 1398.0, 470.0), Hit::Client);
+    assert_eq!(hit(&rig, 1395.0, 20.0), Hit::Client);
+}
+
+/// B4: the window's buttons and its title.
+#[test]
+fn b4_the_buttons_and_the_title_are_requests() {
+    let Some(world) = common::world() else { return };
+    let root = common::root("bar_requests");
+    let mut rig = Rig::new(Some(&world), PreviewState::for_world(Some(&world)), 1400, 940, 1.0, true);
+    // The first frame names the window.
+    assert_eq!(rig.drain(), vec![WindowRequest::Title("Minecraft".into())]);
+    assert_eq!(rig.drain(), vec![], "a request is taken once");
+    let ids = rig.app.ids().clone();
+    for (i, want) in [WindowRequest::Minimize, WindowRequest::ToggleMaximize, WindowRequest::Close].into_iter().enumerate() {
+        rig.click_on(ids.ends[i]);
+        assert_eq!(rig.drain(), vec![want], "end button {i}");
+    }
+    // Maximised, the middle button restores: a request all the same, and its icon and title change.
+    rig.app.event(Event::Window { maximized: true });
+    rig.frame();
+    rig.click_on(ids.ends[1]);
+    assert_eq!(rig.drain(), vec![WindowRequest::ToggleMaximize]);
+    rig.app.event(Event::Window { maximized: false });
+
+    // A run under way: the preview tool carries a marker and the title says so, whichever tool is on.
+    drop(rig);
+    let mut state = PreviewState::for_world(Some(&world));
+    state.detail = 2;
+    let runs = common::runs(&root, &[("NUI_STUB", "hold")]);
+    let theme = Theme::dark();
+    let mut r = Renderer::offscreen(1400, 940, 1.0).unwrap();
+    let mut app = PreviewApp::new(theme, true, Vec2::new(1400.0, 940.0), state, Some(world.clone())).with_runs(runs);
+    app.start(&mut r);
+    app.event(Event::Resized { width_px: 1400, height_px: 940, scale: 1.0 });
+    app.frame(&mut r, 0.0);
+    while app.take_request().is_some() {}
+    // A changed setting enables Generate.
+    app.state_mut().values[0] += 0.01;
+    app.frame(&mut r, 0.0);
+    let generate = app.ui().rect(app.ids().generate).unwrap();
+    let at = centre(generate);
+    app.event(Event::PointerMoved { pos: at });
+    app.event(Event::PointerDown { pos: at, button: Button::Left, clicks: 1 });
+    app.frame(&mut r, 0.0);
+    app.event(Event::PointerUp { pos: at, button: Button::Left });
+    app.frame(&mut r, 0.0);
+    assert!(app.running(), "the stub runs");
+    let mut titles = Vec::new();
+    while let Some(q) = app.take_request() {
+        titles.push(q);
+    }
+    assert_eq!(titles, vec![WindowRequest::Title("Minecraft \u{b7} preview computing".into())]);
+    // Home on: the marker is still there, and it is the square on the preview tool.
+    let home = app.ui().rect(app.ids().tools[0]).unwrap();
+    let c = centre(home);
+    app.event(Event::PointerMoved { pos: c });
+    app.event(Event::PointerDown { pos: c, button: Button::Left, clicks: 1 });
+    app.frame(&mut r, 0.0);
+    app.event(Event::PointerUp { pos: c, button: Button::Left });
+    app.frame(&mut r, 0.0);
+    app.frame(&mut r, 0.0);
+    assert_eq!(app.state().mode, Mode::Home);
+    let tool = app.ui().rect(app.ids().tools[1]).unwrap();
+    let rgba = r.read_rgba().unwrap();
+    let at = |x: f32, y: f32| {
+        let i = (y as usize * 1400 + x as usize) * 4;
+        [rgba[i], rgba[i + 1], rgba[i + 2]]
+    };
+    // 5 x 5, 4 px from the top and right edges of the tool's box.
+    let (mx, my) = (tool.x + tool.w - 4.0 - 5.0, tool.y + 4.0);
+    assert_eq!(at(mx + 2.0, my + 2.0), rgb(theme.text), "the marker, steady");
+    assert_eq!(at(mx - 2.0, my + 2.0), rgb(theme.ground), "and nothing around it");
+}
+
+/// B5: switching tools changes what is on screen and nothing else.
+#[test]
+fn b5_the_tool_switch_keeps_the_previews_state() {
+    let Some(world) = load() else { return };
+    let mut rig = Rig::standard(&world);
+    // Something to keep: another view, a closer look, the 3D camera.
+    let tabs = rig.app.ids().tabs.clone();
+    rig.click_on(tabs[3]);
+    rig.click_on(tabs[7]);
+    {
+        let s = rig.app.state_mut();
+        s.look.k = 4.0;
+        s.settings_y = 10.0;
+    }
+    rig.frame();
+    let before = rig.app.state().clone();
+    assert!(before.orbit.is_some() && before.in3d && before.view == 3);
+    let (home, preview) = (rig.app.ids().tools[0], rig.app.ids().tools[1]);
+    rig.click_on(home);
+    assert_eq!(rig.app.state().mode, Mode::Home);
+    let ids = rig.app.ids().clone();
+    assert_ne!(ids.home_pane, Id::ROOT);
+    assert!(ids.tabs.is_empty(), "the preview's tabs are not built when its tool is closed");
+    assert_eq!((ids.left, ids.middle, ids.right), (Id::ROOT, Id::ROOT, Id::ROOT), "the page's columns are not built");
+    // Home again does nothing.
+    rig.click_on(home);
+    assert_eq!(rig.app.state().mode, Mode::Home);
+    rig.click_on(preview);
+    let after = rig.app.state();
+    assert_eq!(after.mode, Mode::Preview);
+    assert_eq!((after.view, after.in3d, after.look, after.settings_y), (before.view, before.in3d, before.look, before.settings_y));
+    assert_eq!(after.orbit, before.orbit, "the camera is the same");
+    assert!(after.preview_seen);
+}
+
+/// B6: the bar's pixels at 1, 1.5 and 2: the hairline is whole device rows, the crisp icons are exactly the ground
+/// or their colour, and the tabs' frames are whole device pixels.
+#[test]
+fn b6_the_bar_is_whole_device_pixels_at_every_scale() {
+    let Some(world) = load() else { return };
+    for (scale, name) in [(1.0f32, "bar_1400_dark.png"), (1.5, "bar_1400_x15.png"), (2.0, "bar_1400_x2.png")] {
+        let mut rig = Rig::new(Some(&world), PreviewState::for_world(Some(&world)), 1400, 940, scale, true);
+        let rgba = rig.write(name);
+        let t = rig.theme;
+        let (pw, ph) = ((1400.0 * scale) as u32, (940.0 * scale) as u32);
+        let ids = rig.app.ids().clone();
+
+        // The hairline: round(scale) rows of --line across the whole width, near the bar's bottom.
+        let rows = (0..ph.min((60.0 * scale) as u32))
+            .filter(|&y| (0..pw).all(|x| rig.px(&rgba, x, y) == rgb(t.line)))
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), scale.round() as usize, "scale {scale}: rows {rows:?}");
+        assert!(rows.iter().all(|&y| y as f32 >= 38.0 * scale && (y as f32) < 41.0 * scale), "scale {scale}: the hairline is at the bar's foot: {rows:?}");
+
+        // The icons: each is its colour or the ground, nothing between.
+        for (what, id, side) in [("home", ids.tools[0], 36.0), ("minimise", ids.ends[0], 46.0), ("maximise", ids.ends[1], 46.0), ("close", ids.ends[2], 46.0)] {
+            let r = rig.rect(id);
+            let c = centre(r);
+            let _ = side;
+            let (x0, y0) = (((c.x - 8.0) * scale).floor() as u32, ((c.y - 8.0) * scale).floor() as u32);
+            let (x1, y1) = (((c.x + 8.0) * scale).ceil() as u32, ((c.y + 8.0) * scale).ceil() as u32);
+            let mut inked = 0;
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let p = rig.px(&rgba, x, y);
+                    assert!(p == rgb(t.ground) || p == rgb(t.muted), "scale {scale}: the {what} icon has {p:?} at ({x}, {y})");
+                    inked += (p == rgb(t.muted)) as usize;
+                }
+            }
+            assert!(inked >= 8, "scale {scale}: the {what} icon is drawn ({inked} pixels)");
+        }
+
+        // The tabs' frames: along the top edge of each, from just inside its corners, the pixels are exactly the
+        // frame's colour (a blurred line would have a mix).
+        for (i, tab) in ids.tabs.iter().enumerate() {
+            let r = rig.rect(*tab);
+            let want = if i == 2 || i == 6 { rgb(t.text) } else { rgb(t.edge) };
+            let y = (r.y * scale).round() as u32;
+            let (x0, x1) = ((r.x * scale).round() as u32 + 2, ((r.x + r.w) * scale).round() as u32 - 2);
+            for x in x0..x1 {
+                assert_eq!(rig.px(&rgba, x, y), want, "scale {scale}: tab {i} top edge at ({x}, {y})");
+            }
+            // Only the first tab of a group has a left edge nobody paints over (the others share it, the pressed one on top).
+            if i != 0 && i != 6 {
+                continue;
+            }
+            let x = (r.x * scale).round() as u32;
+            let (y0, y1) = (((r.y * scale).round() as u32) + 2, (((r.y + r.h) * scale).round() as u32) - 2);
+            for y in y0..y1 {
+                assert_eq!(rig.px(&rgba, x, y), want, "scale {scale}: tab {i} left edge at ({x}, {y})");
+            }
+        }
+    }
+}
+
+/// The pictures of the bar: light, Home, maximised, the pointer over Close.
+#[test]
+fn bar_pictures() {
+    let Some(world) = load() else { return };
+    let state = || PreviewState::for_world(Some(&world));
+    let mut rig = Rig::new(Some(&world), state(), 1400, 940, 1.0, false);
+    rig.write("bar_1400_light.png");
+
+    let mut rig = Rig::standard(&world);
+    let home = rig.app.ids().tools[0];
+    rig.click_on(home);
+    rig.hover(Vec2::new(700.0, 500.0));
+    rig.write("bar_home.png");
+
+    let mut rig = Rig::standard(&world);
+    rig.app.event(Event::Window { maximized: true });
+    rig.frame();
+    rig.write("bar_maximized.png");
+
+    let mut rig = Rig::standard(&world);
+    let close = rig.rect(rig.app.ids().ends[2]);
+    rig.hover(Vec2::new(close.x + 23.0, close.y + 20.0));
+    let rgba = rig.write("bar_hover_close.png");
+    assert_eq!(rig.px(&rgba, (close.x + 3.0) as u32, (close.y + 3.0) as u32), [0xc4, 0x2b, 0x1c], "Close is red under the pointer");
+    // Beside it the others stay quiet.
+    let min = rig.rect(rig.app.ids().ends[0]);
+    assert_eq!(rig.px(&rgba, (min.x + 3.0) as u32, (min.y + 3.0) as u32), rgb(rig.theme.ground));
+}

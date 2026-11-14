@@ -72,7 +72,7 @@ fn r1_a_run_under_way_and_its_stop() {
     assert_eq!(rig.px(&rgba, s.x + 17.0, s.y), rgb(t.edge), "the stop's frame");
     assert_eq!(rig.px(&rgba, s.x + 17.0, s.y + 17.0), rgb(t.muted), "the stop's small square");
 
-    let bar = rig.rect(ids.bar);
+    let bar = rig.rect(ids.steps_bar);
     assert_eq!(rig.px(&rgba, bar.x + 0.2 * bar.w, bar.y), rgb(t.text), "the hairline is filled at 20 %");
     assert_eq!(rig.px(&rgba, bar.x + 0.6 * bar.w, bar.y), rgb(t.line), "and not at 60 %");
 
@@ -159,7 +159,7 @@ fn r2_a_finished_run_becomes_the_map() {
     assert!(fixed >= 0.0 && ((fixed + 1.5).fract()).abs() < 1e-9, "fixed {fixed} is the whole seconds of the run less 1.5");
 
     // The hairline is whole, and the last step done is the map (or the extras, when the look caught that pass).
-    let bar = rig.rect(ids.bar);
+    let bar = rig.rect(ids.steps_bar);
     assert_eq!(rig.px(&rgba, bar.x + 0.99 * bar.w, bar.y), rgb(t.text));
     let last = ids.steps_items.last().unwrap();
     assert!(last.starts_with("\u{2713} Map, every 16 blocks ") || last.starts_with("\u{2713} Cuts, ores and structures "), "{last}");

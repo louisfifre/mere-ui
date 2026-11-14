@@ -1,7 +1,7 @@
 //! The parts of a window drawn by the application: the grips along its edges, the caption area of its bar
 //! and the icon buttons of its tool strip and window buttons (launcher lines 75-129).
 
-use nui_base::{Color, Cursor, Edge, Hit, Vec2};
+use nui_base::{Cmd, Color, Cursor, Edge, Hit, Rect, Vec2};
 use nui_layout::{Align, Dim, Justify, Margin, Position, Side, Style};
 
 use crate::icon::{Icon, icon_shape};
@@ -74,6 +74,9 @@ pub enum IconLook {
 pub struct IconOpts {
     pub pressed: bool,
     pub disabled: bool,
+    /// A 5 x 5 square on the button's top right corner, 4 px in (the launcher's `.marker`, line 129), in this
+    /// colour: where a run of the preview stands while it is not on screen.
+    pub marker: Option<nui_base::Color>,
 }
 
 impl Ui {
@@ -125,7 +128,12 @@ impl Ui {
         };
         self.open(key, id, style, Paint::Box { fill, frame });
         let slot = Style { w: Dim::Px(16.0), h: Dim::Px(16.0), shrink: 0.0, ..Style::default() };
-        self.add("icon", slot, Paint::Cmds(vec![icon_shape(icon, 16.0, color, icon.axis_aligned())]));
+        let mut cmds = vec![icon_shape(icon, 16.0, color, icon.axis_aligned())];
+        if let (Some(m), IconLook::Tool) = (opts.marker, look) {
+            // Positioned against the button: 4 px from its top and right edges. The icon sits at (10, 6) in it.
+            cmds.push(Cmd::Fill { rect: Rect::new(36.0 - 4.0 - 5.0 - 10.0, 4.0 - 6.0, 5.0, 5.0), color: m });
+        }
+        self.add("icon", slot, Paint::Cmds(cmds));
         self.close();
         resp
     }

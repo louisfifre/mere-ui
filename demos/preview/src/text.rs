@@ -361,3 +361,29 @@ mod tests {
         assert_eq!(cut_depth(-3.0), "above the ground");
     }
 }
+
+// ---- the launcher's bar (outpost-tools\index.html, `text`, lines 336-415) ----
+
+/// Line 337: the game's name, which the bar shows in capitals and the window's title says.
+pub const BAR_TITLE: &str = "Minecraft";
+/// Line 341: the two tools, Home first.
+pub const MODES: [&str; 2] = ["Home", "World preview"];
+/// Line 342: where a run of the preview stands, by marker.
+pub const PREVIEW_STATE: [&str; 3] = ["computing", "ready", "failed"];
+/// Line 343.
+pub fn mode_with(name: &str, marker: &str) -> String {
+    format!("{name} \u{b7} {marker}")
+}
+/// Line 344.
+pub fn title_with(marker: &str) -> String {
+    format!("Minecraft \u{b7} preview {marker}")
+}
+/// Lines 410-413: the window's own buttons.
+pub const MINIMIZE: &str = "Minimise";
+pub const MAXIMIZE: &str = "Maximise";
+pub const RESTORE: &str = "Restore";
+pub const CLOSE_WINDOW: &str = "Close";
+/// Line 466 of the preview page: the title of a view that needs the full detail, as the page sends it to the host.
+pub const NEEDS_FULL: &str = "Needs the 16-block detail: generate the map again at 16 blocks.";
+/// PLACEHOLDER: the launcher's Home is step 21; until then its pane says so. Not the launcher's wording.
+pub const HOME_LATER: &str = "The launcher's home comes with step 21.";

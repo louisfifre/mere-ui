@@ -1,4 +1,4 @@
-//! The world preview's shell (build plan step 13): the toolbar and the three columns of `#page`
+//! The world preview's shell (build plan step 13): the bar and the three columns of `#page`
 //! (preview.html lines 63-88, 370-449), built with `nui-ui` and filled with the page's real settings
 //! sections and static values. Since step 19 it has no breakpoint: the side panels are fixed (`PAGE`) and pinned to
 //! the window's edges, and the middle column is what is left, its map a square of one rule at every width.
@@ -13,7 +13,7 @@ use nui_base::{Cmd, Color, DrawList, Orbit, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
     ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
-    choice_style, details_style, scroll_style, strip_style, wrap_lines,
+    choice_style, details_style, scroll_style, wrap_lines,
 };
 
 use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
@@ -79,6 +79,26 @@ pub enum Want {
     Stop,
     Export,
     OpenFolder,
+    /// The window's buttons: the app turns them into requests to the window.
+    Minimize,
+    Maximize,
+    Close,
+}
+
+/// The launcher's two tools (lines 228-236): the Home and the world preview. One is on at a time.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Mode {
+    Home,
+    Preview,
+}
+
+/// How the last run ended, which the page tells its host (`tell`, line 2673): the marker on the preview tool.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum RunEnd {
+    /// No run ended yet, or it was stopped.
+    Idle,
+    Ready,
+    Failed,
 }
 
 /// What the application owns; the widgets read it and a click or a keystroke changes it.
@@ -139,6 +159,13 @@ pub struct PreviewState {
     pub before: Option<Figures>,
     /// What the list's filter holds.
     pub filter: String,
+    /// The tool on screen. The preview's state, its run and its timers go on while Home is shown: the launcher
+    /// only hides the preview's frame.
+    pub mode: Mode,
+    pub maximized: bool,
+    /// The preview was on screen since its last run ended (the launcher's `previewSeen`).
+    pub preview_seen: bool,
+    pub ended: RunEnd,
 }
 
 impl PreviewState {
@@ -189,6 +216,10 @@ impl Default for PreviewState {
             history: Vec::new(),
             before: None,
             filter: String::new(),
+            mode: Mode::Preview,
+            maximized: false,
+            preview_seen: true,
+            ended: RunEnd::Idle,
         }
     }
 }
@@ -200,6 +231,16 @@ pub struct ShellIds {
     pub left: Id,
     pub middle: Id,
     pub right: Id,
+    /// The bar of the window, its brand, the two tools' buttons (Home, preview) and the window's three buttons.
+    pub bar: Id,
+    pub brand: Id,
+    pub tools: [Id; 2],
+    pub ends: [Id; 3],
+    /// Every button of the bar (the tools', the tabs' and the window's): what a press on the bar does not drag.
+    pub bar_buttons: Vec<Id>,
+    /// The pane under the bar while Home is on.
+    pub home_pane: Id,
+    /// The tools' strip in the middle of the bar, and the preview's tabs in it.
     pub strip: Id,
     pub tabs: Vec<Id>,
     pub world_head: Id,
@@ -272,7 +313,7 @@ pub struct ShellIds {
     pub stop: Id,
     /// `#steps`, its hairline, and the export notice with its two links (Id::ROOT unless shown).
     pub steps: Id,
-    pub bar: Id,
+    pub steps_bar: Id,
     pub saved: Id,
     pub open_folder: Id,
     pub close_notice: Id,
@@ -291,6 +332,12 @@ impl Default for ShellIds {
             left: o,
             middle: o,
             right: o,
+            bar: o,
+            brand: o,
+            tools: [o; 2],
+            ends: [o; 3],
+            bar_buttons: Vec::new(),
+            home_pane: o,
             strip: o,
             tabs: Vec::new(),
             world_head: o,
@@ -344,7 +391,7 @@ impl Default for ShellIds {
             ores: Vec::new(),
             stop: o,
             steps: o,
-            bar: o,
+            steps_bar: o,
             saved: o,
             open_folder: o,
             close_notice: o,
@@ -418,7 +465,13 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
 
     // body (lines 63-72): a column filling the window.
     ui.node("body", Style { column: true, ..fills() }, |ui| {
-        toolbar(ui, s, &mut ids, world);
+        crate::bar::build(ui, s, &mut ids, world);
+        // Home: the page's columns are not built. The launcher's home is step 21, so its pane says so.
+        if s.mode == Mode::Home {
+            let pane = Style { align_items: Align::Center, justify: Justify::Center, ..fills() };
+            ids.home_pane = ui.node("home", pane, |ui| ui.text(text::HOME_LATER, TextLook::body(Tone::Muted)));
+            return;
+        }
         let page = Style {
             display: Display::Grid,
             cols: Tracks::new(&[Track::Px(cols.left), Track::MinMaxFr0(1.0), Track::Px(cols.right)]),
@@ -434,44 +487,6 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
         });
     });
     ids
-}
-
-/// `#toolbar` (line 93), now `BAR_H` high, and the strip of lines 2543-2555: six views, a gap, then 2D and 3D.
-fn toolbar(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>) {
-    let style = Style {
-        justify: Justify::Center,
-        pad: Edges::new(10.0, 16.0, 0.0, 16.0),
-        h: Dim::Px(BAR_H),
-        shrink: 0.0,
-        align_items: Align::Start,
-        ..Style::default()
-    };
-    ui.node("toolbar", style, |ui| {
-        ids.strip = ui.node("strip", strip_style(), |ui| {
-            let views = text::VIEWS.iter().copied().chain([text::SECTION]);
-            // Flat, Structures and Section come after the full map only (line 2506).
-            let coarse = world.is_some_and(World::coarse);
-            for (i, word) in views.enumerate() {
-                let disabled = coarse && matches!(i, 1 | 4 | 5);
-                let r = ui.tab(&format!("view{i}"), word, TabLook::Strip, TabOpts { pressed: i == s.view, disabled });
-                ids.tabs.push(r.id);
-                if r.clicked {
-                    s.view = i;
-                }
-            }
-            // The section has no 2D or 3D (line 2540): the tabs and the gap before them are not built.
-            if s.view != 5 {
-                ui.strip_gap();
-                for (i, word) in text::SHAPES.iter().enumerate() {
-                    let r = ui.tab(&format!("shape{i}"), word, TabLook::Strip, TabOpts { pressed: (i == 1) == s.in3d, disabled: false });
-                    ids.tabs.push(r.id);
-                    if r.clicked {
-                        s.in3d = i == 1;
-                    }
-                }
-            }
-        });
-    });
 }
 
 /// The left column (lines 370-400): the world, the settings, and the run block under them.
@@ -727,7 +742,7 @@ fn steps_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
         Steps::Run { done, now, share } => {
             let (line, text_colour, share) = (t.line, t.text, *share);
             // `.bar` (line 268): a 1 px hairline of `--line`, filled from the left with `--text`.
-            ids.bar = ui
+            ids.steps_bar = ui
                 .canvas("bar", Style { h: Dim::Px(1.0), shrink: 0.0, ..Style::default() }, |_, _| {
                     vec![
                         Cmd::Fill { rect: Rect::new(0.0, 0.0, width, 1.0), color: line },

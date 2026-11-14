@@ -60,17 +60,6 @@ fn l1_columns() {
 }
 
 #[test]
-fn l2_strip_is_centred_in_the_toolbar() {
-    for w in [1400.0, 1200.0, 1000.0] {
-        let (ui, ids, _) = shell(w, H);
-        let q = r(&ui, ids.strip);
-        assert!((q.x + q.w / 2.0 - w / 2.0).abs() <= 0.5, "strip centre at {w}: {}", q.x + q.w / 2.0);
-        near(q.y, 10.0, "strip y");
-        near(q.h, 28.0, "strip h");
-    }
-}
-
-#[test]
 fn l3_sections_in_order() {
     let (ui, ids, _) = shell(1400.0, H);
     let (left, right) = (r(&ui, ids.left), r(&ui, ids.right));
