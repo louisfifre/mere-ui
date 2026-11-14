@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 10 done (2026-11-14)
+## Status: steps 0 to 11 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -61,7 +61,25 @@ tests with the page's numbers, 2 picture tests). Two observations read from the 
   so the word turns `--text` on a `--text` ground and vanishes. `nui-ui` keeps the pressed word on hover on purpose.
 - The comments at preview.html line 657 and launcher line 571 still say "slider", and `--track` is used by no rule.
 
-Next: step 11 (the text field), then the panels, steps 12 and 13.
+Build plan step 11 is done: `nui-base` has `Event::Key`, `Event::Char`, `PointerDown.clicks`, `Key`, `Mods` and the `Clipboard`
+trait; `nui-win32` turns `WM_KEYDOWN`, `WM_CHAR` (with surrogate pairs) and click counting into them and has `SystemClipboard`
+(CF_UNICODETEXT; the manual round-trip test `cargo test -p nui-win32 --test clipboard -- --ignored` passed); `nui-ui` has the
+editing model (`edit.rs`), `text_field` (Text and Compact looks) and the editable `number` with a `NumberSpec`, one focused
+field with Tab order = build order and `Ui::want_redraw`. `demos/widgets --fields` is the live mode and
+`docs/shots/fields-dark.png` and `fields-light.png` are the sheet (24 `nui-ui` field tests, 10 edit-model unit tests, 2
+picture tests). Unverified, read from the page or chosen by us, not seen in a browser:
+
+- The selection colour (`#0078d7` on `#ffffff` text): Windows' defaults; the page has no `::selection` rule.
+- The caret and selection height, 15.6 px, is ascent plus descent (1.025 + 0.275 em), not the font's measured line gap.
+- The intrinsic width of a text field with no width, 20 chars (the browser's `size=20`).
+- A pasted line break or tab is removed; Chrome may turn it into a space.
+- `OpenClipboard(None)` is used when no window exists (tests); the docs warn that setting may then fail. The ignored test
+  passed here, so it does work on this machine.
+- The caption of script row 9 was cut to "type the quick brown…": the longer one ran under the field.
+- The second number of the live mode is labelled with demo wording ("Elevation boost"), and the controls sheet's "Land
+  against ocean" row uses `ocean_offset`'s spec (-1..-0.2, step 0.05), not `continents_scale`'s.
+
+Next: step 12 (the list with scroll and ellipsis), then the panels, step 13.
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.

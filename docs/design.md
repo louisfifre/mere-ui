@@ -181,6 +181,26 @@ relative, margin-left -1) covers its neighbour's grey one. Letter spacing is dra
 `TextLook::width`): Plex Mono is monospaced without kerning, so it equals a spaced string and the renderer is unchanged.
 `mix(top, opacity, under)` generalises `Theme::faded`. Hovering the pressed strip tab keeps its word in the ground colour,
 unlike the page's cascade (see handoff).
+**As built (step 11).** `text_field(key, &mut String, FieldOpts { look: Text | Compact, placeholder, max_chars, width, focus })
+-> FieldResp` and `number(key, &mut f64, NumberSpec { min, max, step }) -> FieldResp` (the step-10 `number(key, f64)` is gone;
+`NumberSpec::ANY` is the no-limit spec). `FieldResp { resp, focused, changed, submitted, cancelled, blurred }`: the app
+keeps its own `String` or `f64` and reads what happened; the widget keeps no per-field map. There is ONE focused field in
+the whole `Ui` (`Ui::focus`, with its editing state, made when it gains focus and dropped when it loses it), so a keyed
+state map was not needed. `Ui::event` stores `Key` and `Char` events in order and the focused field reads them when it is
+built; focus by pointer is decided from the press position against the last frame's rect, before the keys, so a press on
+one field and typing right after it work whichever field was built first (a field that lost focus to a later one is told
+through a stash, `Ui::lost`). Tab order is build order: Tab commits and blurs the field, and `end_frame` gives the next
+field built (wrapping, Shift+Tab backwards) the focus with all its text selected; that happens after painting, so
+`Ui::want_redraw()` is true after such a frame and the application draws once more (the widgets demo returns it from
+`App::frame`). A focused field that was not built in a frame drops the focus. The editing model is `edit.rs` (`Edit`, byte
+indexes on char boundaries, `Outcome`); `Ui::set_clipboard(Box<dyn Clipboard>)` takes the system one (`MemoryClipboard`
+by default). A field is one leaf node with `Paint::Field`: frame (text colour when focused, edge otherwise), then clipped
+to the content box widened by 1 px, the selection fill, the text, the text again in `select_text` clipped to the selection,
+and the 1 px caret (hidden over a selection). Metrics: Text pad 3+1 / 6+1 (26 tall), Compact 1+1 / 6+1 (22), Number 2+1 /
+6+1 (24, right-aligned); the glyph box (ascent + descent, 15.6) sits 1.2 under the content top. Pointer: x to column by
+`round((x - text_x) / 7.2)`; click counts come from the backend (`PointerDown.clicks`, `GetDoubleClickTime` and
+`SM_CXDOUBLECLK`/`SM_CYDOUBLECLK` in `nui-win32`).
+
 ### 1.4 nui-win32
 Implements `Window`, `Text`, `Gfx`, `Backend`. Internals: `win.rs` (class, wndproc, loop, DPI, clipboard, IME later), `d3d.rs` (device, swap chain, pipelines, meshes, depth), `d2d.rs` (device context, brushes, bitmaps, clip), `dwrite.rs` (factory, text format, layout cache, font loading), `offscreen.rs` (texture + staging readback).
 
@@ -356,7 +376,7 @@ All screenshots are produced by `nui-shot <view-name> <w>x<h> [--scale 1.5] [--t
 | 8 | Grid + absolute + overflow in `nui-layout` | Debug PNG of the gallery (`demos/shell-boxes`, `target/tmp/gallery.png`): the page's own rows and boxes, not invented ones: three `.setting` rows (`minmax(0,1fr) auto 8ch`) with the hint, `#figures`, the ore head and rows (`12px 1fr 6ch 5ch 5ch 14px`), biome rows, `#details` (3 equal columns), `#generate` beside the 34 px `#stopRun`, and the `#frame` stack (`#flat` clipped, `#cutLine` out by 9 px, `#note` centred, `#under` below) and a 90 px scroll box | 5 |
 | 9 | `nui-ui` core: Ui, ids, input, draw list, theme dark/light; label, button, toggle | Gallery PNG: labels in text/muted/warn tones, buttons in normal/hover/active (hover injected by the harness), toggle on/off; dark and light variants | 5 |
 | 10 | Fold, tabs (strip, choice, details), number field (without typing) | Controls sheet: a closed, a hovered and an open fold with its +/− sign, two strips (Flat and 2D pressed; a coarse map with three disabled), choice and details pressed, number fields right-aligned | 5 |
-| 11 | Text field: model + keys + caret + selection + clipboard (no IME) | Gallery: field with `1234567890` caret at 4; same with a selection from 2 to 6 highlighted; scrolled long text with the caret at the end. A harness script injects keys and takes PNGs after each | 7 |
+| 11 | Text field: model + keys + caret + selection + clipboard (no IME) | Done: the fields sheet (`docs/shots/fields-dark.png`, `fields-light.png`): a 13-row script on the seed field (placeholder; click; `1234567890`; caret at 4; selection 2 to 6; copy and paste; deleting; a long text scrolled with the caret at the right edge; Ctrl+Backspace; select all; Escape), and cells for a double click, the profile name focused with all selected, a number stepped, clamped on Enter, and Tab between a seed and a setting | 7 |
 | 12 | List with scroll + ellipsis; history row layout | A list taller than its box with a scrollbar thumb at 30 %, rows with truncated text ending in an ellipsis | 3 |
 | 13 | Preview shell: three columns with the real settings sections, static values | Side by side with a browser screenshot of the current page: same section order, same column widths at the three breakpoints | 6 |
 | 14 | 2D map view: paint() port, image upload, pan/zoom, nav frame | The map of a real run: colours per height/biome identical to the page (pixel diff against a canvas dump from the browser < threshold); nearest-neighbour blocks visible at 8x zoom | 5 |
@@ -389,6 +409,19 @@ Grapheme handling without a crate - what is enough: seed fields accept digits, l
 IME (phase 2, UNVERIFIED need): IMM32 messages `WM_IME_STARTCOMPOSITION`, `WM_IME_COMPOSITION` (`ImmGetContext`, `ImmGetCompositionStringW` with `GCS_COMPSTR`/`GCS_RESULTSTR`), `ImmSetCompositionWindow` / `ImmSetCandidateWindow` positioned at the caret; draw the preedit string underlined. TSF is the modern alternative but COM-heavy (https://learn.microsoft.com/en-us/windows/win32/tsf/text-services-framework). The only Microsoft sample I found is UWP (`CustomEditControl`, https://github.com/Amka78/Windows-universal-samples/blob/master/Samples/CustomEditControl) and it is stated not to handle surrogates or graphemes properly. For a seed/number field IME has no practical use: defer.
 
 Lines: model + keys 250, mouse/selection 100, drawing/scroll 100.
+
+**Built differently from the plan above (step 11).**
+- Steps are by Rust `char`, not by grapheme cluster, and the combining-mark/ZWJ/variation-selector rule was not added: combining marks and ZWJ emoji move one code point at a time (a documented limit).
+- No shift-click extension, and no word or line granular drag after a double or triple click (a drag always extends by chars).
+- The caret is steady: no blink, so frames are deterministic. Blink goes to step 19.
+- Undo is a single coalesced level (typing or deleting runs are one step; paste, cut and edits over a selection are their own), and a second Ctrl+Z redoes. No multi-level history.
+- Escape: a text field keeps what was typed (as the browser does) and only blurs; a number field puts back its value at focus. The plan said "revert" for every field.
+- An unreadable number buffer ("e", empty) reverts to the value the field had at focus on Enter, Tab or blur. The page falls back to the pack's value there; we have no pack here.
+- Line breaks and tabs are removed from a paste (the plan said strip too). UNVERIFIED against Chrome, which may turn a line break into a space.
+- `maxlength` counts chars, where a browser counts UTF-16 units.
+- The selection colours (`#0078d7`, `#ffffff`, Windows' Highlight pair) are UNVERIFIED against Chrome: the page has no `::selection` rule.
+- No IME, no focus ring on buttons (step 19), no textarea (step 21), no hover look on fields (the page has none), no smaller field for the ore rows (step 13).
+- `Key` only has the keys the interface acts on, and the letters A, C, V, X, Z only exist as Ctrl shortcuts: the backend sends them with Ctrl held and Alt up.
 
 ---------------------------------------------------------------------------
 ## 6. Risks and open questions

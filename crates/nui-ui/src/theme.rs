@@ -21,7 +21,7 @@ pub struct Theme {
     /// `--edge`: the hairline of fields and disabled buttons.
     pub edge: Color,
     /// The background of selected text and its text colour. The page has no `::selection` rule, so the browser's
-    /// default applies; these are Windows' Highlight and HighlightText. UNVERIFIED against Chrome.
+    /// default applies; these are the desktop's usual blue and white. UNVERIFIED against Chrome.
     pub select: Color,
     pub select_text: Color,
     /// `font: 12px/1.5` of the body.

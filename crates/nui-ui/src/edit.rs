@@ -138,7 +138,7 @@ impl Edit {
         self.text.char_indices().nth(c).map_or(self.text.len(), |(b, _)| b)
     }
 
-    /// Windows-like: over the word's chars, then over what separates it from the next word.
+    /// As a desktop text box does it: over the word's chars, then over what separates it from the next word.
     pub fn next_word(&self, mut i: usize) -> usize {
         while i < self.text.len() && is_word(self.text[i..].chars().next().unwrap()) {
             i = self.next_char(i);
