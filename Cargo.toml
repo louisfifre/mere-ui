@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/nui-base", "crates/nui-png", "crates/nui-win32", "demos/relief"]
+members = ["crates/nui-base", "crates/nui-png", "crates/nui-win32", "crates/nui-layout", "demos/relief"]
 
 [workspace.package]
 version = "0.1.0"
@@ -11,6 +11,7 @@ publish = false
 nui-base = { path = "crates/nui-base" }
 nui-png = { path = "crates/nui-png" }
 nui-win32 = { path = "crates/nui-win32" }
+nui-layout = { path = "crates/nui-layout" }
 
 [profile.release]
 opt-level = 3
