@@ -97,6 +97,8 @@ pub struct Renderer {
     images: HashMap<ImageId, ID3D11ShaderResourceView>,
     // One text format a size: DirectWrite formats are immutable, and sizes are few.
     formats: HashMap<u32, IDWriteTextFormat>,
+    // None when IBM Plex Mono could not be loaded: text is then drawn in Consolas from the system.
+    fonts: Option<crate::fonts::Fonts>,
 }
 
 impl Renderer {
@@ -133,6 +135,13 @@ impl Renderer {
             let d2d_device = factory.CreateDevice(&device.cast::<IDXGIDevice>()?)?;
             let d2d = d2d_device.CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE)?;
             let dwrite: IDWriteFactory = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED)?;
+            let fonts = match dwrite.cast::<IDWriteFactory5>().and_then(|f| crate::fonts::load(&f)) {
+                Ok(f) => Some(f),
+                Err(e) => {
+                    observe!(Warn, "IBM Plex Mono not loaded ({e}); falling back to {}", crate::fonts::FALLBACK_FAMILY);
+                    None
+                }
+            };
             let brush = d2d.CreateSolidColorBrush(&D2D1_COLOR_F { r: 1.0, g: 1.0, b: 1.0, a: 1.0 }, None)?;
 
             let vs_code = compile(s!("vs"), s!("vs_5_0"))?;
@@ -269,6 +278,7 @@ impl Renderer {
                 meshes: HashMap::new(),
                 images: HashMap::new(),
                 formats: HashMap::new(),
+                fonts,
             };
             r.make_views()?;
             Ok(r)
@@ -356,6 +366,11 @@ impl Renderer {
     /// this `Renderer`, build a new one with `for_window` and upload its meshes and images again, since
     /// they lived on the lost device. Set by `end` (Present), `resize` (ResizeBuffers) and `draw_list`
     /// (EndDraw).
+    /// The family text is drawn in: IBM Plex Mono, or Consolas when the font files could not be loaded.
+    pub fn text_family(&self) -> &'static str {
+        if self.fonts.is_some() { crate::fonts::FAMILY } else { crate::fonts::FALLBACK_FAMILY }
+    }
+
     pub fn lost(&self) -> bool {
         self.lost
     }
@@ -471,17 +486,29 @@ impl Renderer {
         if let Some(f) = self.formats.get(&key) {
             return Some(f.clone());
         }
-        // Consolas until IBM Plex Mono is loaded from the application's own file (next step).
         let made = unsafe {
-            self.dwrite.CreateTextFormat(
-                w!("Consolas"),
-                None,
-                DWRITE_FONT_WEIGHT_NORMAL,
-                DWRITE_FONT_STYLE_NORMAL,
-                DWRITE_FONT_STRETCH_NORMAL,
-                size,
-                w!("en-us"),
-            )
+            match &self.fonts {
+                Some(fonts) => self
+                    .dwrite
+                    .CreateTextFormat(
+                        w!("IBM Plex Mono"),
+                        &fonts.collection,
+                        DWRITE_FONT_WEIGHT_NORMAL,
+                        DWRITE_FONT_STYLE_NORMAL,
+                        DWRITE_FONT_STRETCH_NORMAL,
+                        size,
+                        w!("en-us"),
+                    ),
+                None => self.dwrite.CreateTextFormat(
+                    w!("Consolas"),
+                    None,
+                    DWRITE_FONT_WEIGHT_NORMAL,
+                    DWRITE_FONT_STYLE_NORMAL,
+                    DWRITE_FONT_STRETCH_NORMAL,
+                    size,
+                    w!("en-us"),
+                ),
+            }
         };
         match made {
             Ok(f) => {

@@ -3,6 +3,7 @@
 //! interface lies over the 3D without a copy. The picture is either a window's swap chain (two images
 //! taking turns on screen) or an offscreen texture read back for a PNG.
 
+mod fonts;
 mod renderer;
 mod window;
 
