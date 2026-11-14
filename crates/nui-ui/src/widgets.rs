@@ -1,14 +1,12 @@
 //! Label, button and toggle in the page's looks.
 
-use nui_base::Weight;
-use nui_base::Color;
+use nui_base::{Cmd, Color, Rect, Weight};
 use nui_layout::{Align, Dim, Edges, Justify, Margin, Side, Style};
 
 use crate::text::{TextLook, Tone};
 use crate::ui::{Paint, Resp, Ui};
 
-/// The three page buttons this step needs. The strip, #details and pressed choices are in tab.rs, the
-/// stop button is an icon button (step 17).
+/// The page buttons. The strip, #details and pressed choices are in tab.rs; the stop square is `Ui::stop_button`.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ButtonLook {
     /// `#generate`: filled with the text colour, 600 weight.
@@ -17,6 +15,9 @@ pub enum ButtonLook {
     Plain,
     /// A `.choice button.action`: a muted underlined word.
     Link,
+    /// `#generate.running` (lines 215-218): the generate button while a run is under way. Framed in the text
+    /// colour, no fill but a `--line` one from the left that follows the wait: `share` of the padding box's width.
+    Running { share: f32 },
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -109,6 +110,21 @@ impl Ui {
                 };
                 (style, paint, TextLook { weight: Weight::SemiBold, ..body }, word, false)
             }
+            ButtonLook::Running { share } => {
+                let style = Style {
+                    h: Dim::Px(34.0),
+                    pad: Edges::new(1.0, 13.0, 1.0, 13.0),
+                    align_items: Align::Center,
+                    justify: Justify::Start,
+                    grow: opts.grow,
+                    ..Style::default()
+                };
+                // `:disabled` sets the border colour and `.running` does not, so a disabled one keeps --edge; but
+                // `.running` sets the colour later in the file than `:disabled`, so its word stays --text. No
+                // hover rule applies (`:not(.running)`).
+                let frame = if opts.disabled { t.edge } else { t.text };
+                (style, Paint::Running { frame, bar: t.line, share }, TextLook { weight: Weight::SemiBold, ..body }, t.text, false)
+            }
             ButtonLook::Plain | ButtonLook::Link => {
                 let link = look == ButtonLook::Link;
                 let style = Style {
@@ -128,6 +144,32 @@ impl Ui {
         };
         self.open(key, id, style, paint);
         self.add_text(text, word_look, word, underline, Style::default());
+        self.close();
+        resp
+    }
+
+    /// `#stopRun` (lines 219-222): a 34 px square that does not shrink, framed, with a filled square as its icon.
+    /// The icon is the svg's path `M5 5h14v14H5z` of a 24 unit box shown at 12 px: 7 px, 13.5 px from the corner
+    /// (1 border + 10 of centring + 2.5). UNVERIFIED: the half pixel's look (Chrome smooths it, Direct2D draws what
+    /// it draws).
+    pub fn stop_button(&mut self, key: &str, disabled: bool) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, disabled);
+        let t = *self.theme();
+        let lit = !disabled && (resp.hovered || resp.held);
+        let (colour, frame) = if disabled {
+            (t.faded(t.muted, 0.4), t.faded(t.edge, 0.4))
+        } else if lit {
+            (t.text, t.text)
+        } else {
+            (t.muted, t.edge)
+        };
+        let style = Style { w: Dim::Px(34.0), h: Dim::Px(34.0), shrink: 0.0, ..Style::default() };
+        let cmds = vec![
+            Cmd::Frame { rect: Rect::new(0.0, 0.0, 34.0, 34.0), width_px: 1.0, color: frame },
+            Cmd::Fill { rect: Rect::new(13.5, 13.5, 7.0, 7.0), color: colour },
+        ];
+        self.open(key, id, style, Paint::Cmds(cmds));
         self.close();
         resp
     }

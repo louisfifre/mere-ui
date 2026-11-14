@@ -33,6 +33,8 @@ pub(crate) enum Paint {
     /// `ellipsis` cuts the text to its box with `ellipsize` when painting, the box being known only then.
     /// `wrap` breaks it into lines of the box's width (`wrap_lines`); neither underline nor ellipsis then.
     Text { text: String, look: TextLook, color: Color, underline: bool, ellipsis: bool, wrap: bool },
+    /// The running generate button: its 1 px frame, then the bar from the padding box's left, `share` of its width.
+    Running { frame: Color, bar: Color, share: f32 },
     /// The select's arrow: 8 x 5 px, painted as filled 1 px rows, as Chrome's is at 1x.
     Chevron { color: Color },
     /// A text field: its own frame, clip, selection, text and caret (field.rs).
@@ -483,6 +485,10 @@ impl Painter<'_> {
                 if let Some(c) = frame {
                     self.list.frame(r, 1.0, *c);
                 }
+            }
+            Paint::Running { frame, bar, share } => {
+                self.list.frame(r, 1.0, *frame);
+                self.list.fill(Rect::new(r.x + 1.0, r.y + 1.0, share.clamp(0.0, 1.0) * (r.w - 2.0), r.h - 2.0), *bar);
             }
             Paint::Field(f) => paint_field(self.list, f, r, self.tree.style(n).pad),
             Paint::Cmds(cmds) => {
