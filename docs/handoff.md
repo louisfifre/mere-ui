@@ -97,9 +97,17 @@ Two observations read from the page's CSS, not checked in a browser:
 - The legend's `ch` is 11 px, so its min widths are 52.8 and 39.6 against the rows' 57.6 and 43.2. The right edges
   still align because the cells are right-aligned.
 
-Build plan step 13 is done: demos/preview is the world preview's shell (toolbar, three columns, the 43 real settings in their five groups, static values), preview [--light] [--size WxH] [--shot out.png], with docs/shots/preview-1400.png, preview-1200.png, preview-1000.png and preview-1400-light.png. 
-ui-ui gained wrap_lines, paragraph, ill, select, TextLook::small and label. Tests: 7 in 
-ui-ui/tests/shell_bits.rs, 4 data, 10 layout and 4 picture tests in demos/preview. The columns' rules and Export's right edge match a capture of the page (	arget/tmp/page_<width>.png, the file opened without its server) to the pixel at the three widths.
+Build plan step 13 is done: `demos/preview` is the world preview's shell (toolbar, three columns, the 43 real
+settings in their five groups, static values), `preview [--light] [--size WxH] [--shot out.png]`, with
+`docs/shots/preview-1400.png`, `preview-1200.png`, `preview-1000.png` and `preview-1400-light.png`. `nui-ui` gained
+`wrap_lines`, `paragraph`, `fill`, `select`, `TextLook::small` and `label`. Tests: 7 in `nui-ui/tests/shell_bits.rs`,
+4 data, 10 layout and 4 picture tests in `demos/preview`. The columns' rules and Export's right edge match a capture
+of the page (`target/tmp/page_<width>.png`, the file opened without its server) to the pixel at the three widths.
+
+Steps 8 to 13 ran as one workflow (22 agents, 2 h 07 min): for each step an Opus agent set the scope and checked
+the pictures, a Sonnet agent wrote the code. The session then reran `cargo test --workspace` (green), checked the
+31 commits (author Louis only, no trailer) and looked at `preview_1400`, `preview_1000`, `preview_1400_light` and the
+page capture itself.
 
 - PLACEHOLDER: the map slot (a --line square; step 14 paints the map there), the seven figures, and the 8 band widths and shares (step 18 computes them).
 - UNVERIFIED: the select's value text place (7 px from the left, centred); the reference capture's select was empty, so only its height (23) and arrow were measured. The page capture has no data, so nothing inside the settings, the run block or the list was compared with a browser.
