@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 11 done (2026-11-14)
+## Status: steps 0 to 12 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -79,7 +79,25 @@ picture tests). Unverified, read from the page or chosen by us, not seen in a br
 - The second number of the live mode is labelled with demo wording ("Elevation boost"), and the controls sheet's "Land
   against ocean" row uses `ocean_offset`'s spec (-1..-0.2, step 0.05), not `continents_scale`'s.
 
-Next: step 12 (the list with scroll and ellipsis), then the panels, step 13.
+Build plan step 12 is done: `nui-ui` has `ellipsize` and `ellipsis`, a vertical scroll area (`scroll`, `scroll_style`:
+thumb, 11 px gutter, bottom fade, wheel, thumb drag), hit tests cut to the visible part of a widget, `list_row`,
+`list_head` and `trend_row`; `demos/widgets --lists` is the live mode and `docs/shots/lists-dark.png` and `lists-light.png`
+are the sheet (11 `nui-ui` tests in `tests/list.rs`, 1 `Rect::intersect` test, 2 picture tests). Unverified, chosen by us
+or read from the page, not seen in a browser:
+
+- `GUTTER` 11 px (what the thin classic scrollbar reserves), `THUMB_MIN` 18 px and `WHEEL_STEP` 100 px per notch.
+- Plex Mono's U+2026: zoomed 5x in the sheet it looks like three dots in one cell at the baseline, in the text's grey, so
+  it seems to be the font's own glyph and not a fallback; nothing proves the font has it.
+- The underline's thickness, and that a 1 px band per row quantises the page's mask gradient well enough.
+
+Two observations read from the page's CSS, not checked in a browser:
+
+- When the scrollbar shows, the rows' right edge moves 11 px left of the legend's: the legend is outside `.scroll`, and
+  the 10 px padding only compensates the -10 margin.
+- The legend's `ch` is 11 px, so its min widths are 52.8 and 39.6 against the rows' 57.6 and 43.2. The right edges
+  still align because the cells are right-aligned.
+
+Next: step 13 (the panels).
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.

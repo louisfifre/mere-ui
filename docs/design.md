@@ -200,6 +200,23 @@ and the 1 px caret (hidden over a selection). Metrics: Text pad 3+1 / 6+1 (26 ta
 6+1 (24, right-aligned); the glyph box (ascent + descent, 15.6) sits 1.2 under the content top. Pointer: x to column by
 `round((x - text_x) / 7.2)`; click counts come from the backend (`PointerDown.clicks`, `GetDoubleClickTime` and
 `SM_CXDOUBLECLK`/`SM_CYDOUBLECLK` in `nui-win32`).
+**As built (step 12).** `ellipsize(s, look, w)` and `Ui::ellipsis(s, look)`: a text leaf with `min-width: 0` that, when its
+box is narrower than the text, paints the longest whole-glyph prefix plus U+2026 (one monospaced cell, Chrome's rule); a
+box narrower than the cell clips it. `Ui::scroll(key, &mut y, style, ScrollOpts, body) -> ScrollResp { id, max, overflow }`
+with `scroll_style()` (the page's `.scroll`, a flex column, `margin-right: -10`, padding `0 10 28 0`): the application owns
+`y`; the Ui keeps only the last frame's measurements per area (`ScrollMetrics`). The painter carries the visible clip, so
+every node has a visible rect next to its absolute one and `interact` judges the pointer against the visible one (a row
+scrolled under the legend takes no hover; `Resp.rect` stays the full rect). The gutter (`GUTTER` 11 px of padding) is
+reserved from the frame after the content first overflows, so `want_redraw()` is true after that frame, as for Tab. The
+thumb is `thumb_rect` (length `view^2 / content`, at least `THUMB_MIN`) in `theme.line`; the bottom fade (`ScrollOpts::LIST`,
+28 px) is 1 px bands of the ground at rising alpha, which equals the page's mask because the ground is opaque. The wheel
+(`Input.wheel`, `wheel_pos`) moves `WHEEL_STEP` px per notch and is consumed by the innermost area under the pointer; a
+thumb drag keeps the grab offset (`Ui::grab`, one drag at a time, like the focus). Rows: `list_row(key, &ListRow, RowOpts
+{ pressed, choosing, absent, narrow })`, `list_head(key, column, width, share, narrow)` and `trend_row(key, name, value) ->
+Id` (the plot slot, 30 px high, for step 18). Each row is its own grid, so only right edges line up. UNVERIFIED against
+Chrome: `GUTTER` 11, `THUMB_MIN` 18, `WHEEL_STEP` 100, and that Plex Mono's U+2026 is the font's own glyph. Not built:
+horizontal scroll, smooth scrolling, track clicks, arrow buttons, keys, virtualisation, text wrapping (step 13), `.part`
+heads, the filter and `#pick`.
 
 ### 1.4 nui-win32
 Implements `Window`, `Text`, `Gfx`, `Backend`. Internals: `win.rs` (class, wndproc, loop, DPI, clipboard, IME later), `d3d.rs` (device, swap chain, pipelines, meshes, depth), `d2d.rs` (device context, brushes, bitmaps, clip), `dwrite.rs` (factory, text format, layout cache, font loading), `offscreen.rs` (texture + staging readback).
@@ -377,7 +394,7 @@ All screenshots are produced by `nui-shot <view-name> <w>x<h> [--scale 1.5] [--t
 | 9 | `nui-ui` core: Ui, ids, input, draw list, theme dark/light; label, button, toggle | Gallery PNG: labels in text/muted/warn tones, buttons in normal/hover/active (hover injected by the harness), toggle on/off; dark and light variants | 5 |
 | 10 | Fold, tabs (strip, choice, details), number field (without typing) | Controls sheet: a closed, a hovered and an open fold with its +/− sign, two strips (Flat and 2D pressed; a coarse map with three disabled), choice and details pressed, number fields right-aligned | 5 |
 | 11 | Text field: model + keys + caret + selection + clipboard (no IME) | Done: the fields sheet (`docs/shots/fields-dark.png`, `fields-light.png`): a 13-row script on the seed field (placeholder; click; `1234567890`; caret at 4; selection 2 to 6; copy and paste; deleting; a long text scrolled with the caret at the right edge; Ctrl+Backspace; select all; Escape), and cells for a double click, the profile name focused with all selected, a number stepped, clamped on Enter, and Tab between a seed and a setting | 7 |
-| 12 | List with scroll + ellipsis; history row layout | A list taller than its box with a scrollbar thumb at 30 %, rows with truncated text ending in an ellipsis | 3 |
+| 12 | List with scroll + ellipsis; history row layout | Done: the lists sheet (`docs/shots/lists-dark.png`, `lists-light.png`): a biome list of 20 rows taller than its box with a scrollbar thumb at 30 % in the 11 px gutter, the bottom 28 px fading out, pressed rows against faded ones, a hovered row with its name underlined and names ending in an ellipsis; a narrow list with absent rows and no scrollbar; five history trend rows with their 30 px plot slots | 3 |
 | 13 | Preview shell: three columns with the real settings sections, static values | Side by side with a browser screenshot of the current page: same section order, same column widths at the three breakpoints | 6 |
 | 14 | 2D map view: paint() port, image upload, pan/zoom, nav frame | The map of a real run: colours per height/biome identical to the page (pixel diff against a canvas dump from the browser < threshold); nearest-neighbour blocks visible at 8x zoom | 5 |
 | 15 | 3D view in the stage (Viewport slot), mouse orbit, view switching | Tab strip with Relief selected; terrain inside the stage rect only, UI around it unclipped | 3 |
