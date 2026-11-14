@@ -1,5 +1,5 @@
-//! The native world preview. Step 13 builds its shell: the toolbar, the three columns with the real settings
-//! sections, and static values where the later steps will bring data (the map is step 14).
+//! The native world preview: the toolbar and the three columns with the real settings, the map and the section, runs,
+//! and (step 18) the figures, the lists and the history, in the colours of the system's scheme.
 
 pub mod app;
 pub mod bands;
@@ -19,4 +19,4 @@ pub mod text;
 pub mod world;
 
 pub use app::PreviewApp;
-pub use shell::{Columns, PreviewState, ShellIds, build, picture};
+pub use shell::{Columns, PreviewState, ShellIds, build, picture, picture_with};

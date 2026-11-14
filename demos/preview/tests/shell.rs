@@ -4,13 +4,26 @@
 use nui_base::{Rect, Vec2};
 use nui_ui::{GUTTER, Id, Theme, Ui};
 use preview::settings::grouped;
-use preview::{Columns, ShellIds, picture};
+use preview::world::World;
+use preview::{Columns, PreviewState, ShellIds, picture, picture_with};
 
 const H: f32 = 940.0;
 
 fn shell(w: f32, h: f32) -> (Ui, ShellIds, Columns) {
     let (_, ui, ids) = picture(Theme::dark(), Vec2::new(w, h));
     (ui, ids, Columns::for_width(w))
+}
+
+/// The shell with the real preview on the map, or None (with the reason printed) without the data.
+fn shell_real(w: f32, h: f32) -> Option<(Ui, ShellIds, World)> {
+    let dir = std::path::Path::new(r"C:\Games\preview\out");
+    if !dir.join("preview.json").exists() {
+        println!("skipped: no C:\\Games\\preview\\out");
+        return None;
+    }
+    let world = World::load(dir).expect("the data loads");
+    let (_, ui, ids) = picture_with(Theme::dark(), Vec2::new(w, h), Some(&world), PreviewState::for_world(Some(&world)));
+    Some((ui, ids, world))
 }
 
 fn r(ui: &Ui, id: Id) -> Rect {
@@ -140,18 +153,22 @@ fn l7_world_controls() {
 }
 
 #[test]
-fn l8_bands() {
-    let (ui, ids, _) = shell(1400.0, H);
-    assert_eq!(ids.bands.len(), 8);
-    for (i, &b) in ids.bands.iter().enumerate() {
-        near(r(&ui, b).h, 24.0, "band h");
+fn l8_rows() {
+    // The relief view's list: one row of 24 px (3 + 18 + 3) for each band the area has, lowest first.
+    let Some((ui, ids, world)) = shell_real(1400.0, H) else { return };
+    let list = world.measured.lists[2].as_ref().expect("the height list");
+    let present = list.cells.iter().filter(|&&c| c > 0.0).count();
+    assert_eq!(ids.list_rows.len(), present);
+    assert!(present >= 3, "a real area has several bands");
+    for (i, &b) in ids.list_rows.iter().enumerate() {
+        near(r(&ui, b).h, 24.0, "row h");
         if i > 0 {
-            near(r(&ui, b).y - r(&ui, ids.bands[i - 1]).y, 24.0, "band pitch");
+            near(r(&ui, b).y - r(&ui, ids.list_rows[i - 1]).y, 24.0, "row pitch");
         }
     }
-    let scroll = r(&ui, ids.band_scroll);
-    let last = r(&ui, ids.bands[7]);
-    // 8 x 24 = 192 of rows and the 28 px of padding for the fade fit without overflow.
+    let scroll = r(&ui, ids.list_scroll);
+    let last = r(&ui, *ids.list_rows.last().unwrap());
+    // At most 8 x 24 = 192 of rows and the 28 px of padding for the fade fit without overflow.
     assert!(last.y + last.h <= scroll.y + scroll.h, "the rows overflow their box");
     let block = r(&ui, ids.list_block);
     assert!(scroll.y + scroll.h <= block.y + block.h + 0.01);
@@ -159,17 +176,14 @@ fn l8_bands() {
 
 #[test]
 fn l9_goal_values() {
-    let (ui, ids, _) = shell(1400.0, H);
-    assert_eq!(ids.goal_values.len(), 3);
-    for &g in &ids.goal_values {
-        near(r(&ui, g).h, 21.0, "goal at 1400");
-    }
-    let (ui, ids, _) = shell(1200.0, H);
-    for &g in &ids.goal_values {
-        near(r(&ui, g).h, 19.5, "goal at 1200");
+    for (w, size) in [(1400.0, 21.0), (1200.0, 19.5)] {
+        let Some((ui, ids, _)) = shell_real(w, H) else { return };
+        assert_eq!(ids.goal_values.len(), 3);
+        for &g in &ids.goal_values {
+            near(r(&ui, g).h, size, &format!("goal at {w}"));
+        }
     }
 }
-
 #[test]
 fn l10_run_block() {
     let (ui, ids, _) = shell(1400.0, H);

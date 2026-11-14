@@ -64,6 +64,8 @@ pub struct PreviewApp {
     last_sheet: Option<(u32, u32, Vec<u8>)>,
     /// A run asked for while another was under way: it starts when that one has ended (line 2696).
     queued: bool,
+    /// The window follows the system's light or dark setting (Event::Scheme); a fixed theme ignores it.
+    follows_scheme: bool,
 }
 
 type CutKey = (usize, usize, usize, usize, usize, bool, BTreeSet<String>, u32);
@@ -93,6 +95,7 @@ impl PreviewApp {
             pace: Pace::default(),
             last_sheet: None,
             queued: false,
+            follows_scheme: false,
         };
         // Line 2815: the map that opens the page is kept like any other (in memory until there are runs).
         app.remember();
@@ -125,6 +128,20 @@ impl PreviewApp {
                 observe!(Warn, "the history could not be kept in {}: {e}", runs.history().display());
             }
         }
+    }
+
+    /// Makes the app switch theme when the system's setting changes, as the page does with prefers-color-scheme.
+    pub fn follow_scheme(mut self, yes: bool) -> PreviewApp {
+        self.follows_scheme = yes;
+        self
+    }
+
+    /// Switches to the dark or the light theme. The painted key holds dark, so the map and the drape repaint by
+    /// themselves; the cut and the strip do not depend on the theme.
+    pub fn set_dark(&mut self, dark: bool) {
+        self.theme = if dark { Theme::dark() } else { Theme::light() };
+        self.ui.set_theme(self.theme);
+        self.dark = dark;
     }
 
     /// Whether a generator is under way.
@@ -515,6 +532,14 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
         if let Event::Resized { width_px, height_px, scale } = e {
             self.size = Vec2::new(width_px as f32 / scale, height_px as f32 / scale);
             return true;
+        }
+        if let Event::Scheme { dark } = e {
+            observe!(Info, "the system is now {}{}", if dark { "dark" } else { "light" }, if self.follows_scheme { "" } else { " (not followed)" });
+            if self.follows_scheme && dark != self.dark {
+                self.set_dark(dark);
+                return true;
+            }
+            return false;
         }
         self.ui.event(&e)
     }

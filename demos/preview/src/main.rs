@@ -1,4 +1,4 @@
-//! preview [--data DIR] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..]
+//! preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..]
 //!         [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y]
 //!         [--runs DIR] [--generator PATH] [--pack DIR]
 //!
@@ -9,6 +9,10 @@
 //! and without it Generate says the run failed), with --pack if given. Everything a run or an export writes (its out
 //! folder, its log, the learned pace, the exports) goes under --runs, which must lie inside this repository's
 //! target\tmp for now: the rule is lifted once a real run has been exercised. The data of --data is never written.
+//! The colours (step 18): the window follows the system's light or dark setting and switches live, as the page does
+//! with `prefers-color-scheme`; `--theme dark` or `light` fixes them (`--light` is `--theme light`). A picture is dark
+//! unless asked, so that it does not depend on the machine; `--theme system` reads the setting once.
+//! The history and the run before (`history.json`, `before.json`) are kept in --runs, the page's localStorage as files.
 //! The view keys, --biome and --structure are the page's own `?view=`, `&biome=` and `&structure=`; --camera is its
 //! `?camera=`, the 3D view's start in widths of the area (step 15). In the section view (`--view section`, step 16),
 //! --cut is the cut shown (0-based, kept within the cuts), --ore the ores chosen in the list (their kind names, as
@@ -29,9 +33,17 @@ use preview::{PreviewApp, PreviewState, text};
 
 fn usage() -> ! {
     eprintln!(
-        "usage: preview [--data DIR] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--generator PATH] [--pack DIR]"
+        "usage: preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--generator PATH] [--pack DIR]"
     );
     std::process::exit(2);
+}
+
+/// Which colours: the page's own two, or the system's setting.
+#[derive(Copy, Clone)]
+enum Scheme {
+    Dark,
+    Light,
+    System,
 }
 
 fn parse_size(s: &str) -> Option<(u32, u32)> {
@@ -133,7 +145,7 @@ fn runs_root(asked: Option<PathBuf>) -> PathBuf {
 }
 fn main() {
     log::add_sink(log::stderr_sink(log::Level::Info));
-    let (mut light, mut shot, mut size) = (false, None, (1400u32, 940u32));
+    let (mut scheme, mut shot, mut size) = (None::<Scheme>, None, (1400u32, 940u32));
     let (mut data, mut views, mut biomes, mut structures, mut look) = (None::<PathBuf>, Vec::new(), String::new(), String::new(), None);
     let (mut camera, mut cut, mut ores, mut cut_look) = (None, None, String::new(), None);
     let (mut runs, mut generator, mut pack) = (None::<PathBuf>, None::<PathBuf>, None::<PathBuf>);
@@ -141,7 +153,15 @@ fn main() {
     while let Some(a) = args.next() {
         let mut value = || args.next().unwrap_or_else(|| usage());
         match a.as_str() {
-            "--light" => light = true,
+            "--light" => scheme = Some(Scheme::Light),
+            "--theme" => {
+                scheme = Some(match value().as_str() {
+                    "dark" => Scheme::Dark,
+                    "light" => Scheme::Light,
+                    "system" => Scheme::System,
+                    _ => usage(),
+                })
+            }
             "--size" => size = parse_size(&value()).unwrap_or_else(|| usage()),
             "--shot" => shot = Some(value()),
             "--data" => data = Some(PathBuf::from(value())),
@@ -215,10 +235,18 @@ fn main() {
         state.orbit = Some(scene::orbit(w, Some(c)));
     }
 
-    let theme = if light { Theme::light() } else { Theme::dark() };
+    // The window follows the system, as the page does; a picture is dark unless asked otherwise, so that the
+    // pictures made by a command line do not depend on the machine. `--theme system` with `--shot` reads the system once.
+    let scheme = scheme.unwrap_or(if shot.is_some() { Scheme::Dark } else { Scheme::System });
+    let (dark, follows) = match scheme {
+        Scheme::Dark => (true, false),
+        Scheme::Light => (false, false),
+        Scheme::System => (nui_win32::system_dark(), shot.is_none()),
+    };
+    let theme = if dark { Theme::dark() } else { Theme::light() };
     let (w, h) = size;
     let runs = Runs { shell: PathBuf::from("powershell.exe"), generator, pack, root: runs_root(runs), env: Vec::new(), launcher: Box::new(nui_win32::SystemLauncher) };
-    let mut app = PreviewApp::new(theme, !light, Vec2::new(w as f32, h as f32), state, world).with_runs(runs);
+    let mut app = PreviewApp::new(theme, dark, Vec2::new(w as f32, h as f32), state, world).follow_scheme(follows).with_runs(runs);
     app.ui_mut().set_clipboard(Box::new(nui_win32::SystemClipboard));
     match shot {
         Some(path) => {

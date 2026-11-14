@@ -49,10 +49,6 @@ fn check(theme: Theme, w: u32, name: &str) {
     let relief = rect(ids.tabs[2]);
     same(at(relief.x + 3.0, relief.y + 3.0), theme.text, "pressed tab");
 
-    // P4: the first band's swatch: row top + 3 padding + 6 to the swatch's middle, 6 px in.
-    let row = rect(ids.bands[0]);
-    same(at(row.x + 6.0, row.y + 3.0 + 3.0 + 6.0), Color::hex(0x17314f), "first band swatch");
-
     // P5: with no map the page decides Generate (nothing shows these settings): it is enabled, filled with --text
     // to its frame, and the status line has nothing to say, so it is not built.
     let g = rect(ids.generate);
@@ -69,6 +65,30 @@ fn check(theme: Theme, w: u32, name: &str) {
     same(at(sc.x + sc.w - GUTTER + 2.0 + 3.0, sc.y + 10.0), theme.line, "settings thumb");
 
     assert!(rgba.chunks(4).any(|p| p[..3] != rgba[..3]), "the picture is one colour");
+}
+
+/// P4: the first row of the relief list is the lowest band the area has, and its swatch is that band's colour.
+#[test]
+fn p4_the_first_row_swatch_is_its_bands_colour() {
+    let dir = std::path::Path::new(r"C:\Games\preview\out");
+    if !dir.join("preview.json").exists() {
+        println!("skipped: no C:\\Games\\preview\\out");
+        return;
+    }
+    let world = preview::world::World::load(dir).expect("the data loads");
+    let theme = Theme::dark();
+    let (list, ui, ids) = preview::picture_with(theme, Vec2::new(1400.0, H as f32), Some(&world), preview::PreviewState::for_world(Some(&world)));
+    let mut r = Renderer::offscreen(1400, H, 1.0).expect("offscreen renderer");
+    r.begin(theme.ground);
+    r.draw_list(&list);
+    r.end();
+    let rgba = r.read_rgba().unwrap();
+    let bands = world.measured.lists[2].as_ref().expect("the height list");
+    let first = (0..bands.cells.len()).find(|&i| bands.cells[i] > 0.0).unwrap();
+    let c = bands.colours[first];
+    let row = ui.rect(ids.list_rows[0]).expect("built");
+    // The row's top + 3 padding + 6 to the swatch's middle, 6 px in.
+    same(px(&rgba, 1400, row.x + 6.0, row.y + 3.0 + 3.0 + 6.0), Color::rgb8(c[0], c[1], c[2]), "first band swatch");
 }
 
 #[test]

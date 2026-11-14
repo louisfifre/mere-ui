@@ -314,7 +314,7 @@ fn o3_the_wheel_over_the_stage_zooms_and_elsewhere_does_not() {
     assert!((after / before - 0.95).abs() < 1e-3, "{after} / {before}");
 
     let kept = r.s.orbit.clone();
-    let list = r.ui.rect(r.ids.band_scroll).expect("the list was built");
+    let list = r.ui.rect(r.ids.list_scroll).expect("the list was built");
     let p = Vec2::new(list.x + list.w / 2.0, list.y + list.h / 2.0);
     r.moved(p);
     r.ui.event(&Event::Wheel { pos: p, delta: 1.0 });

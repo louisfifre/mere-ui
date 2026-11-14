@@ -2,32 +2,29 @@
 //! (preview.html lines 63-88, 370-449), built with `nui-ui` and filled with the page's real settings
 //! sections and static values.
 //!
-//! What is a PLACEHOLDER is marked so: the map slot (step 14 paints the map there), the figures, and the
-//! band widths and shares (step 18 computes them), and the section's slot (step 16). Step 15 puts the 3D view in
-//! the frame: a canvas that takes the orbit's drag and wheel, the scene itself is drawn by the app under the
-//! interface list. Not built yet: changed marks, hints and tooltips, the select's menu, the ores group, the
-//! filter, the tabs that switch the list, the section, runs and export; in 3D, the structure marks, the right-drag
-//! pan, keys and touch, and the no3d note.
+//! The right column follows the view with the page's own figures, lists and history (step 18). Not built: changed
+//! marks, hints and tooltips, the select's menu, the ores group; in 3D, the structure marks, the right-drag pan, keys
+//! and touch, and the no3d note.
 
 use std::collections::BTreeSet;
 
-use nui_base::{Cmd, Color, DrawList, Orbit, Rect, Vec2};
+use nui_base::{Cmd, Color, DrawList, Orbit, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
-    ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, RowOpts, ScrollOpts, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
+    ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
     choice_style, details_style, scroll_style, strip_style, wrap_lines,
 };
 
 use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
-use crate::figures::Figures;
-use crate::history::Entry;
+use crate::colour::biome_colour;
+use crate::figures::{CellKind, Figures, List, blocks, figure_cells, js_round, percent};
+use crate::history::{Entry, PLOT_H, here, trend};
 use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
 use crate::paint::{View, rows};
 use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Steps, duration};
 use crate::scene;
 use crate::section::{ORE_COLOURS, ORE_KINDS, Shown};
 use crate::world::World;
-use crate::bands::{BAND_FIGURES, HEIGHT_STEPS, SEA, SEA_DEPTHS, band_colours, band_names};
 use crate::settings::{Kind, SETTINGS, grouped, pack_values};
 use crate::text;
 
@@ -228,13 +225,32 @@ pub struct ShellIds {
     pub probe_text: String,
     pub export: Id,
     pub figures_grid: Id,
+    /// Every cell's text of the figures grid, in order (the rule's and the blanks' are empty).
+    pub figures_text: Vec<String>,
     pub goal_values: Vec<Id>,
+    /// #history's column (the hover area), the plot slot of each line, and what the probe line says.
+    pub history_body: Id,
+    pub trends: Vec<Id>,
+    pub history_probe: String,
     pub list_block: Id,
     /// The list's title as shown: "HEIGHTS", or "ORES" in the section.
     pub list_title: String,
     pub pick: Id,
-    pub band_scroll: Id,
-    pub bands: Vec<Id>,
+    /// What #pick says, whole: the hint, or the names, the share and the word that clears.
+    pub pick_text: String,
+    /// The chosen rows' names (buttons) and the one that clears the choice.
+    pub pick_names: Vec<Id>,
+    pub pick_none: Id,
+    /// The text field that filters the rows.
+    pub filter: Id,
+    pub list_scroll: Id,
+    /// The rows shown, in order, and the list's own id of each (a biome's, a structure's, a band's number).
+    pub list_rows: Vec<Id>,
+    pub list_keys: Vec<String>,
+    /// The part heads shown, with their name and their count, and the rows of the absent biomes.
+    pub list_parts: Vec<Id>,
+    pub list_part_words: Vec<(String, String)>,
+    pub absent_rows: Vec<Id>,
     /// The cut of the section (a column inside the frame), its strip, the strip's note and the cut at true scale
     /// (canvases): the ids are Id::ROOT unless a cut is shown.
     pub cut: Id,
@@ -296,12 +312,24 @@ impl Default for ShellIds {
             probe_text: String::new(),
             export: o,
             figures_grid: o,
+            figures_text: Vec::new(),
             goal_values: Vec::new(),
+            history_body: o,
+            trends: Vec::new(),
+            history_probe: String::new(),
             list_block: o,
             list_title: String::new(),
             pick: o,
-            band_scroll: o,
-            bands: Vec::new(),
+            pick_text: String::new(),
+            pick_names: Vec::new(),
+            pick_none: o,
+            filter: o,
+            list_scroll: o,
+            list_rows: Vec::new(),
+            list_keys: Vec::new(),
+            list_parts: Vec::new(),
+            list_part_words: Vec::new(),
+            absent_rows: Vec::new(),
             cut: o,
             nav: o,
             nav_note: o,
@@ -980,88 +1008,279 @@ fn relief_canvas(ui: &mut Ui, s: &mut PreviewState, side: f32, world: &World) ->
     resp.id
 }
 
-/// The right column (lines 429-449): the figures and the history, then the list of height bands. In the section
-/// the figures are not built (line 2533: they would describe the map) and the list is the ores of the cut.
+/// What a press in the list asks of the choice (applied once the list is built, so that the build only reads).
+enum Pick {
+    /// `choose(id)`: the id joins the choice or leaves it.
+    Toggle(String),
+    /// A part's line: the choice becomes exactly these ids, or none when it already was (1703-1708).
+    Part(Vec<String>),
+    /// `picked.clear()`.
+    Clear,
+}
+
+/// The right column (lines 429-449): the figures and the history, then the list of what the view shows. In the
+/// section the figures are not built (line 2533: they would describe the map) and the list is the ores of the cut.
 fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>, shown: Option<&Shown>) {
     let cut = s.view == 5;
     if !cut {
-        figures_block(ui, s, ids, t, cols);
+        figures_block(ui, s, ids, t, cols, world);
     }
 
-    // `#listBlock.rule` (lines 295-296, 440): a hairline on top, 9 px of padding, a gap of 6. In the section the
-    // rule and the padding go (line 294).
+    // `#listBlock.rule` (lines 295-296, 440): a hairline on top, 9 px of padding, a gap of 6. In the section
+    // the rule and the padding go (line 294).
     ids.list_block = ui.node("listBlock", Style { column: true, ..fills() }, |ui| {
         if !cut {
             ui.fill(rule(), t.edge);
         }
         let inner = Style { column: true, pad: Edges::new(if cut { 0.0 } else { 9.0 }, 0.0, 0.0, 0.0), gap: Vec2::new(0.0, 6.0), ..fills() };
         ui.node("listBody", inner, |ui| {
-            let title = if cut { text::ORE_LIST[0] } else { text::LIST_HEIGHT[0] }.to_uppercase();
-            let section = world.and_then(|w| w.section.as_ref());
-            // Names and figures of the ore rows, in `ORE_KINDS` order; empty without a cut.
-            let figures: Vec<(usize, String, String)> = match (cut, shown) {
-                (true, Some(shown)) => (0..ORE_KINDS.len())
-                    .filter_map(|k| {
-                        let f = shown.play.per_chunk[k].as_ref()?;
-                        let figure = |v: Option<f64>| v.map_or("\u{2013}".to_string(), |v| text::num_digits(v, 1));
-                        Some((k, figure(f.low), figure(f.high)))
-                    })
-                    .collect(),
-                _ => Vec::new(),
-            };
-            ui.node("listHead", column(), |ui| {
-                ui.node("title", Style { pad: Edges::new(0.0, 0.0, 2.0, 0.0), ..Style::default() }, |ui| {
-                    ui.text(&title, TextLook::heading());
-                });
-                // `#pick` (line 341): two lines of the small size at most.
-                let pick = Style { h: Dim::Px(34.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
-                let words = match (cut, shown, section) {
-                    (false, ..) => text::PICK_HINT.to_string(),
-                    (true, Some(_), Some(sec)) if sec.unplayed() > 0 => text::ore_unplayed(sec.unplayed()),
-                    (true, Some(_), _) => text::ORE_PICK_HINT.to_string(),
-                    (true, None, _) => String::new(),
-                };
-                ids.pick = ui.node("pick", pick, |ui| ui.paragraph(&words, TextLook::small(Tone::Muted)));
-            });
-            ids.list_title = title;
             if cut {
-                // Line 2370-2372: the legend names the columns; a list without a cut has no legend.
-                if shown.is_some() {
-                    ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1], cols.narrow);
-                }
+                ore_list(ui, s, ids, cols, world, shown);
             } else {
-                ui.list_head("legend", text::LIST_HEIGHT[1], text::COL_WIDTH, text::COL_SHARE, cols.narrow);
+                view_list(ui, s, ids, cols, world);
             }
-            let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
-                if cut {
-                    for (k, low, high) in &figures {
-                        let name = ORE_KINDS[*k];
-                        let row = ListRow { swatch: rgb(ORE_COLOURS[*k]), name: text::ORES[*k], width: low, share: high };
-                        let opts = RowOpts { pressed: s.chosen_ores.contains(name), choosing: !s.chosen_ores.is_empty(), narrow: cols.narrow, ..RowOpts::default() };
-                        let r = ui.list_row(&format!("ore{k}"), &row, opts);
-                        ids.ores.push(r.id);
-                        // A click picks the ore, or lets it go (2385).
-                        if r.clicked && !s.chosen_ores.remove(name) {
-                            s.chosen_ores.insert(name.to_string());
-                        }
-                    }
-                    return;
-                }
-                let names = band_names(SEA, &HEIGHT_STEPS, &SEA_DEPTHS);
-                let colours = band_colours(SEA, &HEIGHT_STEPS, &SEA_DEPTHS);
-                for i in 0..names.len() {
-                    let row = ListRow { swatch: rgb(colours[i]), name: &names[i], width: BAND_FIGURES[i].0, share: BAND_FIGURES[i].1 };
-                    let r = ui.list_row(&format!("band{i}"), &row, RowOpts { narrow: cols.narrow, ..RowOpts::default() });
-                    ids.bands.push(r.id);
-                }
-            });
-            ids.band_scroll = r.id;
         });
     });
 }
 
+/// The section's list: its ores, with what the cut played of each (lines 2370-2385).
+fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Columns, world: Option<&World>, shown: Option<&Shown>) {
+    let title = text::ORE_LIST[0].to_uppercase();
+    let section = world.and_then(|w| w.section.as_ref());
+    // Names and figures of the ore rows, in `ORE_KINDS` order; empty without a cut.
+    let figures: Vec<(usize, String, String)> = match shown {
+        Some(shown) => (0..ORE_KINDS.len())
+            .filter_map(|k| {
+                let f = shown.play.per_chunk[k].as_ref()?;
+                let figure = |v: Option<f64>| v.map_or("\u{2013}".to_string(), |v| text::num_digits(v, 1));
+                Some((k, figure(f.low), figure(f.high)))
+            })
+            .collect(),
+        None => Vec::new(),
+    };
+    ui.node("listHead", column(), |ui| {
+        ui.node("title", Style { pad: Edges::new(0.0, 0.0, 2.0, 0.0), ..Style::default() }, |ui| {
+            ui.text(&title, TextLook::heading());
+        });
+        // `#pick` (line 341): two lines of the small size at most.
+        let pick = Style { h: Dim::Px(34.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
+        let words = match (shown, section) {
+            (Some(_), Some(sec)) if sec.unplayed() > 0 => text::ore_unplayed(sec.unplayed()),
+            (Some(_), _) => text::ORE_PICK_HINT.to_string(),
+            (None, _) => String::new(),
+        };
+        ids.pick = ui.node("pick", pick, |ui| ui.paragraph(&words, TextLook::small(Tone::Muted)));
+    });
+    ids.list_title = title;
+    // Line 2370-2372: the legend names the columns; a list without a cut has no legend.
+    if shown.is_some() {
+        ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1], cols.narrow);
+    }
+    let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
+        for (k, low, high) in &figures {
+            let name = ORE_KINDS[*k];
+            let row = ListRow { swatch: rgb(ORE_COLOURS[*k]), name: text::ORES[*k], width: low, share: high };
+            let opts = RowOpts { pressed: s.chosen_ores.contains(name), choosing: !s.chosen_ores.is_empty(), narrow: cols.narrow, ..RowOpts::default() };
+            let r = ui.list_row(&format!("ore{k}"), &row, opts);
+            ids.ores.push(r.id);
+            // A click picks the ore, or lets it go (2385).
+            if r.clicked && !s.chosen_ores.remove(name) {
+                s.chosen_ores.insert(name.to_string());
+            }
+        }
+    });
+    ids.list_scroll = r.id;
+}
+
+/// The list beside the map in the five map views (`showList` and `showChoice`, lines 1639-1758): its title, the
+/// filter, what the choice weighs, the legend and the rows.
+fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Columns, world: Option<&World>) {
+    let view = View::from_index(s.view).expect("the map views are 0 to 4");
+    let counted = view == View::Structures;
+    let list: Option<&List> = world.and_then(|w| w.measured.lists[view.index()].as_ref());
+    // Before any list was shown the page's markup holds the filter and the legend with no column name.
+    let fresh = world.is_none();
+    let title = if fresh { String::new() } else { text::LISTS[view.index()][0].to_uppercase() };
+    let column_word = if fresh { "" } else { text::LISTS[view.index()][1] };
+    let filter_shown = fresh || (list.is_some() && (view == View::Biomes || counted));
+    let legend_shown = fresh || list.is_some();
+    let asked = if filter_shown { s.filter.trim().to_lowercase() } else { String::new() };
+    let chosen: BTreeSet<String> = s.chosen[view.index()].clone();
+    let small = TextLook::small(Tone::Muted);
+
+    // Rows with something in them: biomes by share, structures by count, bands in their own order, lowest first.
+    let mut order: Vec<usize> = list.map_or(Vec::new(), |l| (0..l.ids.len()).filter(|&i| l.cells[i] != 0.0 && !l.cells[i].is_nan()).collect());
+    if let (Some(l), true) = (list, view == View::Biomes || counted) {
+        order.sort_by(|&a, &b| l.cells[b].partial_cmp(&l.cells[a]).unwrap_or(std::cmp::Ordering::Equal));
+    }
+    // What the choice weighs: its rows in list order, those the area has.
+    let lit: Vec<usize> = list.map_or(Vec::new(), |l| (0..l.ids.len()).filter(|&i| chosen.contains(&l.ids[i]) && l.cells[i] != 0.0 && !l.cells[i].is_nan()).collect());
+    let mut presses: Vec<Pick> = Vec::new();
+
+    ids.list_title = title.clone();
+    ui.node("listHead", column(), |ui| {
+        ui.node("title", Style { pad: Edges::new(0.0, 0.0, 2.0, 0.0), ..Style::default() }, |ui| {
+            ui.text(&title, TextLook::heading());
+        });
+        if filter_shown {
+            // `#filter { margin: 4px 0 6px }` (line 339).
+            ui.node("filterBox", Style { column: true, pad: Edges::new(4.0, 0.0, 6.0, 0.0), ..Style::default() }, |ui| {
+                let opts = FieldOpts { look: FieldLook::Text, placeholder: text::FILTER, max_chars: 200, width: Dim::Pct(100.0), focus: false };
+                ids.filter = ui.text_field("filter", &mut s.filter, opts).resp.id;
+            });
+        }
+        // `#pick` (line 341): two lines whatever it says, so the first choice does not move the rows under the pointer.
+        let line = Style { h: Dim::Px(34.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
+        let Some(l) = list else {
+            ids.pick = ui.node("pick", line, |_| {});
+            return;
+        };
+        if lit.is_empty() {
+            let hint = if counted { text::PICK_HINT_MARKS } else { text::PICK_HINT };
+            ids.pick_text = hint.to_string();
+            ids.pick = ui.node("pick", line, |ui| ui.paragraph(hint, small));
+            return;
+        }
+        // Up to three, the choice is named, since its rows may be far apart in the list. A name takes its row out.
+        let row = Style { wrap: true, align_items: Align::Baseline, ..line };
+        let cells: f64 = lit.iter().map(|&i| l.cells[i]).sum();
+        ids.pick = ui.node("pick", row, |ui| {
+            let mut said = String::new();
+            if lit.len() > 3 {
+                let many = text::picked_many(lit.len());
+                ui.text(&many, small);
+                said.push_str(&many);
+            } else {
+                for (at, &i) in lit.iter().enumerate() {
+                    if at > 0 {
+                        ui.text(", ", small);
+                        said.push_str(", ");
+                    }
+                    let r = ui.button(&format!("pick{i}"), &l.names[i], ButtonLook::Pick);
+                    ids.pick_names.push(r.id);
+                    said.push_str(&l.names[i]);
+                    if r.clicked {
+                        presses.push(Pick::Toggle(l.ids[i].clone()));
+                    }
+                }
+            }
+            let tail = match world {
+                Some(w) if !l.counted => text::picked_share(&percent(100.0 * cells / (w.samples * w.samples) as f64)),
+                _ => text::picked_count(&text::num(cells), &text::num(l.total)),
+            };
+            ui.text(&tail, small);
+            said.push_str(&tail);
+            // `#pick button.none { margin-left: 8px }`.
+            ui.node("gap", Style { w: Dim::Px(8.0), shrink: 0.0, ..Style::default() }, |_| {});
+            let none = if counted { text::PICK_NONE_MARKS } else { text::PICK_NONE };
+            let r = ui.button("none", none, ButtonLook::PickNone);
+            ids.pick_none = r.id;
+            said.push_str(none);
+            if r.clicked {
+                presses.push(Pick::Clear);
+            }
+            ids.pick_text = said;
+        });
+    });
+
+    if legend_shown {
+        let (width, share) = if counted { (text::COL_SPACING, text::COL_COUNT) } else { (text::COL_WIDTH, text::COL_SHARE) };
+        ui.list_head("legend", column_word, width, share, cols.narrow);
+    }
+
+    // The filter reads the id too, so the name of a mod finds its biomes. A chosen row stays in sight.
+    let visible = |id: &str| chosen.contains(id) || asked.is_empty() || id.replace('_', " ").contains(&asked);
+    let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
+        let Some(l) = list else { return };
+        let total = world.map_or(1.0, |w| (w.samples * w.samples) as f64);
+        let choosing = !lit.is_empty();
+        let row = |ui: &mut Ui, i: usize, ids: &mut ShellIds, presses: &mut Vec<Pick>| {
+            let share = if counted { text::num(l.cells[i]) } else { percent(100.0 * l.cells[i] / total) };
+            let width = blocks(l.widths[i]);
+            let item = ListRow { swatch: rgb(l.colours[i]), name: &l.names[i], width: &width, share: &share };
+            let opts = RowOpts { pressed: chosen.contains(&l.ids[i]), choosing, narrow: cols.narrow, mark: counted, ..RowOpts::default() };
+            let r = ui.list_row(&format!("row{i}"), &item, opts);
+            ids.list_rows.push(r.id);
+            ids.list_keys.push(l.ids[i].clone());
+            if r.clicked {
+                presses.push(Pick::Toggle(l.ids[i].clone()));
+            }
+        };
+        if !counted {
+            for &i in order.iter().filter(|&&i| visible(&l.ids[i])) {
+                row(ui, i, ids, &mut presses);
+            }
+            // After the biomes of the area, those it does not hold: named, since a count alone does not say which.
+            // They are not rows to choose: there is nothing of them to show on the map.
+            let absent: Vec<&String> = world.filter(|_| view == View::Biomes).map_or(Vec::new(), |w| w.absent.iter().filter(|id| visible(id)).collect());
+            if !absent.is_empty() {
+                let count = text::num(world.map_or(0, |w| w.absent.len()) as f64);
+                let opts = PartOpts { pressed: false, first: order.is_empty(), button: false };
+                let r = ui.list_part("absentHead", text::ABSENT, &count, opts);
+                ids.list_parts.push(r.id);
+                ids.list_part_words.push((text::ABSENT.to_string(), count));
+                for (k, id) in absent.iter().enumerate() {
+                    let name = text::pretty(id);
+                    let item = ListRow { swatch: rgb(biome_colour(id)), name: &name, width: "", share: "" };
+                    let r = ui.list_row(&format!("absent{k}"), &item, RowOpts { absent: true, narrow: cols.narrow, ..RowOpts::default() });
+                    ids.absent_rows.push(r.id);
+                }
+            }
+            return;
+        }
+        // The structures come in two parts, what is built on the surface and what is built under the ground, each
+        // under a quiet line of its own that shows the whole part alone.
+        let under = world.and_then(|w| w.structures.as_ref()).map(|st| st.under.clone()).unwrap_or_default();
+        let mut parts_made = 0;
+        for part in [false, true] {
+            let members: Vec<usize> = order.iter().copied().filter(|&i| under.get(i) == Some(&part)).collect();
+            if members.is_empty() {
+                continue;
+            }
+            let first = parts_made == 0;
+            parts_made += 1;
+            let part_ids: Vec<String> = members.iter().map(|&i| l.ids[i].clone()).collect();
+            if !members.iter().any(|&i| visible(&l.ids[i])) {
+                continue;
+            }
+            let sum: f64 = members.iter().map(|&i| l.cells[i]).sum();
+            let (name, count) = (text::PARTS[part as usize], text::num(sum));
+            let pressed = chosen.len() == part_ids.len() && part_ids.iter().all(|id| chosen.contains(id));
+            let r = ui.list_part(&format!("part{}", part as u8), name, &count, PartOpts { pressed, first, button: true });
+            ids.list_parts.push(r.id);
+            ids.list_part_words.push((name.to_string(), count));
+            if r.clicked {
+                presses.push(Pick::Part(part_ids));
+            }
+            for &i in members.iter().filter(|&&i| visible(&l.ids[i])) {
+                row(ui, i, ids, &mut presses);
+            }
+        }
+    });
+    ids.list_scroll = r.id;
+
+    let picked = &mut s.chosen[view.index()];
+    for press in presses {
+        match press {
+            Pick::Toggle(id) => {
+                if !picked.remove(&id) {
+                    picked.insert(id);
+                }
+            }
+            Pick::Part(part) => {
+                let alone = picked.len() == part.len() && part.iter().all(|id| picked.contains(id));
+                picked.clear();
+                if !alone {
+                    picked.extend(part);
+                }
+            }
+            Pick::Clear => picked.clear(),
+        }
+    }
+}
+
 /// `#figuresBlock` (lines 430-439): the figures of the map and the history.
-fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns) {
+fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>) {
     let body = TextLook::body(Tone::Text);
     let muted = TextLook::body(Tone::Muted);
     ui.node("figuresBlock", column(), |ui| {
@@ -1074,44 +1293,96 @@ fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
                 align_items: Align::Baseline,
                 ..Style::default()
             };
-            // PLACEHOLDER: the figures of a run. "25 of 146" is `preview.json`'s 25 biomes and 146 possible.
-            const VALUES: [&str; 7] = ["38.2%", "1,250 blocks", "900 blocks", "41.5%", "6.3%", "height 287", "25 of 146"];
+            let cells = world.map_or(Vec::new(), |w| figure_cells(&w.measured.figures, s.before.as_ref()));
+            ids.figures_text = cells.iter().map(|c| c.text.clone()).collect();
             ids.figures_grid = ui.node("grid", grid, |ui| {
-                for (i, name) in text::FIGURE_NAMES.iter().enumerate() {
-                    if i == 3 {
-                        let span = Style { col_span_all: true, pad: Edges::vh(4.0, 0.0), ..Style::default() };
-                        ui.node("rule", span, |ui| ui.fill(Style { h: Dim::Px(1.0), grow: 1.0, shrink: 0.0, ..Style::default() }, t.line));
+                for (n, cell) in cells.iter().enumerate() {
+                    let key = format!("cell{n}");
+                    match cell.kind {
+                        CellKind::Blank => {
+                            ui.text("", muted);
+                        }
+                        // Line 300.
+                        CellKind::Head => {
+                            ui.node(&key, Style { justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, TextLook::small(Tone::Muted)));
+                        }
+                        CellKind::Rule => {
+                            let span = Style { col_span_all: true, pad: Edges::vh(4.0, 0.0), ..Style::default() };
+                            ui.node(&key, span, |ui| ui.fill(Style { h: Dim::Px(1.0), grow: 1.0, shrink: 0.0, ..Style::default() }, t.line));
+                        }
+                        // Line 299: a name is read whole, so it may take a second line.
+                        CellKind::Name => {
+                            ui.node(&key, Style { min_w: Dim::Px(0.0), ..Style::default() }, |ui| ui.paragraph(&cell.text, body));
+                        }
+                        // Lines 301-303: the three figures of the goal are larger and semibold.
+                        CellKind::Value { goal, muted: grey } => {
+                            let tone = if grey { Tone::Muted } else { Tone::Text };
+                            let look = if goal { TextLook { size: cols.goal, line: cols.goal * 1.5, weight: Weight::SemiBold, tone, ..body } } else { TextLook { tone, ..body } };
+                            let v = ui.node(&key, Style { justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, look));
+                            if goal {
+                                ids.goal_values.push(v);
+                            }
+                        }
+                        // Lines 304-306: what moved reads as strongly as the value on the figures of the goal.
+                        CellKind::Before { goal } => {
+                            let look = TextLook { tone: if goal { Tone::Text } else { Tone::Muted }, ..body };
+                            ui.node(&key, Style { justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, look));
+                        }
                     }
-                    ui.node(&format!("name{i}"), Style { min_w: Dim::Px(0.0), ..Style::default() }, |ui| ui.paragraph(name, body));
-                    // Line 303: the three figures of the goal are larger and semibold.
-                    let look = if i < 3 {
-                        TextLook { size: cols.goal, line: cols.goal * 1.5, weight: nui_base::Weight::SemiBold, ..body }
-                    } else {
-                        body
-                    };
-                    let v = ui.node(&format!("value{i}"), Style { justify: Justify::End, ..Style::default() }, |ui| ui.text(VALUES[i], look));
-                    if i < 3 {
-                        ids.goal_values.push(v);
-                    }
-                    ui.text("", muted);
                 }
             });
         });
         ids.figures_head = r.id;
-        // Closed: the body would be the empty `#history`.
-        let r = ui.fold("history", text::HISTORY, &mut s.history_open, |ui| ui.text("", body));
+        // Closed at the start (the page's `data-closed`): the body is drawn to its width, so it is built when open.
+        let r = ui.fold("history", text::HISTORY, &mut s.history_open, |ui| history_body(ui, s.history.as_slice(), ids, t, cols, world, s.made.as_ref()));
         ids.history_head = r.id;
     });
 }
-/// The shell as a picture: builds until the scrollbar's gutter has settled (it comes one frame late), at most
-/// three times, and returns the last draw list with the `Ui` (for the rects) and the ids.
+
+/// `#history` (lines 1569-1637): one small line per figure, oldest run left, and under them what the run pointed at
+/// changed. The page only draws with a map on screen.
+fn history_body(ui: &mut Ui, history: &[Entry], ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>, made: Option<&Ask>) {
+    let (Some(world), Some(made)) = (world, made) else { return };
+    let f = &world.measured.figures;
+    let runs = here(history, &made.seed, f.span, f.step);
+    let len = runs.len();
+    ids.history_body = ui.hover_area("history", Style { column: true, gap: Vec2::new(0.0, 8.0), ..Style::default() }, |ui, at| {
+        // The pointer picks the nearest run, across every line at once (line 1630).
+        let pointed = at.filter(|_| len >= 2).map(|a| (js_round(a as f64 * (len - 1) as f64).max(0.0) as usize).min(len - 1));
+        let trend = trend(&runs, pointed, cols.right as f64);
+        for (n, row) in trend.rows.iter().enumerate() {
+            let p = |x: f64, y: f64| Vec2::new(x as f32, y as f32);
+            // Lines 314-316: the mark of the run pointed at, the line, and the dot on it.
+            let mut plot = vec![Cmd::Polyline { points: vec![p(row.now_x, 0.0), p(row.now_x, PLOT_H)], width: 1.0, color: t.muted }];
+            for line in &row.lines {
+                plot.push(Cmd::Polyline { points: line.iter().map(|&(x, y)| p(x, y)).collect(), width: 1.5, color: t.text });
+            }
+            if let Some((x, y)) = row.dot {
+                plot.push(Cmd::Disc { center: p(x, y), radius: 3.5, color: t.text });
+                plot.push(Cmd::Ring { center: p(x, y), radius: 3.5, width: 2.0, color: t.ground });
+            }
+            ids.trends.push(ui.trend_row(&format!("trend{n}"), row.name, &row.value, plot));
+        }
+        // Line 317.
+        ui.node("probe", Style { min_h: Dim::Px(32.0), ..Style::default() }, |ui| ui.paragraph(&trend.probe, TextLook::small(Tone::Muted)));
+        ids.history_probe = trend.probe;
+    });
+}
+
+/// The shell as a picture of the page with no preview: builds until the scrollbar's gutter has settled (it comes
+/// one frame late), at most three times, and returns the last draw list with the `Ui` (for the rects) and the ids.
 pub fn picture(theme: Theme, size: Vec2) -> (DrawList, Ui, ShellIds) {
+    picture_with(theme, size, None, PreviewState::default())
+}
+
+/// The same with a preview on the map and a state of the caller's.
+pub fn picture_with(theme: Theme, size: Vec2, world: Option<&World>, state: PreviewState) -> (DrawList, Ui, ShellIds) {
     let mut ui = Ui::new(theme);
-    let mut s = PreviewState::default();
+    let mut s = state;
     let mut last = None;
     for _ in 0..3 {
         ui.begin_frame(size);
-        let ids = build(&mut ui, &mut s, size, None, None);
+        let ids = build(&mut ui, &mut s, size, world, None);
         let list = ui.end_frame().clone();
         last = Some((list, ids));
         if !ui.want_redraw() {

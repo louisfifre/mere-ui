@@ -39,15 +39,3 @@ pub fn band_colours(sea: f64, steps: &[f64], depths: &[f64]) -> Vec<[u8; 3]> {
     }
     out
 }
-
-/// PLACEHOLDER: the typical width and the share of each band. Step 18 computes them from the run.
-pub const BAND_FIGURES: [(&str, &str); 8] = [
-    ("900 blocks", "14.2%"),
-    ("650 blocks", "18.6%"),
-    ("300 blocks", "9.1%"),
-    ("1,150 blocks", "27.4%"),
-    ("700 blocks", "17.8%"),
-    ("400 blocks", "8.3%"),
-    ("200 blocks", "3.5%"),
-    ("100 blocks", "1.1%"),
-];
