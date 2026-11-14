@@ -283,8 +283,7 @@ followed the page: with no map Generate is enabled and filled; the CLI picture i
   and the 0.5 s atomic rename on Windows are therefore unproven. Also: the ✓ glyph (it drew as a check-like sign in the
   picture, DirectWrite may be falling back from Plex Mono), the stop icon's half-pixel place (13.5 px), the export
   folder's UTC stamp (the page uses local time), the seed check being ASCII only (serve.ps1's `\w` takes every script's
-  letters), the "Exported to" label and the path standing side by side (the page flows the path on after its label),
-  the links' 1 px of vertical padding (the page's `.saved button` has none), and the run's last step after a
+  letters), the links' 1 px of vertical padding (the page's `.saved button` has none), and the run's last step after a
   finish: the look may or may not have caught the extras pass, so the last done step is the map or "Cuts, ores and
   structures".
 - Not built: sketches and drafts during a run (`coarse-*.bin`, `partial-*.bin`: the map stays the old one, veiled, for
@@ -304,7 +303,9 @@ followed the page: with no map Generate is enabled and filled; the CLI picture i
   glyphs); `--runs` and the generator path are made plain (without `\\?\`) because the stub's guard compares plain paths.
 
 Next: step 18 (the figures column, the history and the light/dark switch with the OS setting); `runs/pace.json` is
-the file for the learned pace, and the history (`preview.history`) could live beside it in the runs folder.Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
+the file for the learned pace, and the history (`preview.history`) could live beside it in the runs folder.
+
+Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
 
 - No height key over the 3D view: applied in step 15. Nothing is drawn over the 3D in the preview (no key, no plate, no facts); the height list stays the right column's list, which does not follow the view yet.
