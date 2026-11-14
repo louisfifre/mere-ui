@@ -1,6 +1,6 @@
 //! Every sentence the demo shows, in one place, so wording changes touch one file.
 
-use crate::world::World;
+use preview::world::World;
 
 pub const WINDOW_TITLE: &str = "Relief";
 pub const TITLE: &str = "Relief";
@@ -24,7 +24,7 @@ pub fn num(v: i64) -> String {
 
 /// The page's caption under its map, minus the grid's square and the cross: the area first, north up.
 pub fn area(w: &World) -> String {
-    let blocks = num(w.width() as i64);
+    let blocks = num(w.span() as i64);
     format!("{blocks} \u{d7} {blocks} blocks, north up.")
 }
 
@@ -38,14 +38,14 @@ pub fn grid(w: &World) -> String {
 
 pub fn heights(w: &World) -> String {
     let (lo, hi) = w.height_range();
-    format!("Heights {} to {}, sea at {}", num(lo.into()), num(hi.into()), num(w.sea_level.into()))
+    format!("Heights {} to {}, sea at {}", num(lo.into()), num(hi.into()), num(w.sea_level as i64))
 }
 
 /// The page's figure: biomes met, "of" all those the generator can place when the file says so.
 pub fn biomes(w: &World) -> String {
     match w.biome_total {
-        Some(total) => format!("Biomes present {} of {}", num(w.biome_count as i64), num(total as i64)),
-        None => format!("Biomes present {}", num(w.biome_count as i64)),
+        Some(total) => format!("Biomes present {} of {}", num(w.biomes.len() as i64), num(total as i64)),
+        None => format!("Biomes present {}", num(w.biomes.len() as i64)),
     }
 }
 

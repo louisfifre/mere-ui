@@ -72,6 +72,7 @@ dependencies = [
  "nui-base",
  "nui-png",
  "nui-win32",
+ "preview",
 ]
 
 [[package]]

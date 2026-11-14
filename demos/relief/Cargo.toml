@@ -9,3 +9,4 @@ publish.workspace = true
 nui-base.workspace = true
 nui-png.workspace = true
 nui-win32.workspace = true
+preview = { path = "../preview" }

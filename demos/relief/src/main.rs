@@ -3,12 +3,8 @@
 //! Without --shot, opens a window. With it, draws one frame offscreen, writes the PNG and exits: the same
 //! frame the window would show.
 
-mod json;
-mod mesh;
-mod paint;
 mod text;
 mod view;
-mod world;
 
 use nui_base::log;
 use std::path::PathBuf;
@@ -57,7 +53,7 @@ fn parse_args(args: &[String]) -> Result<Args, String> {
 fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args = parse_args(&args).map_err(|e| format!("{e}\n{}", text::usage()))?;
-    let world = world::World::load(&args.dir)?;
+    let world = preview::world::World::load(&args.dir)?;
     nui_base::observe!(Info, "loaded {} points, seed {}", world.heights.len(), world.seed);
     let mut app = view::Relief::new(world);
     match args.shot {

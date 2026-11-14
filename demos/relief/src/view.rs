@@ -1,21 +1,18 @@
 //! The relief as an application: the textured land, the sheet of water, the orbit camera and a small
 //! overlay of facts about the area.
 
-use crate::world::World;
-use crate::{mesh, paint, text};
-use nui_base::{App, Button, Color, DrawList, Event, Gfx, ImageId, Material, MeshId, Orbit, Rect, Vec2, Vec3};
+use crate::text;
+use nui_base::{App, Button, Color, DrawList, Event, Gfx, ImageId, Orbit, Rect, Vec2};
+use preview::paint::{View, paint};
+use preview::scene;
+use preview::world::World;
+use std::collections::BTreeSet;
 
-const LAND: MeshId = MeshId(1);
-const WATER: MeshId = MeshId(2);
 const MAP: ImageId = ImageId(1);
 
-// Blocks kept between the camera and the ground under it.
-const MARGIN: f32 = 24.0;
-
-// The page's colours: its black ground (the dark theme's --ground), its water, and the interface's hairline,
-// text and muted text.
+// The page's colours: its black ground (the dark theme's --ground), and the interface's hairline, text and
+// muted text.
 const GROUND: Color = Color::hex(0x000000);
-const WATER_COLOUR: Color = Color::hex(0x2f5c9e).with_alpha(0.25);
 const LINE: Color = Color::hex(0x2a2a2a);
 const INK: Color = Color::hex(0xececec);
 const MUTED: Color = Color::hex(0x8a8a8a);
@@ -33,12 +30,7 @@ pub struct Relief {
 
 impl Relief {
     pub fn new(world: World) -> Relief {
-        // The page starts far and high enough to hold the whole square, its near edge included.
-        let w = world.width();
-        let mut orbit = Orbit::new(Vec3::default(), Vec3::new(0.0, 1.1 * w, w));
-        // The page's target sits at height 0, well under the land: closer than this the camera is lifted to
-        // clear the ground and looks at one huge triangle, which says nothing.
-        orbit.min_distance = world.step * 40.0;
+        let orbit = scene::orbit(&world, None);
         Relief { world, orbit, drag_from: None, height: 800.0 }
     }
 
@@ -61,11 +53,9 @@ impl Relief {
 impl App for Relief {
     fn start(&mut self, gfx: &mut dyn Gfx) {
         let n = self.world.samples as u32;
-        gfx.upload_image(MAP, n, n, &paint::paint(&self.world));
-        let land = mesh::land(&self.world);
-        gfx.upload_mesh(LAND, &land.vertices, &land.indices);
-        let water = mesh::water(&self.world);
-        gfx.upload_mesh(WATER, &water.vertices, &water.indices);
+        // The relief tab's picture in the dark theme, with nothing chosen.
+        gfx.upload_image(MAP, n, n, &paint(&self.world, View::Height, true, &BTreeSet::new()));
+        scene::upload(gfx, &self.world);
     }
 
     fn event(&mut self, event: Event) -> bool {
@@ -103,19 +93,9 @@ impl App for Relief {
         let s = gfx.scale();
         let (w, h) = (wp as f32 / s, hp as f32 / s);
         self.height = h;
-        let moving = self.orbit.step(seconds);
-        // A block and a half of air over the ground: the near plane is ten blocks, and the camera must not
-        // pass through the land it is turning round.
-        let world = &self.world;
-        self.orbit.keep_above(&|x, z| world.ground_at(x, z).map_or(f32::NEG_INFINITY, |g| g + MARGIN));
+        let moving = scene::settle(&mut self.orbit, &self.world, seconds);
         gfx.begin(GROUND);
-        if w > 0.0 && h > 0.0 {
-            let view_proj = self.orbit.view_proj(w / h);
-            let all = Rect::new(0.0, 0.0, w, h);
-            gfx.draw_mesh(all, LAND, &view_proj, Material::Image { image: MAP, nearest: true });
-            // After the land: the sheet is tested against it but leaves no depth of its own.
-            gfx.draw_mesh(all, WATER, &view_proj, Material::Flat { color: WATER_COLOUR });
-        }
+        scene::draw(gfx, Rect::new(0.0, 0.0, w, h), &self.orbit, MAP, scene::water_alpha(View::Height));
         gfx.draw_list(&self.overlay());
         gfx.end();
         moving
@@ -125,6 +105,7 @@ impl App for Relief {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nui_base::Vec3;
     use nui_win32::Renderer;
     use std::f32::consts::FRAC_PI_2;
     use std::path::Path;
@@ -170,9 +151,7 @@ mod tests {
     fn rest(app: &mut Relief) -> Vec3 {
         let mut frames = 0;
         loop {
-            let moving = app.orbit.step(1.0 / 60.0);
-            let world = &app.world;
-            app.orbit.keep_above(&|x, z| world.ground_at(x, z).map_or(f32::NEG_INFINITY, |g| g + MARGIN));
+            let moving = scene::settle(&mut app.orbit, &app.world, 1.0 / 60.0);
             frames += 1;
             assert!(frames < 600, "never came to rest");
             if !moving {
@@ -180,8 +159,8 @@ mod tests {
             }
         }
         let eye = app.orbit.eye();
-        if let Some(g) = app.world.ground_at(eye.x, eye.z) {
-            assert!(eye.y >= g + MARGIN - 0.5, "camera under the ground: {eye:?} over {g}");
+        if let Some(g) = scene::ground_at(&app.world, eye.x, eye.z) {
+            assert!(eye.y >= g + 24.0 - 0.5, "camera under the ground: {eye:?} over {g}");
         }
         assert!((eye - app.orbit.target).length() <= app.orbit.max_distance * 1.001, "too far");
         eye
