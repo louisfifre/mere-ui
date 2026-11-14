@@ -17,5 +17,7 @@ A small native interface toolkit in Rust, owned end to end and grown piece by pi
 - `crates/nui-base`: geometry, colours, matrices, the orbit camera, draw lists, the `Gfx` and `App` traits, the log hub. No OS code, no dependency.
 - `crates/nui-png`: the PNG writer (deflate with fixed Huffman codes) and a reader for the files it writes, for picture tests.
 - `crates/nui-win32`: the Windows backend: Win32 window, Direct3D 11 for meshes, Direct2D and DirectWrite for the interface, offscreen rendering.
+- `crates/nui-layout`: pure layout: the reduced flexbox (build step 7), tree, measure callbacks, a debug dump. No OS code; grid, absolute and overflow come with step 8.
+- `demos/shell-boxes`: the world preview's page shell laid out at 1400, 1200 and 1000 px and drawn as named boxes (`cargo test -p shell-boxes` writes `target/tmp/shell_<width>.png`).
 - `demos/relief`: a world preview's relief from a real `out` folder, in a window or as a picture.
 - `docs/design.md`: the design dossier (module tree, reduced flex/grid, text field, build plan, risks).
