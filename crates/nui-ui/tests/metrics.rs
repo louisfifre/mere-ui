@@ -12,7 +12,7 @@ fn plex_mono_ascent_matches_the_constant() {
     ui.begin_frame(Vec2::new(600.0, 200.0));
     let style = Style { position: Position::Absolute, inset: Insets { left: Dim::Px(0.0), top: Dim::Px(0.0), ..Insets::default() }, ..Style::default() };
     ui.node("probe", style, |ui| {
-        ui.text("HHHH", TextLook { size: 100.0, line: 150.0, weight: nui_base::Weight::Regular, tone: Tone::Text });
+        ui.text("HHHH", TextLook { size: 100.0, line: 150.0, weight: nui_base::Weight::Regular, tone: Tone::Text, tracking: 0.0 });
     });
     let list = ui.end_frame().clone();
     let mut r = Renderer::offscreen(600, 200, 1.0).expect("offscreen renderer");

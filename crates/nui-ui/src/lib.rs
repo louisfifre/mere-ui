@@ -22,6 +22,6 @@ mod widgets;
 pub use id::Id;
 pub use input::Input;
 pub use text::{ADVANCE_EM, ASCENT_EM, DESCENT_EM, TextLook, Tone, text_width};
-pub use theme::Theme;
+pub use theme::{Theme, mix};
 pub use ui::{Resp, Ui};
 pub use widgets::{ButtonLook, ButtonOpts};

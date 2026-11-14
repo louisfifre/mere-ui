@@ -62,7 +62,12 @@ impl Theme {
     /// What CSS `opacity` gives: `c` over the ground. Valid only when the ground is what lies behind, which
     /// is true for every faded thing of the page's columns.
     pub fn faded(&self, c: Color, opacity: f32) -> Color {
-        let mix = |a: f32, b: f32| a * opacity + b * (1.0 - opacity);
-        Color { r: mix(c.r, self.ground.r), g: mix(c.g, self.ground.g), b: mix(c.b, self.ground.b), a: 1.0 }
+        mix(c, opacity, self.ground)
     }
+}
+
+/// `top` at `opacity` over `under`, opaque: what CSS `opacity` gives over a known backdrop.
+pub fn mix(top: Color, opacity: f32, under: Color) -> Color {
+    let m = |a: f32, b: f32| a * opacity + b * (1.0 - opacity);
+    Color { r: m(top.r, under.r), g: m(top.g, under.g), b: m(top.b, under.b), a: 1.0 }
 }

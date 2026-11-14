@@ -24,16 +24,29 @@ pub struct TextLook {
     pub line: f32,
     pub weight: Weight,
     pub tone: Tone,
+    /// CSS `letter-spacing` in px, added after every char including the last, as browsers do.
+    pub tracking: f32,
 }
 
 impl TextLook {
     /// The body: `font: 12px/1.5`.
     pub fn body(tone: Tone) -> TextLook {
-        TextLook { size: 12.0, line: 18.0, weight: Weight::Regular, tone }
+        TextLook { size: 12.0, line: 18.0, weight: Weight::Regular, tone, tracking: 0.0 }
     }
     /// `#status`, line 189: `font-size: 11px; line-height: 16px`.
     pub fn status(tone: Tone) -> TextLook {
-        TextLook { size: 11.0, line: 16.0, weight: Weight::Regular, tone }
+        TextLook { size: 11.0, line: 16.0, weight: Weight::Regular, tone, tracking: 0.0 }
+    }
+    /// `h2, .heading`, line 104: `600 12px/1.25`, `letter-spacing: 0.06em`.
+    pub fn heading() -> TextLook {
+        TextLook { size: 12.0, line: 15.0, weight: Weight::SemiBold, tone: Tone::Text, tracking: 0.72 }
+    }
+    /// One char's step: the glyph advance plus the tracking.
+    pub(crate) fn step(&self) -> f32 {
+        ADVANCE_EM * self.size + self.tracking
+    }
+    pub fn width(&self, s: &str) -> f32 {
+        s.chars().count() as f32 * self.step()
     }
 }
 

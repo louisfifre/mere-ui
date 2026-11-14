@@ -7,7 +7,7 @@ use nui_layout::{Avail, Measured, NodeId, Overflow, Position, Style, Tree};
 
 use crate::id::Id;
 use crate::input::Input;
-use crate::text::{TextLook, Tone, baseline, half_leading, text_width};
+use crate::text::{TextLook, Tone, baseline, half_leading};
 use crate::theme::Theme;
 
 /// What the pointer did to a widget this frame.
@@ -158,7 +158,7 @@ impl Ui {
     /// A text leaf: its size is arithmetic, and the closure owns what it needs, as the layout wants.
     pub(crate) fn add_text(&mut self, text: &str, look: TextLook, color: Color, underline: bool, style: Style) -> NodeId {
         let owned = text.to_string();
-        let width = text_width(text, look.size);
+        let width = look.width(text);
         let n = self.add("text", style, Paint::Text { text: owned, look, color, underline });
         let measured = Measured { size: Vec2::new(width, look.line), baseline: baseline(look) };
         self.tree.set_leaf(n, Box::new(move |_: Avail| measured));
@@ -221,15 +221,32 @@ fn paint_node(tree: &Tree, paints: &[Paint], list: &mut DrawList, abs: &mut [Rec
             }
         }
         Paint::Text { text, look, color, underline } => {
-            list.text_weighted(Vec2::new(r.x, r.y + half_leading(*look)), text.clone(), look.size, *color, look.weight);
+            let y = r.y + half_leading(*look);
+            if look.tracking == 0.0 {
+                list.text_weighted(Vec2::new(r.x, y), text.clone(), look.size, *color, look.weight);
+            } else {
+                // Plex Mono is monospaced and has no kerning, so one glyph per step equals a spaced string.
+                let mut buf = [0u8; 4];
+                for (i, ch) in text.chars().enumerate() {
+                    let x = r.x + i as f32 * look.step();
+                    list.text_weighted(Vec2::new(x, y), &*ch.encode_utf8(&mut buf), look.size, *color, look.weight);
+                }
+            }
             if *underline {
                 // text-underline-offset 3px from the baseline (line 152); the 1 px thickness is UNVERIFIED
                 // against the browser.
-                list.fill(Rect::new(r.x, r.y + baseline(*look) + 3.0, text_width(text, look.size), 1.0), *color);
+                list.fill(Rect::new(r.x, r.y + baseline(*look) + 3.0, look.width(text), 1.0), *color);
             }
         }
     }
-    for &c in tree.children(n) {
+    // CSS paints positioned boxes (z-index auto) after the in-flow ones: the pressed tab's hairline must
+    // cover the grey one of the neighbour it overlaps.
+    let kids = tree.children(n);
+    let flow = |c: &&NodeId| tree.style(**c).position == Position::Static;
+    for &c in kids.iter().filter(flow) {
+        paint_node(tree, paints, list, abs, c, Vec2::new(r.x, r.y));
+    }
+    for &c in kids.iter().filter(|c| !flow(c)) {
         paint_node(tree, paints, list, abs, c, Vec2::new(r.x, r.y));
     }
     if clip {

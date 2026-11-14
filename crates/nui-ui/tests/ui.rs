@@ -68,6 +68,21 @@ fn near(a: f32, b: f32) {
 }
 
 #[test]
+fn tracking_adds_after_every_char() {
+    near(TextLook::heading().width("WORLD"), 39.6);
+    let mut ui = dark();
+    let list = frame(&mut ui, |ui| {
+        ui.text("WORLD", TextLook::heading());
+    });
+    let t = texts(&list);
+    assert_eq!(t.len(), 5);
+    for (i, c) in t.iter().enumerate() {
+        near(c.0.x, i as f32 * 7.92);
+        assert_eq!(c.3, Weight::SemiBold);
+    }
+}
+
+#[test]
 fn theme_dark_and_light_are_the_page_variables() {
     let d = Theme::dark();
     assert_eq!(d.ground, Color::hex(0x000000));

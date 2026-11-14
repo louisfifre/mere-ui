@@ -6,7 +6,7 @@ use nui_layout::{Align, Dim, Edges, Justify, Style};
 use crate::text::{TextLook, Tone};
 use crate::ui::{Paint, Resp, Ui};
 
-/// The three page buttons this step needs. The strip, #details and pressed choices are tabs (step 10), the
+/// The three page buttons this step needs. The strip, #details and pressed choices are in tab.rs, the
 /// stop button is an icon button (step 17).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum ButtonLook {
@@ -46,7 +46,7 @@ impl Ui {
         let t = *self.theme();
         // The page has no :active style, so a held button looks exactly like a hovered one.
         let lit = resp.hovered || resp.held;
-        let body = TextLook { size: t.body, line: t.body * 1.5, weight: Weight::Regular, tone: Tone::Text };
+        let body = TextLook { size: t.body, line: t.body * 1.5, weight: Weight::Regular, tone: Tone::Text, tracking: 0.0 };
         let (style, paint, word_look, word, underline) = match look {
             ButtonLook::Primary => {
                 let style = Style {
