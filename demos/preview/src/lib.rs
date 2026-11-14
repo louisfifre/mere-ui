@@ -19,4 +19,4 @@ pub mod text;
 pub mod world;
 
 pub use app::PreviewApp;
-pub use shell::{Columns, PreviewState, ShellIds, build, picture, picture_with};
+pub use shell::{BAR_H, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px};

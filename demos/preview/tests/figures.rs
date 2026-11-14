@@ -272,14 +272,15 @@ fn g5_structures_come_in_two_parts_with_round_marks() {
 }
 
 #[test]
-fn g6_a_narrower_window_shrinks_the_goal_figures() {
+fn g6_a_narrower_window_does_not_shrink_the_goal_figures() {
     let Some(world) = world() else { return };
     let mut m = Mini::new(Theme::dark(), true, (1000, 940), &world, state_for(&world, 3), false);
     m.shot("figures_1000.png");
-    let cols = preview::Columns::for_width(1000.0);
-    assert_eq!((cols.goal, cols.fig_gap), (13.0, 10.0));
+    // No breakpoint since step 19: the page's wide numbers hold at 1000 px too.
+    let cols = preview::PAGE;
+    assert_eq!((cols.goal, cols.fig_gap), (14.0, 14.0));
     let sizes: Vec<f32> = m.app.list().cmds.iter().filter_map(|c| if let Cmd::Text { size, weight: Weight::SemiBold, text, .. } = c { Some((text, size)) } else { None }).filter(|(t, _)| m.app.ids().figures_text.contains(t)).map(|(_, s)| *s).collect();
-    assert!(sizes.len() >= 3 && sizes.iter().all(|&s| s == 13.0), "{sizes:?}");
+    assert!(sizes.len() >= 3 && sizes.iter().all(|&s| s == 14.0), "{sizes:?}");
     assert_eq!(m.app.ids().list_title, "TEMPERATURES");
     assert_eq!(m.app.ids().list_rows.len(), shown_ids(&world, View::Temperature).len());
 }

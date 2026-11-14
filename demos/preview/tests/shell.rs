@@ -1,17 +1,17 @@
-//! The shell's layout without a GPU. The column positions are the page's (preview.html lines 75-88), derived
-//! from its media queries; the sizes inside are derived in each test's comment.
+//! The shell's layout without a GPU. The column positions are the page's wide layout (preview.html lines 75-81)
+//! at every width: the panels are fixed since step 19. The sizes inside are derived in each test's comment.
 
 use nui_base::{Rect, Vec2};
 use nui_ui::{GUTTER, Id, Theme, Ui};
 use preview::settings::grouped;
 use preview::world::World;
-use preview::{Columns, PreviewState, ShellIds, picture, picture_with};
+use preview::{BAR_H, Columns, PAGE, PreviewState, ShellIds, picture, picture_with};
 
 const H: f32 = 940.0;
 
 fn shell(w: f32, h: f32) -> (Ui, ShellIds, Columns) {
     let (_, ui, ids) = picture(Theme::dark(), Vec2::new(w, h));
-    (ui, ids, Columns::for_width(w))
+    (ui, ids, PAGE)
 }
 
 /// The shell with the real preview on the map, or None (with the reason printed) without the data.
@@ -42,14 +42,15 @@ fn near_r(ui: &Ui, id: Id, x: f32, w: f32, what: &str) {
 
 #[test]
 fn l1_columns() {
+    // The panels never move: left at 28, right against the right edge (W - 28 - 330), the middle what is left.
     for (w, left, middle, right) in [
         (1400.0, (28.0, 320.0), (376.0, 638.0), (1042.0, 330.0)),
-        (1200.0, (22.0, 296.0), (342.0, 532.0), (898.0, 280.0)),
-        (1000.0, (16.0, 272.0), (308.0, 394.0), (722.0, 262.0)),
+        (1200.0, (28.0, 320.0), (376.0, 438.0), (842.0, 330.0)),
+        (1000.0, (28.0, 320.0), (376.0, 238.0), (642.0, 330.0)),
     ] {
         let (ui, ids, c) = shell(w, H);
-        let y = 38.0 + c.pad.top;
-        let h = H - 38.0 - c.pad.top - c.pad.bottom;
+        let y = BAR_H + c.pad.top;
+        let h = H - BAR_H - c.pad.top - c.pad.bottom;
         for (id, (x, cw), name) in [(ids.left, left, "left"), (ids.middle, middle, "middle"), (ids.right, right, "right")] {
             near_r(&ui, id, x, cw, &format!("{name} at {w}"));
             near(r(&ui, id).y, y, &format!("{name} y at {w}"));
@@ -86,7 +87,7 @@ fn l3_sections_in_order() {
 
 #[test]
 fn l4_frame_and_under() {
-    for (w, side) in [(1400.0, 638.0), (1200.0, 532.0), (1000.0, 394.0)] {
+    for (w, side) in [(1400.0, 638.0), (1200.0, 438.0), (1000.0, 238.0)] {
         let (ui, ids, _) = shell(w, H);
         let (m, f) = (r(&ui, ids.middle), r(&ui, ids.frame));
         near(f.w, side, "side");
@@ -97,12 +98,12 @@ fn l4_frame_and_under() {
         let e = r(&ui, ids.export);
         near(e.x + e.w, m.x + m.w, "export right edge");
     }
-    // A short window: the map gives way to the strip, side = 600 - 38 - 40 - 64.
+    // A short window: the map gives way to the strip, side = 600 - 40 - 40 - 64.
     let (ui, ids, _) = shell(1400.0, 600.0);
     let f = r(&ui, ids.frame);
-    near(f.w, 458.0, "short side");
-    near(f.x, 376.0 + 90.0, "short frame x");
-    near(r(&ui, ids.under).y, f.y + 458.0 + 10.0, "short under y");
+    near(f.w, 456.0, "short side");
+    near(f.x, 376.0 + 91.0, "short frame x");
+    near(r(&ui, ids.under).y, f.y + 456.0 + 10.0, "short under y");
     near(r(&ui, ids.export).x + r(&ui, ids.export).w, f.x + f.w, "export right edge on the frame");
 }
 
@@ -176,7 +177,8 @@ fn l8_rows() {
 
 #[test]
 fn l9_goal_values() {
-    for (w, size) in [(1400.0, 21.0), (1200.0, 19.5)] {
+    // The goal figures are 14 px at every width, on a line of 1.5.
+    for (w, size) in [(1400.0, 21.0), (1200.0, 21.0), (1000.0, 21.0)] {
         let Some((ui, ids, _)) = shell_real(w, H) else { return };
         assert_eq!(ids.goal_values.len(), 3);
         for &g in &ids.goal_values {

@@ -244,7 +244,8 @@ fn main() {
         Scheme::System => (nui_win32::system_dark(), shot.is_none()),
     };
     let theme = if dark { Theme::dark() } else { Theme::light() };
-    let (w, h) = size;
+    // The window holds its minimum itself; a picture is raised to it too, so that it shows the layout the app has.
+    let (w, h) = preview::min_size_px(size);
     let runs = Runs { shell: PathBuf::from("powershell.exe"), generator, pack, root: runs_root(runs), env: Vec::new(), launcher: Box::new(nui_win32::SystemLauncher) };
     let mut app = PreviewApp::new(theme, dark, Vec2::new(w as f32, h as f32), state, world).follow_scheme(follows).with_runs(runs);
     app.ui_mut().set_clipboard(Box::new(nui_win32::SystemClipboard));

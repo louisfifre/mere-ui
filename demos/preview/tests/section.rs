@@ -149,7 +149,7 @@ fn samples(n: usize, x0: usize, x1: usize, y0: usize, y1: usize) -> Vec<(usize, 
     (0..n).map(|_| (x0 + next(x1 - x0), y0 + next(y1 - y0))).collect()
 }
 
-const ARITH_TOP: f32 = 56.0 + 56.0 + 8.0 + 18.0 + 8.0 + 8.0;
+const ARITH_TOP: f32 = 58.0 + 56.0 + 8.0 + 18.0 + 8.0 + 8.0;
 
 #[test]
 fn c1_layout_of_the_section_at_1400() {
@@ -157,12 +157,12 @@ fn c1_layout_of_the_section_at_1400() {
     let mut rig = Rig::new(&world, false, state(), W, H);
     let rgba = rig.write("section_1400.png");
     let ids = rig.app.ids().clone();
-    assert_eq!(rig.rect(ids.frame), Rect::new(376.0, 56.0, 638.0, 798.0));
-    assert_eq!(rig.rect(ids.nav), Rect::new(376.0, 56.0, 638.0, 56.0));
+    assert_eq!(rig.rect(ids.frame), Rect::new(376.0, 58.0, 638.0, 796.0));
+    assert_eq!(rig.rect(ids.nav), Rect::new(376.0, 58.0, 638.0, 56.0));
     let cv = rig.rect(ids.cut_view);
     assert_eq!((cv.x, cv.w, cv.y), (376.0, 638.0, ARITH_TOP));
     assert_eq!((cv.w as f64, cv.h as f64), ids.cut_box, "the laid-out box is the arithmetic one");
-    assert_eq!(cv.y + cv.h, 56.0 + 798.0, "the cut view ends with the frame");
+    assert_eq!(cv.y + cv.h, 58.0 + 796.0, "the cut view ends with the frame");
     assert_eq!(rig.rect(ids.under).y, 864.0);
     assert_eq!(ids.tabs.len(), 6, "the section has no 2D and 3D tabs");
     let section = world.section.as_ref().unwrap();
@@ -248,7 +248,7 @@ fn c2_the_pixels_are_the_pictures() {
 
     // The hairlines: under the strip, and the cut view's last row.
     for x in (376..1014).step_by(7) {
-        assert_eq!(rig.px(&rgba, x, 56 + 55), LINE, "the strip's hairline at x {x}");
+        assert_eq!(rig.px(&rgba, x, 58 + 55), LINE, "the strip's hairline at x {x}");
         assert_eq!(rig.px(&rgba, x, (cv.y + cv.h) as usize - 1), LINE, "the cut view's hairline at x {x}");
     }
 }
@@ -554,15 +554,15 @@ fn c10_light_and_narrow() {
     let hits = (nav.x as usize + fr.x as usize - 1..=nav.x as usize + (fr.x + fr.w) as usize + 1).filter(|&x| rig.px(&rgba, x, mid) == text).count();
     assert!(hits >= 2, "the frame is #171717 in the light theme ({hits})");
 
-    // 1000 px: the narrower column wraps the note on two lines, and the cut view starts 18 px lower.
+    // 1000 px: the middle column is 238 wide, so the note wraps on three lines and the cut view starts 36 px lower.
     let mut narrow = Rig::new(&world, false, state(), 1000, 800);
     narrow.write("section_1000.png");
     let ids = narrow.app.ids().clone();
     let nav = narrow.rect(ids.nav);
     let cv = narrow.rect(ids.cut_view);
     let note = text::nav_note(&text::times(cut::nav_times(section.length, nav.w as f64, cut::nav_range(section, &narrow.app.shown().unwrap().ground))));
-    assert_eq!(wrap_lines(&note, nui_ui::TextLook::body(nui_ui::Tone::Muted), nav.w).len(), 2);
-    assert_eq!(cv.y - nav.y, 98.0 + 18.0, "the cut view moved down by one line");
+    assert_eq!(wrap_lines(&note, nui_ui::TextLook::body(nui_ui::Tone::Muted), nav.w).len(), 3);
+    assert_eq!(cv.y - nav.y, 98.0 + 36.0, "the cut view moved down by two lines");
     assert_eq!((cv.w as f64, cv.h as f64), ids.cut_box);
     assert_eq!(narrow.rect(ids.frame).w, nav.w);
     println!("C10: 1000 px: nav {nav:?}, cut view {cv:?}");
@@ -573,7 +573,7 @@ fn c11_a_small_window_draws_ores_two_blocks_wide() {
     let Some(world) = load() else { return };
     let mut rig = Rig::new(&world, false, state(), W, 600);
     let cv = rig.rect(rig.app.ids().cut_view);
-    assert_eq!(cv.h, 360.0);
+    assert_eq!(cv.h, 358.0);
     let c = centre(cv);
     rig.wheel(c, -30.0);
     let (bw, bh) = rig.cut_box();

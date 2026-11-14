@@ -1,4 +1,4 @@
-//! The shell drawn offscreen at the page's three widths and in both themes, and checked pixel by pixel. The
+//! The shell drawn offscreen in both themes (the widths are swept by tests/responsive.rs), and checked pixel by pixel. The
 //! pictures are written to the target's tmp folder and copied to docs/shots by hand: they are a milestone.
 
 use nui_base::{Color, Gfx, Rect, Vec2};
@@ -94,16 +94,6 @@ fn p4_the_first_row_swatch_is_its_bands_colour() {
 #[test]
 fn preview_1400_dark() {
     check(Theme::dark(), 1400, "preview_1400.png");
-}
-
-#[test]
-fn preview_1200_dark() {
-    check(Theme::dark(), 1200, "preview_1200.png");
-}
-
-#[test]
-fn preview_1000_dark() {
-    check(Theme::dark(), 1000, "preview_1000.png");
 }
 
 #[test]

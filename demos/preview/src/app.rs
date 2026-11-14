@@ -19,7 +19,7 @@ use crate::paint::{View, paint};
 use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Runs, Steps};
 use crate::scene;
 use crate::section::Shown;
-use crate::shell::{PreviewState, ShellIds, Want, build};
+use crate::shell::{PreviewState, ShellIds, Want, build, raise_to_min};
 use crate::text;
 use crate::world::World;
 
@@ -80,7 +80,7 @@ impl PreviewApp {
             ui: Ui::new(theme),
             theme,
             dark,
-            size,
+            size: raise_to_min(size),
             state,
             world,
             ids: ShellIds::default(),
@@ -535,7 +535,7 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
 
     fn event(&mut self, e: Event) -> bool {
         if let Event::Resized { width_px, height_px, scale } = e {
-            self.size = Vec2::new(width_px as f32 / scale, height_px as f32 / scale);
+            self.size = raise_to_min(Vec2::new(width_px as f32 / scale, height_px as f32 / scale));
             return true;
         }
         if let Event::Scheme { dark } = e {

@@ -1,6 +1,7 @@
 //! The world preview's shell (build plan step 13): the toolbar and the three columns of `#page`
 //! (preview.html lines 63-88, 370-449), built with `nui-ui` and filled with the page's real settings
-//! sections and static values.
+//! sections and static values. Since step 19 it has no breakpoint: the side panels are fixed (`PAGE`) and pinned to
+//! the window's edges, and the middle column is what is left, its map a square of one rule at every width.
 //!
 //! The right column follows the view with the page's own figures, lists and history (step 18). Not built: changed
 //! marks, hints and tooltips, the select's menu, the ores group; in 3D, the structure marks, the right-drag pan, keys
@@ -28,12 +29,35 @@ use crate::world::World;
 use crate::settings::{Kind, SETTINGS, grouped, pack_values};
 use crate::text;
 
-/// Height of the toolbar: 10 px of padding and the 28 px strip (line 93).
-const TOOLBAR_H: f32 = 38.0;
+/// Height of the top bar. The launcher's bar is 40 px with its hairline (launcher line 77); until the bar is drawn
+/// by the application (`bar.rs`), the strip of views is laid out in the same height.
+pub const BAR_H: f32 = 40.0;
 /// `--under` (line 227): what the stage keeps free under the map for `#under`.
 const UNDER: f32 = 64.0;
+/// The smallest window, in device-independent pixels. With the panels fixed the middle column is what is left, and
+/// at 1000 it is 238 px wide: the least that keeps the stage's export link out of the gap, and the width the bar needs.
+pub const MIN_SIZE: (f32, f32) = (1000.0, 600.0);
 
-/// The three layouts of `#page`, one per media query.
+/// The command line's rule for `--size`, in pixels: raised to `MIN_SIZE`, with a warning when it was.
+pub fn min_size_px(size: (u32, u32)) -> (u32, u32) {
+    let r = raise_to_min(Vec2::new(size.0 as f32, size.1 as f32));
+    (r.x as u32, r.y as u32)
+}
+
+/// `size` raised to `MIN_SIZE` on each side, with a warning when it was: the one rule of the window's smallest
+/// size, for the window (which the system holds at it), the command line and the application alike.
+pub fn raise_to_min(size: Vec2) -> Vec2 {
+    let raised = Vec2::new(size.x.max(MIN_SIZE.0), size.y.max(MIN_SIZE.1));
+    if raised != size {
+        nui_base::observe!(Warn, "a window of {}x{} is smaller than the least the layout holds: using {}x{}", size.x, size.y, raised.x, raised.y);
+    }
+    raised
+}
+
+/// The page's one layout. The media queries of the page (1250 and 1100 px) are not built: the maintainer's rule is
+/// that the side panels never move nor change width, whatever the window, and that the centre follows the window
+/// with one rule. These are the page's wide numbers (lines 75-81, 297, 303); they are the only widths where no
+/// settings label is cut ("Lanterns over underground rivers" is 230.4 px in a label cell of 231.4).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Columns {
     pub left: f32,
@@ -44,28 +68,9 @@ pub struct Columns {
     pub fig_gap: f32,
     /// The font size of the three goal figures.
     pub goal: f32,
-    /// The 1100 px column: the list's cells are narrower.
-    pub narrow: bool,
 }
 
-impl Columns {
-    /// `@media (max-width: 1100px)` and `(max-width: 1250px)` both match the width inclusively, and the narrower
-    /// one comes later in the file so it wins. The table is shell-boxes' own, copied so that the two do not depend
-    /// on each other.
-    pub fn for_width(w: f32) -> Columns {
-        if w <= 1100.0 {
-            // Lines 87 and 356-363.
-            Columns { left: 272.0, right: 262.0, gap: 20.0, pad: Edges::new(14.0, 16.0, 18.0, 16.0), fig_gap: 10.0, goal: 13.0, narrow: true }
-        } else if w <= 1250.0 {
-            // Lines 84 and 356-359.
-            Columns { left: 296.0, right: 280.0, gap: 24.0, pad: Edges::new(16.0, 22.0, 20.0, 22.0), fig_gap: 10.0, goal: 13.0, narrow: false }
-        } else {
-            // Lines 77-80, 297 and 303.
-            Columns { left: 320.0, right: 330.0, gap: 28.0, pad: Edges::new(18.0, 28.0, 22.0, 28.0), fig_gap: 14.0, goal: 14.0, narrow: false }
-        }
-    }
-}
-
+pub const PAGE: Columns = Columns { left: 320.0, right: 330.0, gap: 28.0, pad: Edges::new(18.0, 28.0, 22.0, 28.0), fig_gap: 14.0, goal: 14.0 };
 /// A press the shell recorded and the application acts on after the build (a frame may build up to three times,
 /// so the shell never acts itself: recording is idempotent).
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -397,7 +402,7 @@ fn rgb(c: [u8; 3]) -> Color {
 /// layout. `world` is the preview on the map, if there is one.
 pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World>, shown: Option<&Shown>) -> ShellIds {
     let t = *ui.theme();
-    let cols = Columns::for_width(size.x);
+    let cols = PAGE;
     let mut ids = ShellIds::default();
     // A map stopped at a coarser detail cannot give these views (line 2509): the page goes back to the biomes.
     if world.is_some_and(World::coarse) && matches!(s.view, 1 | 4 | 5) {
@@ -405,8 +410,8 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
     }
 
     // Line 227: `side = min(the column's width, its height - --under)`.
-    let middle_w = size.x.min(1480.0) - cols.pad.left - cols.pad.right - cols.left - cols.right - 2.0 * cols.gap;
-    let column_h = size.y - TOOLBAR_H - cols.pad.top - cols.pad.bottom;
+    let middle_w = size.x - cols.pad.left - cols.pad.right - cols.left - cols.right - 2.0 * cols.gap;
+    let column_h = size.y - BAR_H - cols.pad.top - cols.pad.bottom;
     let side = middle_w.min(column_h - UNDER).max(0.0);
     // The section takes the square's place (line 283): the column's whole width, and its height less `--under`.
     let frame_size = if s.view == 5 { (middle_w.max(0.0), (column_h - UNDER).max(0.0)) } else { (side, side) };
@@ -420,8 +425,6 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
             gap: Vec2::new(cols.gap, cols.gap),
             pad: cols.pad,
             w: Dim::Pct(100.0),
-            max_w: Dim::Px(1480.0),
-            margin: Margin::horizontal_auto(),
             ..fills()
         };
         ids.page = ui.node("page", page, |ui| {
@@ -433,11 +436,12 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
     ids
 }
 
-/// `#toolbar` (line 93) and the strip of lines 2543-2555: six views, a gap, then 2D and 3D.
+/// `#toolbar` (line 93), now `BAR_H` high, and the strip of lines 2543-2555: six views, a gap, then 2D and 3D.
 fn toolbar(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>) {
     let style = Style {
         justify: Justify::Center,
         pad: Edges::new(10.0, 16.0, 0.0, 16.0),
+        h: Dim::Px(BAR_H),
         shrink: 0.0,
         align_items: Align::Start,
         ..Style::default()
@@ -1035,16 +1039,16 @@ fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme
         let inner = Style { column: true, pad: Edges::new(if cut { 0.0 } else { 9.0 }, 0.0, 0.0, 0.0), gap: Vec2::new(0.0, 6.0), ..fills() };
         ui.node("listBody", inner, |ui| {
             if cut {
-                ore_list(ui, s, ids, cols, world, shown);
+                ore_list(ui, s, ids, world, shown);
             } else {
-                view_list(ui, s, ids, cols, world);
+                view_list(ui, s, ids, world);
             }
         });
     });
 }
 
 /// The section's list: its ores, with what the cut played of each (lines 2370-2385).
-fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Columns, world: Option<&World>, shown: Option<&Shown>) {
+fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>, shown: Option<&Shown>) {
     let title = text::ORE_LIST[0].to_uppercase();
     let section = world.and_then(|w| w.section.as_ref());
     // Names and figures of the ore rows, in `ORE_KINDS` order; empty without a cut.
@@ -1074,13 +1078,13 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Column
     ids.list_title = title;
     // Line 2370-2372: the legend names the columns; a list without a cut has no legend.
     if shown.is_some() {
-        ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1], cols.narrow);
+        ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1], false);
     }
     let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
         for (k, low, high) in &figures {
             let name = ORE_KINDS[*k];
             let row = ListRow { swatch: rgb(ORE_COLOURS[*k]), name: text::ORES[*k], width: low, share: high };
-            let opts = RowOpts { pressed: s.chosen_ores.contains(name), choosing: !s.chosen_ores.is_empty(), narrow: cols.narrow, ..RowOpts::default() };
+            let opts = RowOpts { pressed: s.chosen_ores.contains(name), choosing: !s.chosen_ores.is_empty(), narrow: false, ..RowOpts::default() };
             let r = ui.list_row(&format!("ore{k}"), &row, opts);
             ids.ores.push(r.id);
             // A click picks the ore, or lets it go (2385).
@@ -1094,7 +1098,7 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Column
 
 /// The list beside the map in the five map views (`showList` and `showChoice`, lines 1639-1758): its title, the
 /// filter, what the choice weighs, the legend and the rows.
-fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Columns, world: Option<&World>) {
+fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>) {
     let view = View::from_index(s.view).expect("the map views are 0 to 4");
     let counted = view == View::Structures;
     let list: Option<&List> = world.and_then(|w| w.measured.lists[view.index()].as_ref());
@@ -1185,7 +1189,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Colum
 
     if legend_shown {
         let (width, share) = if counted { (text::COL_SPACING, text::COL_COUNT) } else { (text::COL_WIDTH, text::COL_SHARE) };
-        ui.list_head("legend", column_word, width, share, cols.narrow);
+        ui.list_head("legend", column_word, width, share, false);
     }
 
     // The filter reads the id too, so the name of a mod finds its biomes. A chosen row stays in sight.
@@ -1198,7 +1202,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Colum
             let share = if counted { text::num(l.cells[i]) } else { percent(100.0 * l.cells[i] / total) };
             let width = blocks(l.widths[i]);
             let item = ListRow { swatch: rgb(l.colours[i]), name: &l.names[i], width: &width, share: &share };
-            let opts = RowOpts { pressed: chosen.contains(&l.ids[i]), choosing, narrow: cols.narrow, mark: counted, ..RowOpts::default() };
+            let opts = RowOpts { pressed: chosen.contains(&l.ids[i]), choosing, narrow: false, mark: counted, ..RowOpts::default() };
             let r = ui.list_row(&format!("row{i}"), &item, opts);
             ids.list_rows.push(r.id);
             ids.list_keys.push(l.ids[i].clone());
@@ -1222,7 +1226,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, cols: &Colum
                 for (k, id) in absent.iter().enumerate() {
                     let name = text::pretty(id);
                     let item = ListRow { swatch: rgb(biome_colour(id)), name: &name, width: "", share: "" };
-                    let r = ui.list_row(&format!("absent{k}"), &item, RowOpts { absent: true, narrow: cols.narrow, ..RowOpts::default() });
+                    let r = ui.list_row(&format!("absent{k}"), &item, RowOpts { absent: true, narrow: false, ..RowOpts::default() });
                     ids.absent_rows.push(r.id);
                 }
             }
