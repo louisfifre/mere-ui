@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 13 done (2026-11-14)
+## Status: steps 0 to 14 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -111,10 +111,30 @@ page capture itself.
 
 - PLACEHOLDER: the map slot (a --line square; step 14 paints the map there), the seven figures, and the 8 band widths and shares (step 18 computes them).
 - UNVERIFIED: the select's value text place (7 px from the left, centred); the reference capture's select was empty, so only its height (23) and arrow were measured. The page capture has no data, so nothing inside the settings, the run block or the list was compared with a browser.
-- Not built: changed marks (` *`, `pack X`, `N changed`, Save and naming), hints and tooltips, the select's menu, the ores group, `#note`, `#filter`, the tabs that switch lists (only their pressed state changes), the map, runs and progress, and export.
+- Not built: changed marks (` *`, `pack X`, `N changed`, Save and naming), hints and tooltips, the select's menu, the ores group, `#filter`, the tabs that switch lists (only their pressed state changes), runs and progress, and export. (`#note` and the map came with step 14.)
 - Live: folds, tab presses, the detail choice, Pack, typing in the seed and the number fields, the toggles and the wheel.
 
-Next: step 14 (the 2D map view).
+Build plan step 14 is done: `preview --data C:\Games\preview\out` draws the 2D map in the stage, in a window and as `--shot`
+(`--view`, `--biome`, `--structure`, `--look` are the page's `?view=`, `&biome=`, `&structure=`; `docs/shots/map-biomes.png`,
+`map-flat.png`, `map-relief.png`, `map-temperature.png`, `map-structures.png`, `map-biomes-light.png`,
+`map-relief-zoom8.png`). Built: `nui-base` has `Cmd::Image`, `Disc` and `Ring`; `nui-win32` draws them in Direct2D
+(a premultiplied BGRA bitmap beside each D3D texture; nearest-neighbour); `nui-ui` has `canvas`, `Resp::pressed`,
+`pointer` and `take_wheel`; `demos/preview` has `world.rs` (the out folder with flat land, structures and the cut),
+`colour.rs` (the page's colours and a regex-free matcher), `paint.rs` (`paint()` for the five views, the choosing dimming,
+the marks), `map.rs` (look, wheel, carry, grid, cross, ticks, points under the pointer), `app.rs` (`PreviewApp`),
+`json.rs` (relief's copy; step 15 leaves one) and `tools/page_paint.mjs`. `paint()` is byte-identical to the page's own
+code run by Node on `C:\Games\preview\out`, for 12 cases (five views x dark and light, a chosen-biome and a chosen-height
+case); the biome and structure colours, the structure order and the flat count are equal too. Through the window path
+the rest look shows each point as its texel, and at 8x zoom every block interior equals its texel exactly with 929
+sharp boundaries (so Direct2D's nearest-neighbour is exact at a fractional scale). Tests added: 1 in `nui-base`, 4 canvas tests in `nui-ui`, 1 in `nui-win32`, in `demos/preview` 7 unit tests
+(world, look), 6 colour tests, 1 page comparison, 4 map and 5 interaction tests.
+
+- PLACEHOLDER: the 3D and section slots (a `--line` fill; they draw in steps 15 and 16), the figures and band widths of the right column, and the list there, which still shows the height bands whatever the view.
+- UNVERIFIED, read from the page's CSS and not seen in a browser: which pixel a grid line lands on when its place is fractional, the cross's halo (two `drop-shadow(0 0 1px #000)` approximated by a 50 % black border of one pixel), the tick's row rounding, Chrome's pixelated sampling at a non-integer scale, the marks (one stroke per ring instead of one path per kind, so overlapping rings darken twice; the land under them is drawn nearest where the page smooths its 2048 px canvas), and the centring of a wrapped `#note` (its block is centred, its lines are left-aligned).
+- Not built: the `#nav`, `#navFrame` and `#navNote` of the cut (step 16); the list switching with the view and its rows mirroring the choice, the `#pick` line, the tooltips (the `needsFull` title) and cursor shapes; `openGroupsFor`; sketches and drafts (`coarse-*` and `partial-*` files), the busy opacity, export and the 3D view. A click on the map chooses (the dimming), but nothing beside the map shows the choice yet.
+- Choices where the brief was silent: a biome without a `temperature` reads 0; a point whose biome index is out of range is an error; `Look::wheel` treats a fraction of a notch as one step; the drag is read until the press ends, so the last movement before the release counts; `PreviewApp` also has `ui_mut` (for the clipboard); `ShellIds.probe_text` holds the probe's whole text because the line is cut with an ellipsis at 1400 px; commit 4 carries `colour.rs` because the world needs it, and commit 5 holds the paint, the map and the stage together because they depend on each other.
+
+Next: step 15 (the 3D view in the stage).
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
