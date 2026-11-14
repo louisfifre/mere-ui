@@ -3,12 +3,20 @@
 use crate::Color;
 use crate::math::{Rect, Vec2};
 
+/// How heavy text is drawn: the page uses regular and the 600 weight of its main button.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub enum Weight {
+    #[default]
+    Regular,
+    SemiBold,
+}
+
 #[derive(Clone, Debug)]
 pub enum Cmd {
     Fill { rect: Rect, color: Color },
     /// A frame of `width` physical pixels, drawn inside `rect`: 1 is the page's hairline at any scale.
     Frame { rect: Rect, width_px: f32, color: Color },
-    Text { at: Vec2, text: String, size: f32, color: Color },
+    Text { at: Vec2, text: String, size: f32, color: Color, weight: Weight },
     /// What is drawn up to the matching `PopClip` is cut to `rect`. Clips nest: the visible part is the
     /// intersection of the rects pushed so far.
     PushClip { rect: Rect },
@@ -29,7 +37,11 @@ impl DrawList {
     }
     /// `at` is the top-left corner of the text's line box.
     pub fn text(&mut self, at: Vec2, text: impl Into<String>, size: f32, color: Color) {
-        self.cmds.push(Cmd::Text { at, text: text.into(), size, color });
+        self.text_weighted(at, text, size, color, Weight::Regular);
+    }
+    /// Like 	ext, in the given weight.
+    pub fn text_weighted(&mut self, at: Vec2, text: impl Into<String>, size: f32, color: Color, weight: Weight) {
+        self.cmds.push(Cmd::Text { at, text: text.into(), size, color, weight });
     }
     /// Starts clipping to `rect`: the box of an `overflow: hidden` or scrolling area. Clips nest; what is drawn
     /// between this and the matching `pop_clip` is cut to the rect.

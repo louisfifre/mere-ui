@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::mem::ManuallyDrop;
 
-use nui_base::{Cmd, Color, DrawList, Gfx, ImageId, Mat4, Material, MeshId, Rect, Vertex, observe};
+use nui_base::{Cmd, Color, DrawList, Gfx, ImageId, Mat4, Material, MeshId, Rect, Vertex, Weight, observe};
 use windows::Win32::Foundation::{HMODULE, HWND};
 use windows::Win32::Graphics::Direct2D::Common::*;
 use windows::Win32::Graphics::Direct2D::*;
@@ -95,8 +95,8 @@ pub struct Renderer {
     raster: ID3D11RasterizerState,
     meshes: HashMap<MeshId, Mesh>,
     images: HashMap<ImageId, ID3D11ShaderResourceView>,
-    // One text format a size: DirectWrite formats are immutable, and sizes are few.
-    formats: HashMap<u32, IDWriteTextFormat>,
+    // One text format a size and weight: DirectWrite formats are immutable, and sizes are few.
+    formats: HashMap<(u32, Weight), IDWriteTextFormat>,
     // None when IBM Plex Mono could not be loaded: text is then drawn in Consolas from the system.
     fonts: Option<crate::fonts::Fonts>,
 }
@@ -481,8 +481,12 @@ impl Renderer {
         }
     }
 
-    fn format(&mut self, size: f32) -> Option<IDWriteTextFormat> {
-        let key = (size * 64.0) as u32;
+    fn format(&mut self, size: f32, weight: Weight) -> Option<IDWriteTextFormat> {
+        let key = ((size * 64.0) as u32, weight);
+        let dw_weight = match weight {
+            Weight::Regular => DWRITE_FONT_WEIGHT_NORMAL,
+            Weight::SemiBold => DWRITE_FONT_WEIGHT_SEMI_BOLD,
+        };
         if let Some(f) = self.formats.get(&key) {
             return Some(f.clone());
         }
@@ -493,7 +497,7 @@ impl Renderer {
                     .CreateTextFormat(
                         w!("IBM Plex Mono"),
                         &fonts.collection,
-                        DWRITE_FONT_WEIGHT_NORMAL,
+                        dw_weight,
                         DWRITE_FONT_STYLE_NORMAL,
                         DWRITE_FONT_STRETCH_NORMAL,
                         size,
@@ -502,7 +506,7 @@ impl Renderer {
                 None => self.dwrite.CreateTextFormat(
                     w!("Consolas"),
                     None,
-                    DWRITE_FONT_WEIGHT_NORMAL,
+                    dw_weight,
                     DWRITE_FONT_STYLE_NORMAL,
                     DWRITE_FONT_STRETCH_NORMAL,
                     size,
@@ -623,8 +627,8 @@ impl Renderer {
                         self.brush.SetColor(&d2d_color(*color));
                         self.d2d.DrawRectangle(&r, &self.brush, wd, None);
                     }
-                    Cmd::Text { at, text, size, color } => {
-                        let Some(format) = self.format(*size) else { continue };
+                    Cmd::Text { at, text, size, color, weight } => {
+                        let Some(format) = self.format(*size, *weight) else { continue };
                         let wide: Vec<u16> = text.encode_utf16().collect();
                         let r = D2D_RECT_F { left: at.x, top: at.y, right: at.x + 100_000.0, bottom: at.y + size * 2.0 };
                         self.brush.SetColor(&d2d_color(*color));

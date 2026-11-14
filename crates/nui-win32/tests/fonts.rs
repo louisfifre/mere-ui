@@ -55,3 +55,21 @@ fn text_is_drawn_in_ibm_plex_mono_with_pi_glyphs() {
         assert!(inked(&rgba, w, 16 * s, 200 * s, 44 * s, 60 * s), "12 px line drew something");
     }
 }
+
+#[test]
+fn semibold_draws_more_ink_than_regular() {
+    use nui_base::Weight;
+    let mut r = Renderer::offscreen(400, 80, 1.0).expect("offscreen renderer");
+    r.begin(Color::hex(0x000000));
+    let mut list = DrawList::default();
+    let white = Color::hex(0xececec);
+    list.text_weighted(Vec2::new(10.0, 10.0), "Generate preview", 12.0, white, Weight::Regular);
+    list.text_weighted(Vec2::new(10.0, 40.0), "Generate preview", 12.0, white, Weight::SemiBold);
+    r.draw_list(&list);
+    r.end();
+    let rgba = r.read_rgba().unwrap();
+    let sum = |y0: usize, y1: usize| -> u64 { (y0..y1).flat_map(|y| (0..400).map(move |x| (y, x))).map(|(y, x)| rgba[(y * 400 + x) * 4] as u64).sum() };
+    let (regular, semibold) = (sum(8, 30), sum(38, 60));
+    println!("ink regular {regular}, semibold {semibold}");
+    assert!(semibold as f64 > 1.15 * regular as f64, "semibold {semibold} vs regular {regular}");
+}

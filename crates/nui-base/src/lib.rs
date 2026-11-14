@@ -7,7 +7,7 @@ pub mod log;
 pub mod math;
 
 pub use camera::Orbit;
-pub use draw::{Cmd, DrawList};
+pub use draw::{Cmd, DrawList, Weight};
 pub use math::{Mat4, Rect, Vec2, Vec3};
 
 /// An sRGB colour, each channel 0..1, alpha straight (not premultiplied).
