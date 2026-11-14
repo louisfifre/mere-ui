@@ -134,6 +134,7 @@ impl Tree {
             }
         };
         if place && !is_leaf {
+            self.place_absolute(id, out.w, out.h);
             // The reach is taken after the absolute boxes are placed: they count in a scroll area's content.
             let r = self.reach(id, out.w, out.h);
             self.nodes[id.0].content = r;
