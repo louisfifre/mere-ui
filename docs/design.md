@@ -100,8 +100,12 @@ Design choices (INTERPRETATION): the draw list is plain data, so the same list c
 ```rust
 pub enum Dim { Auto, Px(f32), Pct(f32) }                  // ch/em/cq are converted to Px by the caller
 pub enum Display { Flex, Grid, Block, None }
-pub enum Track { Px(f32), Fr(f32), Auto, MinMaxFr0(f32) } // MinMaxFr0 == minmax(0, Nfr); Fr == minmax(auto, Nfr)
-pub struct Style {
+pub enum Track { Px(f32), Auto, MinMaxFr0(f32) }          // MinMaxFr0 == minmax(0, Nfr); bare `1fr` comes with step 21
+pub struct Tracks { /* up to 8 tracks inline, so that Style stays Copy */ }   // Tracks::new(&[..]), as_slice()
+pub enum Position { Static, Relative, Absolute }          // Relative marks a containing block, no offset; no Fixed yet
+pub struct Insets { pub left: Dim, pub top: Dim, pub right: Dim, pub bottom: Dim }   // Insets::all(Dim::Px(0.0)) == inset: 0
+pub enum Overflow { Visible, Hidden, ScrollY }            // ScrollY also clips x; one field, not overflow_x / overflow_y
+pub struct Style {                                        // Copy
     pub display: Display, pub column: bool, pub wrap: bool,
     pub gap: Vec2,                                          // (col gap, row gap)
     pub grow: f32, pub shrink: f32, pub basis: Dim, pub order: i32,
@@ -109,9 +113,9 @@ pub struct Style {
     pub aspect: Option<f32>,
     pub pad: Edges, pub margin: Margin /* each side Px or Auto */,
     pub align_items: Align, pub align_self: Option<Align>, pub justify: Justify,
-    pub justify_self: Option<Align>, pub cols: Vec<Track>, pub col_span_all: bool,   // grid-column: 1/-1
-    pub position: Position /* Static | Relative | Absolute */, pub inset: [Dim; 4],
-    pub overflow_x: Overflow, pub overflow_y: Overflow,     // Visible | Hidden | Scroll
+    pub cols: Tracks, pub col_span_all: bool,               // grid-template-columns; grid-column: 1/-1
+    pub justify_items: Align, pub justify_self: Option<Align>,   // the other half of place-items
+    pub position: Position, pub inset: Insets, pub overflow: Overflow,
 }
 pub enum Align { Start, Center, End, Stretch, Baseline }
 pub struct Tree { /* arena: Vec<Node>, children: Vec<Vec<NodeId>> */ }
@@ -326,7 +330,7 @@ All screenshots are produced by `nui-shot <view-name> <w>x<h> [--scale 1.5] [--t
 | 5 | 3D pipeline: HLSL, depth, one coloured triangle under D2D text | Triangle (red/green/blue vertices) overlapped by a rectangle drawn with `Cmd::Viewport` order: UI below, triangle, UI overlay on top, proving the segment flush | 3 |
 | 6 | Heightfield mesh + orbit camera + water plane from synthetic noise, then real `heights.bin`/`biomes.bin` | Fixed camera: terrain shaded by height, a translucent blue water plane covering low areas; same camera as the three.js page gives visually similar silhouette (compare to a browser screenshot) | 6 |
 | 7 | `nui-layout` pure crate: flex (steps 1-10), unit tests on rects; debug dump | No GPU: `cargo test` asserts. Then a debug PNG draws node boxes with names for the preview shell at 1400, 1200, 1000 px width: three columns 320/fluid/330, 296/fluid/280, 272/fluid/262; no overlap | 6 |
-| 8 | Grid + absolute + overflow in `nui-layout` | Debug PNG of the gallery layouts: `minmax(0,1fr) auto 8ch` row, 3-equal-column row, `12px 1fr 6ch 5ch 5ch 14px` history row; an absolute badge at the top-right of a box | 5 |
+| 8 | Grid + absolute + overflow in `nui-layout` | Debug PNG of the gallery (`demos/shell-boxes`, `target/tmp/gallery.png`): the page's own rows and boxes, not invented ones: three `.setting` rows (`minmax(0,1fr) auto 8ch`) with the hint, `#figures`, the ore head and rows (`12px 1fr 6ch 5ch 5ch 14px`), biome rows, `#details` (3 equal columns), `#generate` beside the 34 px `#stopRun`, and the `#frame` stack (`#flat` clipped, `#cutLine` out by 9 px, `#note` centred, `#under` below) and a 90 px scroll box | 5 |
 | 9 | `nui-ui` core: Ui, ids, input, draw list, theme dark/light; label, button, toggle | Gallery PNG: labels in text/muted/warn tones, buttons in normal/hover/active (hover injected by the harness), toggle on/off; dark and light variants | 5 |
 | 10 | Fold, slider, number field (without typing), tabs | Gallery: a folded and an open section with a chevron, sliders at 0/50/100 %, number fields right-aligned, tab strip with the second tab selected | 5 |
 | 11 | Text field: model + keys + caret + selection + clipboard (no IME) | Gallery: field with `1234567890` caret at 4; same with a selection from 2 to 6 highlighted; scrolled long text with the caret at the end. A harness script injects keys and takes PNGs after each | 7 |

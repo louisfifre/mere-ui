@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 6 done (2026-11-14)
+## Status: steps 0 to 8 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -25,7 +25,23 @@ with IBM's official LICENSE.txt before anything is published. Build plan step 7 
 28 rect tests, dump) and `demos/shell-boxes`, whose pictures at 1400, 1200 and 1000 px match the page's
 column widths; heights and the strip width the page does not fix are marked PLACEHOLDER there.
 
-Next: the rest of the page's panels, build plan steps 8 to 13 (grid, absolute and overflow, then `nui-ui`).
+Build plan step 8 is done: `nui-layout` has a reduced grid (`grid.rs`: columns of a length, `auto` or
+`minmax(0, Nfr)`, implicit rows, `place-items`, `1 / -1`), absolute boxes against their parent (`absolute.rs`),
+and `overflow` (the flex automatic minimum of 0 and `content_size`; the scroll offset is `nui-ui`'s). `DrawList`
+has `push_clip`/`pop_clip`, drawn by Direct2D as aliased clips. `demos/shell-boxes` now builds `#page` as a real
+grid (tests/shell.rs unchanged) and has the gallery (`target/tmp/gallery.png`, 718 x 700). 28 flex, 14 grid and
+11 position tests; the numbers are derived by hand from the page's CSS. Plex Mono's baseline at 1.125 em is
+still UNVERIFIED, and the gallery's figures, durations, stage height, cut line top and biome names are
+PLACEHOLDER. Not built: grid rows, areas, spans other than 1 and `1 / -1`, bare `1fr`, `position: fixed`.
+
+Two observations read from the page's CSS cascade, not checked in a browser:
+
+- `#details` also carries the class `choice`, so it inherits `gap: 4px` and `align-items: baseline` (line 147):
+  its buttons are 3 px apart despite `margin-left: -1px`, they do not share hairlines.
+- `.ore-row.head` is 11 px, so its `6ch` / `5ch` columns are narrower than the rows' (39.6 / 33 against 43.2 /
+  36): the head words sit about 10 px right of the fields' left edges, and about 6 px right of their right edges.
+
+Next: `nui-ui` and the panels, build plan steps 9 to 13.
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
