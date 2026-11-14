@@ -31,6 +31,10 @@ pub enum Cmd {
     /// An open stroke of width DIP through the points: round joins, flat ends (SVG stroke-linejoin: round
     /// with the default butt caps). Fewer than two points draw nothing.
     Polyline { points: Vec<Vec2>, width: f32, color: Color },
+    /// A filled shape: closed figures in a grid of `grid` units laid over `rect` (an SVG path in its viewBox),
+    /// nonzero rule. `crisp`: every vertex snapped to the device pixel grid and filled aliased (pixel icons);
+    /// else antialiased (slopes).
+    Shape { rect: Rect, grid: f32, figures: Vec<Vec<Vec2>>, color: Color, crisp: bool },
 }
 
 impl Cmd {
@@ -53,6 +57,9 @@ impl Cmd {
             }
             Cmd::Polyline { points, width, color } => {
                 Cmd::Polyline { points: points.iter().map(|p| mp(*p)).collect(), width: *width, color: *color }
+            }
+            Cmd::Shape { rect, grid, figures, color, crisp } => {
+                Cmd::Shape { rect: mv(*rect), grid: *grid, figures: figures.clone(), color: *color, crisp: *crisp }
             }
         }
     }
@@ -99,6 +106,9 @@ impl DrawList {
     pub fn polyline(&mut self, points: Vec<Vec2>, width: f32, color: Color) {
         self.cmds.push(Cmd::Polyline { points, width, color });
     }
+    pub fn shape(&mut self, rect: Rect, grid: f32, figures: Vec<Vec<Vec2>>, color: Color, crisp: bool) {
+        self.cmds.push(Cmd::Shape { rect, grid, figures, color, crisp });
+    }
 }
 
 #[cfg(test)]
@@ -143,6 +153,14 @@ mod tests {
         match (Cmd::Polyline { points: vec![Vec2::new(1.0, 2.0), Vec2::new(3.0, 4.0)], width: 1.5, color: c }).translated(d) {
             Cmd::Polyline { points, width, .. } => {
                 assert_eq!((points, width), (vec![Vec2::new(11.0, 22.0), Vec2::new(13.0, 24.0)], 1.5))
+            }
+            _ => panic!(),
+        }
+        // A shape moves its rect only: its figures are in grid units, relative to the rect.
+        let fig = vec![vec![Vec2::new(0.0, 0.0), Vec2::new(4.0, 0.0), Vec2::new(4.0, 4.0)]];
+        match (Cmd::Shape { rect: Rect::new(1.0, 2.0, 16.0, 16.0), grid: 24.0, figures: fig.clone(), color: c, crisp: true }).translated(d) {
+            Cmd::Shape { rect, grid, figures, crisp, .. } => {
+                assert_eq!((rect, grid, figures, crisp), (Rect::new(11.0, 22.0, 16.0, 16.0), 24.0, fig, true))
             }
             _ => panic!(),
         }

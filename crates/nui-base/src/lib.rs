@@ -9,8 +9,7 @@ pub mod process;
 
 pub use camera::Orbit;
 pub use draw::{Cmd, DrawList, Weight};
-pub use math::{Mat4, Rect, Vec2, Vec3};
-pub use process::Launcher;
+pub use math::{Mat4, Rect, Vec2, Vec3};pub use process::Launcher;
 
 /// An sRGB colour, each channel 0..1, alpha straight (not premultiplied).
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -91,6 +90,67 @@ pub enum Event {
     CloseRequested,
     /// The system's light or dark setting changed, as the page's prefers-color-scheme.
     Scheme { dark: bool },
+    /// The window's state: sent at start and whenever it changes.
+    Window { maximized: bool },
+    /// The pointer left the window, so nothing is hovered any more.
+    PointerLeft,
+}
+
+/// Where a point of a window with its own frame falls: what the system does with a press there.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Hit {
+    Client,
+    Caption,
+    Resize(Edge),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Edge {
+    N,
+    S,
+    E,
+    W,
+    NW,
+    NE,
+    SW,
+    SE,
+}
+
+/// The pointer's shapes the pages use (CSS cursor). Grab stands for grab and grabbing.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum Cursor {
+    #[default]
+    Arrow,
+    Hand,
+    IBeam,
+    Crosshair,
+    Grab,
+    ResizeNS,
+    ResizeEW,
+    ResizeNWSE,
+    ResizeNESW,
+}
+
+impl Hit {
+    /// The shape the system shows there: the sizing arrows on an edge, the arrow elsewhere.
+    pub fn cursor(self) -> Cursor {
+        match self {
+            Hit::Client | Hit::Caption => Cursor::Arrow,
+            Hit::Resize(Edge::N | Edge::S) => Cursor::ResizeNS,
+            Hit::Resize(Edge::E | Edge::W) => Cursor::ResizeEW,
+            Hit::Resize(Edge::NW | Edge::SE) => Cursor::ResizeNWSE,
+            Hit::Resize(Edge::NE | Edge::SW) => Cursor::ResizeNESW,
+        }
+    }
+}
+
+/// What an application asks of its window, taken once.
+#[derive(Clone, Debug, PartialEq)]
+pub enum WindowRequest {
+    Minimize,
+    ToggleMaximize,
+    Close,
+    Title(String),
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -143,4 +203,25 @@ pub trait App {
     fn frame(&mut self, gfx: &mut dyn Gfx, seconds: f32) -> bool;
     /// Runs once, after the backend is ready and before the first frame: uploads meshes and images.
     fn start(&mut self, gfx: &mut dyn Gfx);
+    /// What a press at `pos` (DIP) does in a window with its own frame. Only asked there.
+    fn hit(&self, _pos: Vec2) -> Hit {
+        Hit::Client
+    }
+    /// The pointer's shape over the client area, as of the last frame.
+    fn cursor(&self) -> Cursor {
+        Cursor::Arrow
+    }
+    /// What the application asks of its window; the backend asks again until it gets None.
+    fn take_request(&mut self) -> Option<WindowRequest> {
+        None
+    }
+    /// Seconds until a frame is wanted with no event (a tooltip's delay, a progress read); None for never.
+    fn wake_in(&self) -> Option<f32> {
+        None
+    }
+    /// Work with no drawing, called while the window is hidden (minimised or covered); true when a frame
+    /// is then wanted.
+    fn tick(&mut self) -> bool {
+        false
+    }
 }

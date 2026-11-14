@@ -24,6 +24,8 @@ const WANTED_SAMPLES: u32 = 4;
 
 // Direct2D's "make the target again" (D2DERR_RECREATE_TARGET), which windows-rs does not export.
 const D2DERR_RECREATE_TARGET: HRESULT = HRESULT(0x8899000C_u32 as i32);
+// Present's success code for "the window is not visible" (DXGI_STATUS_OCCLUDED), likewise not exported.
+const DXGI_STATUS_OCCLUDED: HRESULT = HRESULT(0x087A0001);
 
 const SHADERS: &str = r#"
 cbuffer Frame : register(b0) { float4x4 view_proj; float4 tint; };
@@ -85,6 +87,8 @@ pub struct Renderer {
     // True from `begin` until the 3D pass is resolved into the picture (a no-op without multisampling).
     unresolved: bool,
     lost: bool,
+    // Present said the window is covered or minimised: drawing it would only waste the processor.
+    occluded: bool,
     vs: ID3D11VertexShader,
     ps_image: ID3D11PixelShader,
     ps_flat: ID3D11PixelShader,
@@ -285,6 +289,7 @@ impl Renderer {
                 samples,
                 unresolved: false,
                 lost: false,
+                occluded: false,
                 vs: vs.unwrap(),
                 ps_image: ps_image.unwrap(),
                 ps_flat: ps_flat.unwrap(),
@@ -395,6 +400,37 @@ impl Renderer {
 
     pub fn lost(&self) -> bool {
         self.lost
+    }
+
+    /// True when the last Present said the window is not visible.
+    pub fn occluded(&self) -> bool {
+        self.occluded
+    }
+
+    /// Asks the system whether the window shows again, without drawing: a test present. Clears the flag then.
+    pub fn still_occluded(&mut self) -> bool {
+        if let Target::Window(chain) = &self.target {
+            let hr = unsafe { chain.Present(0, DXGI_PRESENT_TEST) };
+            self.occluded = hr == DXGI_STATUS_OCCLUDED;
+        } else {
+            self.occluded = false;
+        }
+        self.occluded
+    }
+
+    /// Has the system post `msg` to the window when it becomes visible or covered.
+    pub fn watch_occlusion(&self, hwnd: HWND, msg: u32) {
+        let factory: Result<IDXGIFactory2> = unsafe { self.device.cast::<IDXGIDevice>().and_then(|d| d.GetAdapter()?.GetParent()) };
+        match factory.and_then(|f| unsafe { f.RegisterOcclusionStatusWindow(hwnd, msg) }) {
+            Ok(_) => {}
+            Err(e) => observe!(Warn, "occlusion status not watched: {e}"),
+        }
+    }
+
+    /// For tests: flags the device as lost, as a failed Present would.
+    #[doc(hidden)]
+    pub fn mark_lost(&mut self) {
+        self.lost = true;
     }
 
     /// Records a failure, and flags the device as lost when the error says so.
@@ -628,7 +664,45 @@ impl Renderer {
                     }
                     Cmd::Fill { rect, color } => {
                         self.brush.SetColor(&d2d_color(*color));
-                        self.d2d.FillRectangle(&d2d_rect(*rect), &self.brush);
+                        self.d2d.FillRectangle(&d2d_rect(snap_fill(*rect, self.scale)), &self.brush);
+                    }
+                    Cmd::Shape { rect, grid, figures, color, crisp } => {
+                        if figures.is_empty() || *grid <= 0.0 {
+                            continue;
+                        }
+                        let s = self.scale;
+                        let geometry = self.factory.CreatePathGeometry()?;
+                        let sink = geometry.Open()?;
+                        sink.SetFillMode(D2D1_FILL_MODE_WINDING);
+                        // The point type belongs to a crate this one may not name, so it is taken from an ellipse's centre.
+                        let pt = |p: &nui_base::Vec2| {
+                            let mut x = rect.x + p.x * rect.w / grid;
+                            let mut y = rect.y + p.y * rect.h / grid;
+                            if *crisp {
+                                x = (x * s).round() / s;
+                                y = (y * s).round() / s;
+                            }
+                            let mut v = D2D1_ELLIPSE::default().point;
+                            v.X = x;
+                            v.Y = y;
+                            v
+                        };
+                        for figure in figures.iter().filter(|f| f.len() >= 2) {
+                            sink.BeginFigure(pt(&figure[0]), D2D1_FIGURE_BEGIN_FILLED);
+                            let rest: Vec<_> = figure[1..].iter().map(pt).collect();
+                            sink.AddLines(&rest);
+                            sink.EndFigure(D2D1_FIGURE_END_CLOSED);
+                        }
+                        sink.Close()?;
+                        self.brush.SetColor(&d2d_color(*color));
+                        // Pixel icons are fills of whole device pixels: coverage would grey their edges.
+                        if *crisp {
+                            self.d2d.SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+                        }
+                        self.d2d.FillGeometry(&geometry, &self.brush, None);
+                        if *crisp {
+                            self.d2d.SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+                        }
                     }
                     Cmd::Frame { rect, width_px, color } => {
                         // `width_px` counts logical pixels, so a hairline is one of them: `scale` device
@@ -860,8 +934,13 @@ impl Gfx for Renderer {
         }
         self.resolve();
         let presented = match &self.target {
-            // Waits for the next refresh of the screen: one frame a refresh at most, never torn.
-            Target::Window(chain) => unsafe { chain.Present(1, DXGI_PRESENT(0)).ok() },
+            // Waits for the next refresh of the screen: one frame a refresh at most, never torn. A success
+            // code says the window is covered (`.ok()` would hide it).
+            Target::Window(chain) => {
+                let hr = unsafe { chain.Present(1, DXGI_PRESENT(0)) };
+                self.occluded = hr == DXGI_STATUS_OCCLUDED;
+                hr.ok()
+            }
             Target::Offscreen(_) => {
                 unsafe { self.ctx.Flush() };
                 Ok(())
@@ -981,6 +1060,23 @@ fn ellipse(center: nui_base::Vec2, radius: f32) -> D2D1_ELLIPSE {
 
 fn d2d_rect(r: Rect) -> D2D_RECT_F {
     D2D_RECT_F { left: r.x, top: r.y, right: r.x + r.w, bottom: r.y + r.h }
+}
+
+/// A filled box as Chrome snaps it. A rule (1 DIP or less, above 0) keeps its start rounded and at least one
+/// device pixel of length, which matches `Frame`'s hairline; any other edge is rounded.
+fn snap_fill(r: Rect, scale: f32) -> Rect {
+    let axis = |origin: f32, len: f32| -> (f32, f32) {
+        if len > 0.0 && len <= 1.0 {
+            let start = (origin * scale).round();
+            (start / scale, (len * scale).round().max(1.0) / scale)
+        } else {
+            let (a, b) = ((origin * scale).round(), ((origin + len) * scale).round());
+            (a / scale, (b - a) / scale)
+        }
+    };
+    let (x, w) = axis(r.x, r.w);
+    let (y, h) = axis(r.y, r.h);
+    Rect::new(x, y, w, h)
 }
 
 /// The rectangle moved to whole physical pixels.

@@ -305,3 +305,52 @@ fn image_nearest_blocks() {
     assert_eq!(px(52, 52), [255, 0, 0], "disc centre is red");
     assert_eq!(px(52 + 10, 52), GROUND, "ten pixels from the disc is ground");
 }
+fn fill_scene(rows: fn(&mut dyn Gfx, f32, f32), w: u32, h: u32, scale: f32) -> Vec<u8> {
+    let mut scene = Scene { triangle: [[0.0; 2]; 3], draw: rows };
+    nui_win32::shot(&mut scene, w, h, scale).expect("offscreen frame")
+}
+
+/// F1: a rule one DIP thick is whole device rows at any scale, exactly the colour, nothing grey beside it.
+#[test]
+fn f1_a_one_dip_fill_is_whole_device_rows() {
+    let rule: fn(&mut dyn Gfx, f32, f32) = |gfx, _, _| {
+        let mut l = DrawList::default();
+        l.fill(Rect::new(0.0, 39.0, 40.0, 1.0), Color::hex(0xececec));
+        gfx.draw_list(&l);
+    };
+    for (scale, rows) in [(1.0f32, 1u32), (1.5, 2), (2.0, 2)] {
+        let (w, h) = ((40.0 * scale) as u32, (60.0 * scale) as u32);
+        let rgba = fill_scene(rule, w, h, scale);
+        let px = |x: u32, y: u32| {
+            let i = ((y * w + x) * 4) as usize;
+            [rgba[i], rgba[i + 1], rgba[i + 2]]
+        };
+        let first = (39.0 * scale).round() as u32;
+        for y in 0..h {
+            for x in 0..w {
+                let want = if (first..first + rows).contains(&y) { [0xec; 3] } else { GROUND };
+                assert_eq!(px(x, y), want, "scale {scale}, pixel ({x}, {y})");
+            }
+        }
+    }
+}
+
+/// F2: a box with fractional edges covers whole pixels: columns 10..30 at scale 1, no partial pixel.
+#[test]
+fn f2_a_fractional_fill_covers_whole_pixels() {
+    let boxed: fn(&mut dyn Gfx, f32, f32) = |gfx, _, _| {
+        let mut l = DrawList::default();
+        l.fill(Rect::new(10.4, 5.0, 20.3, 10.0), Color::hex(0xececec));
+        gfx.draw_list(&l);
+    };
+    let (w, h) = (50u32, 20u32);
+    let rgba = fill_scene(boxed, w, h, 1.0);
+    for y in 0..h {
+        for x in 0..w {
+            let i = ((y * w + x) * 4) as usize;
+            let want = if (10..31).contains(&x) && (5..15).contains(&y) { [0xec; 3] } else { GROUND };
+            // 10.4 rounds to 10 and 30.7 rounds to 31: columns 10..31.
+            assert_eq!([rgba[i], rgba[i + 1], rgba[i + 2]], want, "pixel ({x}, {y})");
+        }
+    }
+}
