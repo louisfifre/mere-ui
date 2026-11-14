@@ -1,0 +1,126 @@
+//! The page's pressed-state buttons: the toolbar's strip, the choices drawn in reverse, and `#details`.
+//! The app decides which tab is pressed (the page's strip lights one tab in each of two groups); a click is
+//! reported in `Resp.clicked` and the app changes its selection, which the next frame shows.
+
+use nui_base::Color;
+use nui_layout::{Align, Dim, Display, Edges, Margin, Position, Side, Style, Track, Tracks};
+use nui_base::Vec2;
+
+use crate::text::{TextLook, Tone};
+use crate::theme::mix;
+use crate::ui::{Paint, Resp, Ui};
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum TabLook {
+    /// `.strip button` (lines 95-99): the toolbar's boxes sharing their hairlines.
+    Strip,
+    /// `.choice button` with aria-pressed (lines 147-150, 202): words, the current one in reverse.
+    Choice,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct TabOpts {
+    pub pressed: bool,
+    pub disabled: bool,
+}
+
+/// `.strip` (line 95).
+pub fn strip_style() -> Style {
+    Style { align_items: Align::Stretch, pad: Edges::new(0.0, 0.0, 0.0, 1.0), ..Style::default() }
+}
+
+/// `.choice` (line 147).
+pub fn choice_style() -> Style {
+    Style { gap: Vec2::new(4.0, 0.0), align_items: Align::Baseline, ..Style::default() }
+}
+
+/// `#details` (line 195) plus the `.choice` class it also carries (line 394, the step 8 observation).
+pub fn details_style() -> Style {
+    Style {
+        display: Display::Grid,
+        cols: Tracks::new(&[Track::MinMaxFr0(1.0); 3]),
+        pad: Edges::new(0.0, 0.0, 0.0, 1.0),
+        gap: Vec2::new(4.0, 4.0),
+        align_items: Align::Baseline,
+        ..Style::default()
+    }
+}
+
+fn overlap() -> Margin {
+    Margin { left: Side::Px(-1.0), ..Margin::default() }
+}
+
+impl Ui {
+    /// A tab of the strip or a choice. Two adjacent tabs both count as hovered on their shared 1 px seam
+    /// (the browser gives it to the later one): accepted.
+    pub fn tab(&mut self, key: &str, text: &str, look: TabLook, opts: TabOpts) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, opts.disabled);
+        let t = *self.theme();
+        let lit = resp.hovered || resp.held;
+        // CSS opacity .35 on the whole box (lines 99, 202): every colour fades, fill included.
+        let fade = |c: Color| if opts.disabled { t.faded(c, 0.35) } else { c };
+        // DELIBERATE DIFFERENCE: in the page's cascade `.strip button:hover:not(:disabled)` (0,3,1) beats
+        // `[aria-pressed=true]` (0,2,1), so hovering the pressed strip tab paints its word in --text on a
+        // --text ground and the word vanishes. We keep the pressed word on hover.
+        let word = if opts.pressed {
+            t.ground
+        } else if lit {
+            t.text
+        } else {
+            t.muted
+        };
+        let fill = opts.pressed.then_some(fade(t.text));
+        let (style, frame) = match look {
+            TabLook::Strip => (
+                Style {
+                    h: Dim::Px(28.0),
+                    pad: Edges::vh(1.0, 13.0),
+                    margin: overlap(),
+                    align_items: Align::Center,
+                    position: if opts.pressed { Position::Relative } else { Position::Static },
+                    ..Style::default()
+                },
+                Some(fade(if opts.pressed { t.text } else { t.edge })),
+            ),
+            TabLook::Choice => (Style { pad: Edges::vh(1.0, 6.0), ..Style::default() }, None),
+        };
+        self.open(key, id, style, Paint::Box { fill, frame });
+        self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
+        self.close();
+        resp
+    }
+
+    /// `#details button` (lines 195-200): a word and its wait on a second, smaller line. No hover rule
+    /// exists for it.
+    pub fn detail_tab(&mut self, key: &str, text: &str, sub: &str, opts: TabOpts) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, opts.disabled);
+        let t = *self.theme();
+        let fade = |c: Color| if opts.disabled { t.faded(c, 0.35) } else { c };
+        let style = Style {
+            column: true,
+            pad: Edges::vh(4.0, 7.0),
+            margin: overlap(),
+            align_items: Align::Start,
+            position: if opts.pressed { Position::Relative } else { Position::Static },
+            ..Style::default()
+        };
+        let fill = opts.pressed.then_some(fade(t.text));
+        let frame = fade(if opts.pressed { t.text } else { t.edge });
+        self.open(key, id, style, Paint::Box { fill, frame: Some(frame) });
+        let word = if opts.pressed { t.ground } else { t.text };
+        self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
+        // `small` inherits the unitless 1.5 line height; pressed, colour inherit at opacity .7 over the fill.
+        let small = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Text) };
+        let sub_color = if opts.pressed { mix(t.ground, 0.7, t.text) } else { t.muted };
+        self.add_text(sub, small, fade(sub_color), false, Style::default());
+        self.close();
+        resp
+    }
+
+    /// `.strip .sep` (line 100): the 12 px between two groups of the strip. Not keyed.
+    pub fn strip_gap(&mut self) {
+        self.add("sep", Style { w: Dim::Px(12.0), shrink: 0.0, ..Style::default() }, Paint::None);
+    }
+}

@@ -151,6 +151,12 @@ impl Ui {
         n
     }
 
+    /// Changes a node's style after it was added: a widget learns its state (a fold's click) only once its
+    /// container is already open.
+    pub(crate) fn restyle(&mut self, n: NodeId, style: Style) {
+        *self.tree.style_mut(n) = style;
+    }
+
     pub(crate) fn close(&mut self) {
         self.stack.pop();
     }
