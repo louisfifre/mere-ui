@@ -4,6 +4,7 @@
 use crate::math::{Mat4, Vec3};
 use std::f32::consts::FRAC_PI_2;
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct Orbit {
     pub target: Vec3,
     /// Where the camera is heading; the current values move towards these each frame.
@@ -17,7 +18,7 @@ pub struct Orbit {
     pub min_distance: f32,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 struct Pose {
     yaw: f32,
     pitch: f32,
