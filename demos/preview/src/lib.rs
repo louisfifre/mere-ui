@@ -8,6 +8,7 @@ pub mod cut;
 pub mod json;
 pub mod map;
 pub mod paint;
+pub mod run;
 pub mod scene;
 pub mod section;
 pub mod settings;

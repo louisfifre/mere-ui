@@ -3,7 +3,8 @@
 //! 532-574), its range and step, and the pack's value.
 //!
 //! The pack values are those of the run "tectonic", the run cap-1, in `C:\Games\preview\out\run.json`. They are
-//! copied here once and the file is never read at runtime: the live values come with a later step.
+//! copied here once and are the pack's: `SETTINGS.pack` is never read from a file. A run's own `run.json` is read
+//! at runtime (`world::Made`), for the form and the "up to date" test, not for these.
 
 use nui_ui::NumberSpec;
 

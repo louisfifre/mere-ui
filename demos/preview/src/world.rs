@@ -29,6 +29,14 @@ pub struct Structures {
     pub order: Vec<usize>,
 }
 
+/// What a run was asked for, read from `run.json` (`loadWorld`, lines 1150-1163): the seed and the Tectonic
+/// values that made the map. Missing for a folder the generator made before it wrote the file.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Made {
+    pub seed: String,
+    pub tectonic: Vec<(String, f64)>,
+}
+
 #[derive(Clone, Debug)]
 pub struct World {
     pub seed: String,
@@ -52,6 +60,8 @@ pub struct World {
     /// The page's total of biomes: those met plus the surface ones the generator can place that this area
     /// lacks. None when `preview.json` does not list what the generator can place.
     pub biome_total: Option<usize>,
+    /// The run that made this folder, when `run.json` says.
+    pub made: Option<Made>,
 }
 
 impl World {
@@ -122,6 +132,7 @@ impl World {
             structures: load_structures(dir),
             section: Section::load(dir),
             biome_total,
+            made: load_made(dir),
         })
     }
 
@@ -183,6 +194,16 @@ fn flat_land(heights: &[i16], n: usize, sea: f64) -> Vec<u8> {
 fn read_json(dir: &Path, name: &str) -> Option<Json> {
     let text = std::fs::read(dir.join(name)).ok()?;
     Json::parse(std::str::from_utf8(&text).ok()?).ok()
+}
+
+/// `run.json`: the seed (a text, or a number if the generator wrote one) and the values as numbers. A file that is
+/// missing or does not parse is no run to speak of, not an error: the form then keeps what it has.
+fn load_made(dir: &Path) -> Option<Made> {
+    let data = read_json(dir, "run.json")?;
+    let seed = data.get("seed")?.text()?;
+    let Json::Obj(fields) = data.get("tectonic")? else { return None };
+    let tectonic = fields.iter().filter_map(|(k, v)| Some((k.clone(), v.num()?))).collect();
+    Some(Made { seed, tectonic })
 }
 
 /// Lines 1171-1185. Nothing when the file is missing or lacks either array: older previews have none.

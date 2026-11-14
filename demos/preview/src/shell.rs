@@ -21,6 +21,7 @@ use nui_ui::{
 use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
 use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
 use crate::paint::{View, rows};
+use crate::run::{self, Ask, Follow, Pace, Steps};
 use crate::scene;
 use crate::section::{ORE_COLOURS, ORE_KINDS, Shown};
 use crate::world::World;
@@ -66,6 +67,16 @@ impl Columns {
     }
 }
 
+/// A press the shell recorded and the application acts on after the build (a frame may build up to three times,
+/// so the shell never acts itself: recording is idempotent).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Want {
+    Generate,
+    Stop,
+    Export,
+    OpenFolder,
+}
+
 /// What the application owns; the widgets read it and a click or a keystroke changes it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreviewState {
@@ -103,6 +114,33 @@ pub struct PreviewState {
     pub nav_carry: Option<f64>,
     /// The ores chosen in the section's list, by kind name (`chosen.section`): the cut draws these alone.
     pub chosen_ores: BTreeSet<String>,
+    /// The scanned area in 16-block points, the page's `samples` (what the area select holds).
+    pub samples: u32,
+    /// What the map on screen was made from (the page's `shown`): a fact of the world, whatever the form says.
+    pub made: Option<Ask>,
+    /// The run being followed, if one is under way.
+    pub follow: Option<Follow>,
+    /// The status line's two sentences that outlive a run: the trouble (in the warning tone) and what was said.
+    pub trouble: String,
+    pub said: String,
+    /// `#steps`: the last run's steps, or an export's notice.
+    pub steps: Steps,
+    /// The press to act on after this build.
+    pub want: Option<Want>,
+    /// A copy of the learned pace the shell reads for the detail tabs' waits; the application owns the file.
+    pub pace: Pace,
+}
+
+impl PreviewState {
+    /// The page after `loadWorld`: the form holds the settings of the run that made the map.
+    pub fn for_world(world: Option<&World>) -> PreviewState {
+        let mut s = PreviewState::default();
+        if let Some(ask) = world.and_then(run::ask_of) {
+            run::adopt(&mut s, &ask);
+            s.made = Some(ask);
+        }
+        s
+    }
 }
 
 impl Default for PreviewState {
@@ -130,6 +168,14 @@ impl Default for PreviewState {
             cut_carry: None,
             nav_carry: None,
             chosen_ores: BTreeSet::new(),
+            samples: 256,
+            made: None,
+            follow: None,
+            trouble: String::new(),
+            said: String::new(),
+            steps: Steps::Empty,
+            want: None,
+            pace: Pace::default(),
         }
     }
 }

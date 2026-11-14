@@ -925,6 +925,7 @@ mod tests {
             structures: None,
             section: None,
             biome_total: None,
+            made: None,
         }
     }
 

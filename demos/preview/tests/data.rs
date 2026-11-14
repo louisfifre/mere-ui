@@ -46,3 +46,20 @@ fn d4_area_probe() {
     assert_eq!(area_probe("4,096", "512", false), "4,096 \u{d7} 4,096 blocks, north up. One square: 512 blocks. Cross: 0,0.");
     assert!(area_probe("4,096", "512", true).ends_with(" Ticks: the cut."));
 }
+
+#[test]
+fn d5_run_json_gives_the_ask_of_the_loaded_world() {
+    use preview::run::ask_of;
+    use preview::settings::pack_values;
+    use preview::world::World;
+    let dir = std::path::Path::new(r"C:\Games\preview\out");
+    if !dir.join("preview.json").exists() {
+        println!("skipped: no C:\\Games\\preview\\out");
+        return;
+    }
+    let world = World::load(dir).unwrap();
+    assert_eq!(world.made.as_ref().expect("run.json is read").seed, "cap-1");
+    let ask = ask_of(&world).unwrap();
+    assert_eq!((ask.seed.as_str(), ask.samples, ask.detail), ("cap-1", 256, 16));
+    assert_eq!(ask.values, pack_values());
+}

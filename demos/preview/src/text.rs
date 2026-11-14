@@ -50,6 +50,73 @@ pub const GROUPS: [&str; 5] = ["Biome size and climate", "Relief", "Continents, 
 /// Lines 605-611, in key order.
 pub const FIGURE_NAMES: [&str; 7] = ["Flat land", "Typical flat zone", "Typical biome", "Sea", "High land", "Highest peak", "Biomes present"];
 
+/// Line 468.
+pub const GENERATING: &str = "Generating\u{2026}";
+/// Line 469, kept for the tooltips of a later step.
+pub const STOP: &str = "Stop the run";
+/// Line 470.
+pub fn running(elapsed: &str, about: &str) -> String {
+    format!("{elapsed} of about {about}.")
+}
+/// Line 471.
+pub fn measuring(elapsed: &str) -> String {
+    format!("{elapsed}. A first run at this detail: its time is kept for the next ones.")
+}
+/// Line 473.
+pub const STEP_START: &str = "Starting the game";
+/// Line 474.
+pub fn step_sketch(step: u32) -> String {
+    format!("Sketch, every {step} blocks")
+}
+/// Line 475.
+pub fn step_last(step: u32) -> String {
+    format!("Map, every {step} blocks")
+}
+/// Line 476.
+pub const STEP_EXTRAS: &str = "Cuts, ores and structures";
+/// Line 479.
+pub const STOPPED: &str = "Stopped. The map is the one from before.";
+/// Line 482.
+pub const EXPORTING: &str = "Exporting\u{2026}";
+/// Line 483.
+pub fn export_step(view: &str) -> String {
+    format!("Pictures: {view}")
+}
+/// Line 485.
+pub const EXPORTED: &str = "Exported.";
+/// Line 486.
+pub const EXPORTED_TO: &str = "Exported to";
+/// Line 487.
+pub const OPEN_FOLDER: &str = "Open the folder";
+/// Line 488.
+pub const CLOSE_NOTICE: &str = "Close";
+/// Line 489.
+pub const OPEN_FAILED: &str = "The folder could not be opened: it may have been moved or deleted.";
+/// Line 490.
+pub const EXPORT_FAILED: &str = "The export failed.";
+/// Line 590.
+pub fn done(wait: &str) -> String {
+    format!("Preview ready in {wait}.")
+}
+/// Line 591.
+pub const FAILED: &str = "The run failed. Try again, then see last-run.log in the preview folder.";
+/// Line 592.
+pub const REFUSED: &str = "Seed refused: it takes letters, digits, spaces and hyphens.";
+/// Line 2571 and 2579: the marks of a done step and of the one under way.
+pub const DONE_MARK: &str = "\u{2713}";
+pub const NOW_MARK: &str = "\u{203a}";
+
+/// Line 461.
+pub fn duration(s: u64) -> String {
+    if s < 60 {
+        format!("{s} s")
+    } else if s % 60 == 0 {
+        format!("{} min", s / 60)
+    } else {
+        format!("{} min {} s", s / 60, s % 60)
+    }
+}
+
 /// Line 593.
 pub const NO_PREVIEW: &str = "No preview yet. Choose a seed and generate one.";
 /// Line 599.
@@ -196,6 +263,20 @@ mod tests {
         assert_eq!(times(12.4), "12");
         assert_eq!(times(1.95), "2");
         assert_eq!(nav_note("12"), "The whole cut, heights \u{d7} 12. Click or drag the frame to look along it.");
+    }
+
+    #[test]
+    fn the_runs_speak_as_the_page_does() {
+        assert_eq!(GENERATING, "Generating…");
+        assert_eq!(running("20 s", "50 s"), "20 s of about 50 s.");
+        assert_eq!(measuring("5 s"), "5 s. A first run at this detail: its time is kept for the next ones.");
+        assert_eq!((step_sketch(64).as_str(), step_last(16).as_str()), ("Sketch, every 64 blocks", "Map, every 16 blocks"));
+        assert_eq!(STOPPED, "Stopped. The map is the one from before.");
+        assert_eq!(done("1 min 5 s"), "Preview ready in 1 min 5 s.");
+        assert_eq!(export_step("Biomes"), "Pictures: Biomes");
+        assert_eq!((EXPORTED, EXPORTED_TO, OPEN_FOLDER, CLOSE_NOTICE), ("Exported.", "Exported to", "Open the folder", "Close"));
+        assert_eq!(REFUSED, "Seed refused: it takes letters, digits, spaces and hyphens.");
+        assert_eq!((DONE_MARK, NOW_MARK), ("✓", "›"));
     }
 
     #[test]
