@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 15 done (2026-11-14)
+## Status: steps 0 to 16 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -166,7 +166,71 @@ tabs and the gap before them are not built. `preview --camera cx,cy,cz` is the p
 - Not built: structure marks in 3D (the Structures drape is `paint(Structures)`, the land under the marks, nearest); right-drag pan, middle-drag dolly, keys and touch of OrbitControls; cursor shapes, the busy opacity and the export of the 3D; the `no3d` note; resetting the camera when a new area of another width loads (step 17 brings runs); the list following the view.
 - Choices where the brief was silent: `scene::settle` is relief's frame code unchanged; the drag scale is the canvas's `rect.h` (equal to the side); the 3D water alpha follows the view the drape was painted for; `--camera` is ignored without `--data`; relief keeps `scene::water_alpha(Height)` since it only shows the relief tab.
 
-Next: step 16 (the cross-section view).
+Build plan step 16 is done: the Section tab shows the cross-section in the stage (`docs/shots/section-1400.png`,
+`section-1400-light.png`, `section-zoom.png`, `section-iron.png`, `section-1000.png`; `preview --data C:\Games\preview\out
+--view section`, with `--cut N`, `--ore kind,..` and `--cut-look k,x,y`). `demos/preview/src/section.rs` is the page's
+section model and ore play (rules, `ground_of`, `ore_play` with the page's `drawOf` stream, figures and the drawn
+layer), `cut.rs` is the cut's look, its sheet, the strip and the frame on it, the probe; `text.rs` has the section's
+wording and `num_digits`; `world.rs` holds `section: Option<Section>` (all four cuts read at load, 6 MB) and the 2D
+ticks follow the cut being looked at (`tick_at(world, look, at)`). In the shell the frame is the column's width by
+its height less `--under` (638 x 798 at 1400 x 940): the strip (56 px, the whole cut at its own range of heights, the
+frame of the part looked at), the note, and the cut at true scale in one uploaded image of one texel a block, nearest;
+the wheel zooms about the pointer (1.25 / 0.8 a notch, between half of the fitting scale and 12), a drag carries the
+cut, a press on the strip brings the window there or carries it, the probe names the block under the pointer, "Another
+cut" walks the four cuts and wraps. The right column shows ORES: the figures block is not built, the list has no rule
+and no top padding, one row per ore with its low and high ground figures, and a click on a row picks the ore (the
+cut then draws it alone, the other rows fade).
+
+- Evidence: `tools/page_section.mjs` cuts the section block, the look, the drawing and the strip out of preview.html and
+  runs them in Node on `C:\Games\preview\out`; `tests/page_section.rs` (5 tests) finds equal: the 25 rules (id, index, kind,
+  playable, anchored), the 5 rows of mods and 0 unplayed rules; the ground of the 4 cuts (surface, floor, high, biomes,
+  top, bottom, peak, crop, rows); the per-chunk figures of cuts 0 and 2 exactly, as f64 (iron cut 0: low 97.92265193370167,
+  high 144.76666666666665), the plays' names and `counted` 512; the whole drawn layer of cuts 0 and 2 byte for byte (27,934
+  and 32,501 ore cells); the strip's 35,728 pixels, its range (317, -30) and its note number; and three pictures of the cut
+  (A: cut 0 fresh at 638 x 700, B: cut 2 at k 0.6 with iron chosen, so the ores are two blocks wide, C: cut 1 at k 4) with the
+  settled look, the `drawImage` arguments, the sheet's texels and the frame's `left`, `width`, `top`, `bottom` all equal
+  (1e-9 for the numbers). V8's `Math.sin` and `Math.cos` (fdlibm) and the MSVC runtime's gave the same veins on this
+  data, so the 1-ulp fallback of the brief was not used. The play of one cut takes 0.17 s in a debug build, so no
+  `opt-level` was set.
+- Tests: `tests/section.rs` (12) through `PreviewApp` and the offscreen renderer: C1 the layout at 1400 x 940 (frame
+  (376, 56, 638, 798), strip (376, 56, 638, 56), cut view at y 154, 638 x 700 and equal to the arithmetic box, under at
+  864, six tabs, no figures, ORES with 8 rows, the probe's rest text); C2 300 cut pixels and 525 strip pixels each a texel
+  of the picture under them or a neighbour, the sky is `--ground`, the frame's edges are `--text`, the hairlines are
+  `--line`; C3 the wheel is `cut::wheel`, 30 notches out stop at the least scale; C4 a drag; C5 a press on the strip puts
+  the frame's middle under the pointer, a drag of the frame moves it by the travel; C6 "Another cut" (cut 2 of 4 at z -992
+  with a fresh look, four clicks wrap, the 2D tick of cut 3 at z -192 is drawn); C7 the iron row (no other ore colour in
+  the sheet or the pixels, the other swatches fade); C8 the probe on rock, sky, ore, outside and on the strip; C9 a world
+  without a section; C10 light (`#fafaf8`, `#171717`) and 1000 px (the note wraps, the cut view is 18 px lower); C11 at
+  1400 x 600 the least scale is under 0.75 and the sheet is made with wide ores (`PreviewApp::cut_reach`). The CLI shot
+  `preview --data C:\Games\preview\out --view section --shot` is byte-identical to the test's (98,081 bytes). Also 7 unit
+  tests in `section.rs`, 9 in `cut.rs`, 2 in `text.rs`. The workspace has 279 passing tests, none skipped.
+
+- PLACEHOLDER: the figures (the seven of the map) and the band widths and shares of the other views' right column, unchanged.
+- UNVERIFIED, read from the page's CSS and not seen in a browser: Chrome's smoothing of the two squeezes the page's
+  canvases undergo (the strip's 56 rows shown in 55, the cut's `H` rows in `H - 1`; here they are nearest, one image
+  scaled by Direct2D), the strip frame's fractional edges (a `Frame` of one pixel at a fractional rect; the test only
+  asks for at least one `--text` pixel at each edge), the probe during a drag (the page freezes it, here it follows the
+  pointer), `num_digits` on exact binary halves (Intl may round on the shortest decimal), that the page's
+  `getBoundingClientRect` of the cut view equals the arithmetic box in a browser, and that V8's sin and cos agree with the
+  MSVC runtime's on other data than this one (they do on this one).
+- Not built: the ores settings group on the left (editing the rows, Add, Without, Reset, `localStorage` `oreRows`,
+  `veinOf` and the `everywhere` rows), the cut kept across runs (`keptCut`, `resumed`: step 17), the export of
+  `section.png` (step 17), the tooltips (`oreFrom`, `oreColumnsHint`, `nextCutHint`, the `needsFull` title), cursor
+  shapes, the busy opacity, the `#filter`, exact pixels at a device pixel ratio other than 1 (the pictures are made at
+  DIP size), and `openGroupsFor`.
+- Choices where the brief was silent: `cut::nav_frame` returns a `NavFrame` holding the page's four style values in f64
+  (`rect()` gives the box drawn, with the 5 px minimum) so the Node comparison can be exact; `settled`, `wheel`,
+  `dragged` and `sight` take the box as two numbers; `nav_go` has no `k` (it reads the look's) and `probe` takes the world
+  (its section) and the `Shown`; `cut::nav_range` and `text::times` are the two small helpers the shell needs before the
+  strip is drawn; the Node run has a third case C (cut 1, k 4, y -500) because A and B both sit at the frame's full height;
+  `Section::load` reads the four cuts eagerly; a uniform with a bound missing is not a number (the page would go on to NaN);
+  `PreviewApp::new` takes the named cut as the last one shown, so `--cut-look` is not reset by the first sync; the app
+  reads the cut view's box from `ShellIds::cut_box` (the shell's arithmetic, asserted equal to the laid-out rect by C1 and
+  C10) so the shell and the upload cannot disagree; the legend of the ore list shows only once a cut is shown, and the
+  probe is empty until then; "Another cut" is built in the section view only; `--cut` is kept within the cuts and `--ore`
+  names are not checked; a test also writes `target/tmp/section_none.png` (no section).
+
+Next: step 17 (data and runs).
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
 
