@@ -15,7 +15,7 @@
 //! the cut then draws them alone) and --cut-look the look at the cut: k pixels a block, and the corner at x, y pixels
 //! (settled on the first frame, so a place outside the cut is brought back into it).
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use nui_base::{Vec2, Vec3, log};
 use nui_ui::Theme;
@@ -83,15 +83,46 @@ fn plain(p: &Path) -> PathBuf {
     PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(&s).to_string())
 }
 
-/// The runs' folder, made, and refused (exit 2) when it is not inside target\tmp.
+/// `p` made absolute, with `.` and `..` resolved by name and no look at the disk.
+fn lexical(p: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for part in std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf()).components() {
+        match part {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            part => out.push(part),
+        }
+    }
+    out
+}
+
+/// Whether `inside` is strictly under `outside`: Windows names are not case-sensitive.
+fn under(inside: &Path, outside: &Path) -> bool {
+    let (a, b) = (inside.to_string_lossy().to_lowercase(), outside.to_string_lossy().to_lowercase());
+    a.len() > b.len() && a.starts_with(&b) && matches!(a.as_bytes()[b.len()], b'\\' | b'/')
+}
+
+/// The runs' folder, made, and refused (exit 2) when it is not inside target\tmp. Judged by its name first, so that
+/// nothing is created outside, and again once made, in case a link leads elsewhere.
 fn runs_root(asked: Option<PathBuf>) -> PathBuf {
     let tmp = Path::new(TMP);
-    let root = asked.unwrap_or_else(|| tmp.join("runs"));
-    let made = std::fs::create_dir_all(tmp).and_then(|_| std::fs::create_dir_all(&root)).and_then(|_| root.canonicalize().and_then(|r| tmp.canonicalize().map(|t| (r, t))));
+    if let Err(e) = std::fs::create_dir_all(tmp) {
+        eprintln!("preview: {}: {e}", tmp.display());
+        std::process::exit(1);
+    }
+    let tmp = plain(&tmp.canonicalize().expect("target/tmp was just made"));
+    let root = lexical(&asked.unwrap_or_else(|| tmp.join("runs")));
+    if !under(&root, &tmp) {
+        eprintln!("preview: --runs {} is not inside {}: runs write only there until a real run has been exercised", root.display(), tmp.display());
+        std::process::exit(2);
+    }
+    let made = std::fs::create_dir_all(&root).and_then(|_| root.canonicalize());
     match made {
-        Ok((root, tmp)) if root.starts_with(&tmp) && root != tmp => plain(&root),
-        Ok((root, tmp)) => {
-            eprintln!("preview: --runs {} is not inside {}: runs write only there until a real run has been exercised", root.display(), tmp.display());
+        Ok(real) if under(&plain(&real), &tmp) => plain(&real),
+        Ok(real) => {
+            eprintln!("preview: --runs {} leads outside {}", real.display(), tmp.display());
             std::process::exit(2);
         }
         Err(e) => {
@@ -100,7 +131,6 @@ fn runs_root(asked: Option<PathBuf>) -> PathBuf {
         }
     }
 }
-
 fn main() {
     log::add_sink(log::stderr_sink(log::Level::Info));
     let (mut light, mut shot, mut size) = (false, None, (1400u32, 940u32));
