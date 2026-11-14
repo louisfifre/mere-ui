@@ -1,28 +1,35 @@
 //! preview [--data DIR] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..]
 //!         [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y]
+//!         [--runs DIR] [--generator PATH] [--pack DIR]
 //!
 //! Without --shot, opens the world preview's window. With it, draws one frame offscreen and writes the PNG: the
-//! same frame the window would show. With --data, the 2D map of an out folder fills the stage (step 14).
+//! same frame the window would show. The out folder of --data (by default C:\Games\preview\out, and without a
+//! preview.json there the page shows no preview) fills the stage (step 14).
+//! A run (step 17): Generate starts --generator, the script the page's server runs (scripts\preview.ps1; no default,
+//! and without it Generate says the run failed), with --pack if given. Everything a run or an export writes (its out
+//! folder, its log, the learned pace, the exports) goes under --runs, which must lie inside this repository's
+//! target\tmp for now: the rule is lifted once a real run has been exercised. The data of --data is never written.
 //! The view keys, --biome and --structure are the page's own `?view=`, `&biome=` and `&structure=`; --camera is its
 //! `?camera=`, the 3D view's start in widths of the area (step 15). In the section view (`--view section`, step 16),
 //! --cut is the cut shown (0-based, kept within the cuts), --ore the ores chosen in the list (their kind names, as
 //! the cut then draws them alone) and --cut-look the look at the cut: k pixels a block, and the corner at x, y pixels
 //! (settled on the first frame, so a place outside the cut is brought back into it).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use nui_base::{Vec2, Vec3, log};
 use nui_ui::Theme;
 use preview::cut::CutLook;
 use preview::map::Look;
 use preview::paint::View;
+use preview::run::Runs;
 use preview::scene;
 use preview::world::World;
 use preview::{PreviewApp, PreviewState, text};
 
 fn usage() -> ! {
     eprintln!(
-        "usage: preview [--data DIR] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y]"
+        "usage: preview [--data DIR] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--generator PATH] [--pack DIR]"
     );
     std::process::exit(2);
 }
@@ -65,11 +72,41 @@ fn apply_view(state: &mut PreviewState, key: &str) {
     }
 }
 
+/// Where the world preview's data is looked for without --data.
+const DEFAULT_DATA: &str = r"C:\Games\preview\out";
+/// The only place a run may write for now: this repository's target\tmp.
+const TMP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp");
+
+/// A canonical path in the plain form PowerShell and the generator take (without the `\\?\` prefix).
+fn plain(p: &Path) -> PathBuf {
+    let s = p.to_string_lossy();
+    PathBuf::from(s.strip_prefix(r"\\?\").unwrap_or(&s).to_string())
+}
+
+/// The runs' folder, made, and refused (exit 2) when it is not inside target\tmp.
+fn runs_root(asked: Option<PathBuf>) -> PathBuf {
+    let tmp = Path::new(TMP);
+    let root = asked.unwrap_or_else(|| tmp.join("runs"));
+    let made = std::fs::create_dir_all(tmp).and_then(|_| std::fs::create_dir_all(&root)).and_then(|_| root.canonicalize().and_then(|r| tmp.canonicalize().map(|t| (r, t))));
+    match made {
+        Ok((root, tmp)) if root.starts_with(&tmp) && root != tmp => plain(&root),
+        Ok((root, tmp)) => {
+            eprintln!("preview: --runs {} is not inside {}: runs write only there until a real run has been exercised", root.display(), tmp.display());
+            std::process::exit(2);
+        }
+        Err(e) => {
+            eprintln!("preview: --runs: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
 fn main() {
     log::add_sink(log::stderr_sink(log::Level::Info));
     let (mut light, mut shot, mut size) = (false, None, (1400u32, 940u32));
     let (mut data, mut views, mut biomes, mut structures, mut look) = (None::<PathBuf>, Vec::new(), String::new(), String::new(), None);
     let (mut camera, mut cut, mut ores, mut cut_look) = (None, None, String::new(), None);
+    let (mut runs, mut generator, mut pack) = (None::<PathBuf>, None::<PathBuf>, None::<PathBuf>);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut value = || args.next().unwrap_or_else(|| usage());
@@ -86,9 +123,14 @@ fn main() {
             "--cut" => cut = Some(value().parse::<usize>().unwrap_or_else(|_| usage())),
             "--ore" => ores = value(),
             "--cut-look" => cut_look = Some(parse_cut_look(&value()).unwrap_or_else(|| usage())),
+            "--runs" => runs = Some(PathBuf::from(value())),
+            "--generator" => generator = Some(PathBuf::from(value())),
+            "--pack" => pack = Some(PathBuf::from(value())),
             _ => usage(),
         }
     }
+    // An explicit --data that fails is an error; the default one is the page's `noPreview` when it is not there.
+    let data = data.or_else(|| Path::new(DEFAULT_DATA).join("preview.json").exists().then(|| PathBuf::from(DEFAULT_DATA)));
     let world = data.map(|dir| {
         World::load(&dir).unwrap_or_else(|e| {
             eprintln!("preview: {e}");
@@ -96,7 +138,7 @@ fn main() {
         })
     });
 
-    let mut state = PreviewState::default();
+    let mut state = PreviewState::for_world(world.as_ref());
     for key in &views {
         apply_view(&mut state, key);
     }
@@ -145,7 +187,8 @@ fn main() {
 
     let theme = if light { Theme::light() } else { Theme::dark() };
     let (w, h) = size;
-    let mut app = PreviewApp::new(theme, !light, Vec2::new(w as f32, h as f32), state, world);
+    let runs = Runs { shell: PathBuf::from("powershell.exe"), generator, pack, root: runs_root(runs), env: Vec::new(), launcher: Box::new(nui_win32::SystemLauncher) };
+    let mut app = PreviewApp::new(theme, !light, Vec2::new(w as f32, h as f32), state, world).with_runs(runs);
     app.ui_mut().set_clipboard(Box::new(nui_win32::SystemClipboard));
     match shot {
         Some(path) => {

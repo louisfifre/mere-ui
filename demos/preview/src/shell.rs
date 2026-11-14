@@ -21,7 +21,7 @@ use nui_ui::{
 use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
 use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
 use crate::paint::{View, rows};
-use crate::run::{self, Ask, Follow, Pace, Steps};
+use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Steps, duration};
 use crate::scene;
 use crate::section::{ORE_COLOURS, ORE_KINDS, Shown};
 use crate::world::World;
@@ -236,6 +236,19 @@ pub struct ShellIds {
     pub next_cut: Id,
     /// The ore rows of the section's list, in `ORE_KINDS` order.
     pub ores: Vec<Id>,
+    /// The square beside the generate button, while a run is under way (Id::ROOT otherwise).
+    pub stop: Id,
+    /// `#steps`, its hairline, and the export notice with its two links (Id::ROOT unless shown).
+    pub steps: Id,
+    pub bar: Id,
+    pub saved: Id,
+    pub open_folder: Id,
+    pub close_notice: Id,
+    /// What the status line says, whole ("" when it is not built), and the word on the generate button.
+    pub status_text: String,
+    pub generate_text: String,
+    /// The steps as the line shows them: "✓ label 12 s" for a done one, "› label" for the one under way.
+    pub steps_items: Vec<String>,
 }
 
 impl Default for ShellIds {
@@ -285,6 +298,15 @@ impl Default for ShellIds {
             cut_box: (0.0, 0.0),
             next_cut: o,
             ores: Vec::new(),
+            stop: o,
+            steps: o,
+            bar: o,
+            saved: o,
+            open_folder: o,
+            close_notice: o,
+            status_text: String::new(),
+            generate_text: String::new(),
+            steps_items: Vec::new(),
         }
     }
 }
@@ -422,7 +444,7 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme)
         ui.node("areaRow", world_row(), |ui| {
             ui.text(text::SPAN, muted);
             // 256 samples x 16 blocks (line 459): the scanned area as the page opens.
-            let r = ui.select("area", "4,096 blocks");
+            let r = ui.select("area", &format!("{} blocks", text::num(s.samples as f64 * 16.0)));
             ids.select = r.id;
             if r.clicked {
                 nui_base::observe!(Info, "the select's menu comes with step 14");
@@ -499,31 +521,84 @@ fn settings_scroll(ui: &mut Ui, y: &mut f32, values: &mut [f64; 43], ids: &mut S
     ids.settings_scroll = r.id;
 }
 
-/// `#run` (line 192): a hairline, the status, the details and the generate button.
+/// What `#status` says (`showButton`, lines 799-802, and `tick`, 2610-2615): the clock while a run is followed, else
+/// the trouble, what was said, or that the map already shows these settings.
+fn status_words(s: &PreviewState) -> String {
+    if let Some(f) = &s.follow {
+        let elapsed = duration(f.seconds);
+        return match f.expected {
+            Some(e) => text::running(&elapsed, &duration(e)),
+            None => text::measuring(&elapsed),
+        };
+    }
+    if !s.trouble.is_empty() {
+        return s.trouble.clone();
+    }
+    if !s.said.is_empty() {
+        return s.said.clone();
+    }
+    if made_shows_form(s) { text::UP_TO_DATE.to_string() } else { String::new() }
+}
+
+/// `sameAs(shown)`: the map on screen was made from what the form holds.
+fn made_shows_form(s: &PreviewState) -> bool {
+    s.made.as_ref().is_some_and(|m| m.same_as(&s.seed, s.samples, DETAIL_BLOCKS[s.detail], &s.values))
+}
+
+/// `#run` (line 192): a hairline, the status, the details and the generate button with the stop square beside it.
 fn run_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme) {
     let style = Style { column: true, margin: Margin { top: Side::Auto, ..Margin::default() }, shrink: 0.0, ..Style::default() };
     ids.run = ui.node("run", style, |ui| {
         ui.fill(rule(), t.edge);
         let inner = Style { column: true, pad: Edges::new(12.0, 0.0, 0.0, 0.0), gap: Vec2::new(0.0, 8.0), ..Style::default() };
         ui.node("runBody", inner, |ui| {
-            ids.status = ui.node("status", Style::default(), |ui| ui.paragraph(text::UP_TO_DATE, TextLook::status(Tone::Muted)));
+            // `#status:empty { display: none }`: nothing to say, no box.
+            ids.status_text = status_words(s);
+            if !ids.status_text.is_empty() {
+                let tone = if s.follow.is_none() && !s.trouble.is_empty() { Tone::Warn } else { Tone::Muted };
+                let words = ids.status_text.clone();
+                ids.status = ui.node("status", Style::default(), |ui| ui.paragraph(&words, TextLook::status(tone)));
+            }
             ids.details = ui.node("details", details_style(), |ui| {
                 for (i, word) in text::DETAILS.iter().enumerate() {
-                    // No wait is known without timings, so the small line is left out.
-                    let r = ui.detail_tab(&format!("d{i}"), word, "", TabOpts { pressed: i == s.detail, disabled: false });
+                    // The wait this machine took for this detail on this area, under its name (showDetails, 819-830).
+                    let wait = s.pace.about(s.samples, DETAIL_BLOCKS[i]).map(duration).unwrap_or_default();
+                    // The sixteen-block map of a wide area is out of reach (line 823).
+                    let disabled = DETAIL_BLOCKS[i] == 16 && s.samples > 2048;
+                    let r = ui.detail_tab(&format!("d{i}"), word, &wait, TabOpts { pressed: i == s.detail, disabled });
                     if r.clicked {
                         s.detail = i;
                     }
                 }
             });
+            let same = made_shows_form(s);
+            let busy = s.follow.as_ref().map(|f| (f.ask.same_as(&s.seed, s.samples, DETAIL_BLOCKS[s.detail], &s.values), f.share(), f.stopping));
             ui.node("go", Style { gap: Vec2::new(6.0, 0.0), ..Style::default() }, |ui| {
-                // Disabled: the map already shows these settings (line 467).
-                ids.generate = ui.button_with("generate", text::GENERATE, ButtonLook::Primary, ButtonOpts { disabled: true, grow: 1.0 }).id;
+                // While a run is under way the button says so; once a setting moved it starts the new run in its
+                // place (lines 789-798). The shell only records the press: the application acts on it.
+                let (word, look, disabled) = match busy {
+                    Some((true, share, stopping)) => (text::GENERATING, ButtonLook::Running { share }, stopping),
+                    Some((false, _, stopping)) => (text::GENERATE, ButtonLook::Primary, stopping),
+                    // Disabled: the map already shows these settings (line 467).
+                    None => (text::GENERATE, ButtonLook::Primary, same),
+                };
+                ids.generate_text = word.to_string();
+                let r = ui.button_with("generate", word, look, ButtonOpts { disabled, grow: 1.0 });
+                ids.generate = r.id;
+                if r.clicked {
+                    s.want = Some(Want::Generate);
+                }
+                if let Some((_, _, stopping)) = busy {
+                    let r = ui.stop_button("stopRun", stopping);
+                    ids.stop = r.id;
+                    if r.clicked {
+                        s.want = Some(Want::Stop);
+                    }
+                }
             });
         });
     });
 }
-
 /// The middle column: the stage holds the map's square and the strip under it (line 226).
 fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, frame_size: (f32, f32), world: Option<&World>, shown: Option<&Shown>) {
     // The square's side in the 2D and 3D views; the section's frame is the column's width by the height left.
@@ -533,19 +608,30 @@ fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
         let frame = Style { position: Position::Relative, w: Dim::Px(side), h: Dim::Px(frame_h), shrink: 0.0, ..Style::default() };
         ids.frame = ui.node("frame", frame, |ui| {
             let view = View::from_index(s.view);
+            // The note comes after the veil, which dims the content and not the note (line 238).
+            let mut words = None;
             match (world, view) {
-                (None, _) => note(ui, text::NO_PREVIEW),
+                (None, _) => words = Some(text::NO_PREVIEW),
                 // The section (view 5): a world without one says so; one whose cut is not read yet shows nothing.
-                (Some(w), None) if w.section.is_none() => note(ui, text::NO_SECTION),
+                (Some(w), None) if w.section.is_none() => words = Some(text::NO_SECTION),
                 (Some(w), None) => {
                     if let Some(shown) = shown {
                         cut_frame(ui, s, ids, t, w, shown, (side, frame_h));
                     }
                 }
                 // Before the 3D view: a world without structures has nothing to drape (line 2521).
-                (Some(w), Some(View::Structures)) if w.structures.is_none() => note(ui, text::NO_STRUCTURES),
+                (Some(w), Some(View::Structures)) if w.structures.is_none() => words = Some(text::NO_STRUCTURES),
                 (Some(w), Some(_)) if s.in3d => ids.relief = relief_canvas(ui, s, side, w),
                 (Some(w), Some(view)) => ids.map = map_canvas(ui, s, t, side, w, view),
+            }
+            // `#frame.busy` (line 238): while a run is under way the map, the 3D view and the cut are at opacity
+            // 0.3, which over the ground is the ground at 0.7 laid over them.
+            if s.follow.is_some() {
+                let inset = Insets { left: Dim::Px(0.0), right: Dim::Px(0.0), top: Dim::Px(0.0), bottom: Dim::Px(0.0) };
+                ui.fill(Style { position: Position::Absolute, inset, ..Style::default() }, t.ground.with_alpha(0.7));
+            }
+            if let Some(words) = words {
+                note(ui, words);
             }
             // `#under` (line 260): 10 px below the map, as wide as it.
             let under = Style {
@@ -573,13 +659,86 @@ fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
                     let r = ui.button("export", text::EXPORT, ButtonLook::Link);
                     ids.export = r.id;
                     if r.clicked {
-                        nui_base::observe!(Info, "export comes with step 18");
+                        s.want = Some(Want::Export);
                     }
                 });
-                // `#steps` is empty until a section is cut.
-                ui.node("steps", column(), |_| {});
+                steps_block(ui, s, ids, t, side);
             });
         });
+    });
+}
+
+/// `#steps` (lines 263-273, 2563-2581, 2800-2813): a run's steps under a hairline that fills as the wait goes, or the
+/// notice of where an export went. While a run is followed they are read from it; after it, from the state.
+/// `width` is the frame's: `#under` is as wide.
+fn steps_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, width: f32) {
+    let shown = match &s.follow {
+        Some(f) => Steps::Run { done: f.done.clone(), now: f.current(), share: f.share() },
+        None => s.steps.clone(),
+    };
+    let muted = TextLook::body(Tone::Muted);
+    let now_look = TextLook::body(Tone::Text);
+    let column = Style { column: true, gap: Vec2::new(0.0, 4.0), ..Style::default() };
+    ids.steps = ui.node("steps", column, |ui| match &shown {
+        Steps::Empty => {}
+        Steps::Run { done, now, share } => {
+            let (line, text_colour, share) = (t.line, t.text, *share);
+            // `.bar` (line 268): a 1 px hairline of `--line`, filled from the left with `--text`.
+            ids.bar = ui
+                .canvas("bar", Style { h: Dim::Px(1.0), shrink: 0.0, ..Style::default() }, |_, _| {
+                    vec![
+                        Cmd::Fill { rect: Rect::new(0.0, 0.0, width, 1.0), color: line },
+                        Cmd::Fill { rect: Rect::new(0.0, 0.0, share.clamp(0.0, 1.0) * width, 1.0), color: text_colour },
+                    ]
+                })
+                .id;
+            // `.line` (line 269): one line, cut at the edge; the names of the done steps shorten first (`.step`,
+            // 270-273), their seconds and the step under way stay whole.
+            let row = Style { gap: Vec2::new(14.0, 0.0), min_w: Dim::Px(0.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
+            ui.node("line", row, |ui| {
+                for (i, (label, seconds)) in done.iter().enumerate() {
+                    let took = duration(*seconds);
+                    ids.steps_items.push(format!("{} {label} {took}", text::DONE_MARK));
+                    let step = Style { gap: Vec2::new(6.0, 0.0), min_w: Dim::Px(0.0), ..Style::default() };
+                    ui.node(&format!("step{i}"), step, |ui| {
+                        ui.text(text::DONE_MARK, muted);
+                        ui.ellipsis(label, muted);
+                        ui.text(&took, muted);
+                    });
+                }
+                if !now.is_empty() {
+                    ids.steps_items.push(format!("{} {now}", text::NOW_MARK));
+                    ui.node("now", Style { gap: Vec2::new(6.0, 0.0), shrink: 0.0, ..Style::default() }, |ui| {
+                        ui.text(text::NOW_MARK, now_look);
+                        ui.text(now, now_look);
+                    });
+                }
+            });
+        }
+        Steps::Saved { folder } => {
+            // `.saved` (lines 277-281): the path takes a whole line, then the two links, wrapping. UNVERIFIED: the
+            // label and the path stand side by side here, the page flows the path on after its label.
+            let notice = Style { wrap: true, align_items: Align::Baseline, gap: Vec2::new(16.0, 2.0), ..Style::default() };
+            ids.saved = ui.node("saved", notice, |ui| {
+                let path = Style { basis: Dim::Pct(100.0), align_items: Align::Baseline, ..Style::default() };
+                ui.node("path", path, |ui| {
+                    let label = Style { shrink: 0.0, margin: Margin { right: Side::Px(6.0), ..Margin::default() }, ..Style::default() };
+                    ui.node("to", label, |ui| ui.text(text::EXPORTED_TO, muted));
+                    let folder_box = Style { column: true, grow: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..Style::default() };
+                    ui.node("folder", folder_box, |ui| ui.paragraph(folder, now_look));
+                });
+                let r = ui.button("openFolder", text::OPEN_FOLDER, ButtonLook::Link);
+                ids.open_folder = r.id;
+                if r.clicked {
+                    s.want = Some(Want::OpenFolder);
+                }
+                let r = ui.button("closeNotice", text::CLOSE_NOTICE, ButtonLook::Link);
+                ids.close_notice = r.id;
+                if r.clicked {
+                    s.steps = Steps::Empty;
+                }
+            });
+        }
     });
 }
 

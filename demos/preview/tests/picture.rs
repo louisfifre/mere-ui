@@ -53,10 +53,12 @@ fn check(theme: Theme, w: u32, name: &str) {
     let row = rect(ids.bands[0]);
     same(at(row.x + 6.0, row.y + 3.0 + 3.0 + 6.0), Color::hex(0x17314f), "first band swatch");
 
-    // P5: the disabled generate: its top hairline in --edge at mid width, the ground just inside its corner.
+    // P5: with no map the page decides Generate (nothing shows these settings): it is enabled, filled with --text
+    // to its frame, and the status line has nothing to say, so it is not built.
     let g = rect(ids.generate);
-    same(at(g.x + g.w / 2.0, g.y), theme.edge, "generate top border");
-    same(at(g.x + 3.0, g.y + 3.0), theme.ground, "generate inside");
+    same(at(g.x + g.w / 2.0, g.y), theme.text, "generate top border");
+    same(at(g.x + 3.0, g.y + 3.0), theme.text, "generate inside");
+    assert!(ids.status_text.is_empty() && ids.status == nui_ui::Id::ROOT, "an empty status is not built");
 
     // P6: the select's arrow: its second row of ink, 13 px from the right edge plus 4, 9 + 2 down.
     let sel = rect(ids.select);

@@ -592,7 +592,8 @@ fn c11_a_small_window_draws_ores_two_blocks_wide() {
 #[test]
 fn cli_shot_is_byte_identical_to_the_test_shot() {
     let Some(world) = load() else { return };
-    let mut rig = Rig::new(&world, false, state(), W, H);
+    // The command line builds its state from the world (the page's loadWorld): the form holds the run's settings.
+    let mut rig = Rig::new(&world, false, PreviewState { view: 5, ..PreviewState::for_world(Some(&world)) }, W, H);
     let mine = nui_png::encode(W, H, &rig.rgba());
     let out = tmp("cli_section.png");
     let _ = std::fs::remove_file(&out);
