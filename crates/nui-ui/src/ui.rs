@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use nui_base::{Clipboard, Color, DrawList, Event, Rect, Vec2, observe};
+use nui_base::{Clipboard, Cmd, Color, DrawList, Event, Rect, Vec2, observe};
 use nui_layout::{Avail, Dim, Measured, NodeId, Overflow, Position, Style, Tree};
 
 use crate::edit::MemoryClipboard;
@@ -22,6 +22,9 @@ pub struct Resp {
     pub hovered: bool,
     pub held: bool,
     pub clicked: bool,
+    /// The left button went down on this widget in this frame: this frame made it the active one. A drag
+    /// starts here, and a widget that tells a click from a drag needs the edge, not just held.
+    pub pressed: bool,
 }
 
 pub(crate) enum Paint {
@@ -36,6 +39,8 @@ pub(crate) enum Paint {
     Field(Box<FieldPaint>),
     /// A scroll area: it offsets its children and draws its thumb and fade after them (scroll.rs).
     Scroll(ScrollPaint),
+    /// Ready-made commands in the node's own coordinates (canvas): moved to the node's place when painted.
+    Cmds(Vec<Cmd>),
 }
 
 pub struct Ui {
@@ -173,6 +178,39 @@ impl Ui {
         children(self);
         self.close();
         id
+    }
+
+    /// A box of the given style that the application draws itself: draw gets the pointer's answer for it
+    /// and returns commands in the box's own coordinates (0,0 is its top-left corner). The commands are not
+    /// clipped to the box unless they push a clip themselves, so ticks may hang outside it. draw runs
+    /// before the box is laid out, so it judges the pointer against the last frame's rect (Resp::rect).
+    pub fn canvas(&mut self, key: &str, style: Style, draw: impl FnOnce(&mut Ui, &Resp) -> Vec<Cmd>) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, false);
+        let cmds = draw(self, &resp);
+        self.open(key, id, style, Paint::Cmds(cmds));
+        self.close();
+        resp
+    }
+
+    /// Where the pointer is, in window coordinates; None until it has been seen.
+    pub fn pointer(&self) -> Option<Vec2> {
+        self.input.pos
+    }
+
+    /// The wheel notches of this frame (positive away from the user) and where the pointer was, when it was
+    /// over the visible part of widget id in the last frame. Takes them: a second call, or a scroll area
+    /// closing later, gets nothing, as with nested scroll areas.
+    pub fn take_wheel(&mut self, id: Id) -> Option<(f32, Vec2)> {
+        let over = self.hits.get(&id).copied();
+        match (self.input.wheel_pos, over) {
+            (Some(p), Some(r)) if self.input.wheel != 0.0 && r.contains(p) => {
+                let n = self.input.wheel;
+                self.input.wheel = 0.0;
+                Some((n, p))
+            }
+            _ => None,
+        }
     }
 
     /// Where the keyed widget stood in the last frame, in window coordinates.
@@ -368,7 +406,8 @@ impl Ui {
         let rect = self.rects.get(&id).copied();
         let reach = self.hits.get(&id).copied();
         let over = !disabled && matches!((reach, self.input.pos), (Some(r), Some(p)) if r.contains(p));
-        if over && self.input.pressed && self.active.is_none() {
+        let pressed = over && self.input.pressed && self.active.is_none();
+        if pressed {
             self.active = Some(id);
         }
         let is_active = self.active == Some(id);
@@ -378,7 +417,7 @@ impl Ui {
         if clicked {
             observe!(Debug, "click {:x}", id.0);
         }
-        Resp { id, rect, hovered, held, clicked }
+        Resp { id, rect, hovered, held, clicked, pressed }
     }
 }
 
@@ -446,6 +485,10 @@ impl Painter<'_> {
                 }
             }
             Paint::Field(f) => paint_field(self.list, f, r, self.tree.style(n).pad),
+            Paint::Cmds(cmds) => {
+                let d = Vec2::new(r.x, r.y);
+                self.list.cmds.extend(cmds.iter().map(|c| c.translated(d)));
+            }
             Paint::Chevron { color } => {
                 // [from, to) of each 1 px row, relative to the leaf's top-left.
                 const ROWS: [&[(f32, f32)]; 5] = [&[(0.0, 2.0), (6.0, 8.0)], &[(0.0, 3.0), (5.0, 8.0)], &[(1.0, 7.0)], &[(2.0, 6.0)], &[(3.0, 5.0)]];
