@@ -4,36 +4,10 @@
 
 use nui_base::{Rect, Vec2};
 
-use crate::style::{Align, Avail, Display, Justify, Side};
-use crate::tree::{NodeId, Tree};
+use crate::style::{Align, Display, Justify, Overflow, Position, Side};
+use crate::tree::{NodeId, Out, Req, Tree};
 
 const INF: f32 = f32::INFINITY;
-
-/// What a parent tells a child: sizes it must have (`k*`, border-box) and room it may use (`a*`). A known
-/// size is imposed by flexing or stretching; room only matters to content that sizes itself (wrapping text,
-/// a row that shrinks to fit).
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub(crate) struct Req {
-    pub kw: Option<f32>,
-    pub kh: Option<f32>,
-    pub aw: Option<f32>,
-    pub ah: Option<f32>,
-}
-
-impl Req {
-    pub(crate) fn key(self) -> [Option<u32>; 4] {
-        let k = |v: Option<f32>| v.map(|v| (v + 0.0).to_bits());
-        [k(self.kw), k(self.kh), k(self.aw), k(self.ah)]
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub(crate) struct Out {
-    pub w: f32,
-    pub h: f32,
-    /// From the top of the border box to the first line's baseline.
-    pub baseline: f32,
-}
 
 /// Swaps a pair when the container is a column, so that one code path serves both directions:
 /// `ax(col, w, h)` gives (main, cross) and `ax(col, main, cross)` gives (w, h).
@@ -83,31 +57,6 @@ impl Out {
 }
 
 impl Tree {
-    pub(crate) fn layout(&mut self, id: NodeId, req: Req, place: bool) -> Out {
-        if !place {
-            if let Some(o) = self.cache.get(&(id.0, req.key())) {
-                return *o;
-            }
-        }
-        let out = if self.nodes[id.0].measure.is_some() { self.leaf(id, req) } else { self.container(id, req, place) };
-        if !place {
-            self.cache.insert((id.0, req.key()), out);
-        }
-        out
-    }
-
-    fn leaf(&mut self, id: NodeId, req: Req) -> Out {
-        let pad = self.nodes[id.0].style.pad;
-        let (px, py) = (pad.left + pad.right, pad.top + pad.bottom);
-        let sub = |v: Option<f32>, p: f32| v.map(|v| (v - p).max(0.0));
-        let avail = Avail { w: sub(req.kw, px).or(sub(req.aw, px)), h: sub(req.kh, py).or(sub(req.ah, py)) };
-        // The closure is taken out of the node while it runs, so that it may not reach the tree.
-        let mut f = self.nodes[id.0].measure.take().expect("a leaf has a measure function");
-        let m = f(avail);
-        self.nodes[id.0].measure = Some(f);
-        Out { w: req.kw.unwrap_or(m.size.x + px), h: req.kh.unwrap_or(m.size.y + py), baseline: m.baseline + pad.top }
-    }
-
     /// Measures one child as a flex item would be: `main_*` and `cross_*` instead of width and height.
     fn probe(&mut self, id: NodeId, col: bool, known: (Option<f32>, Option<f32>), avail: (Option<f32>, Option<f32>)) -> Out {
         let (kw, kh) = ax(col, known.0, known.1);
@@ -115,7 +64,7 @@ impl Tree {
         self.layout(id, Req { kw, kh, aw, ah }, false)
     }
 
-    fn container(&mut self, id: NodeId, req: Req, place: bool) -> Out {
+    pub(crate) fn container(&mut self, id: NodeId, req: Req, place: bool) -> Out {
         let st = self.nodes[id.0].style;
         let (px, py) = (st.pad.left + st.pad.right, st.pad.top + st.pad.bottom);
         // Step 1 of the page's `display: block`: a column of full-width boxes, no gap.
@@ -134,7 +83,11 @@ impl Tree {
 
         // Step 1: in-flow children, `display: none` out, stable sort by `order`.
         let mut kids: Vec<NodeId> =
-            self.nodes[id.0].children.iter().copied().filter(|c| self.nodes[c.0].style.display != Display::None).collect();
+            self.nodes[id.0].children.iter().copied().filter(|c| {
+                let s = &self.nodes[c.0].style;
+                s.display != Display::None && s.position != Position::Absolute
+            })
+            .collect();
         kids.sort_by_key(|c| self.nodes[c.0].style.order);
 
         // Steps 3 and 4: flex base size, automatic minimum, hypothetical main size.
@@ -178,6 +131,8 @@ impl Tree {
             // content height is already its min-content; a row's is its width when told it has no room.
             let min = match min_main_spec {
                 Some(v) => v,
+                // A scroll container's automatic minimum is 0, so it may shrink below its content.
+                None if cs.overflow != Overflow::Visible => 0.0,
                 None => {
                     let min_content = if col {
                         content_main(self)
@@ -330,18 +285,13 @@ impl Tree {
         };
 
         if place {
-            let mut reach = Vec2::new(w, h);
             for it in &items {
                 let (x, y) = ax(col, it.main_pos, it.cross_pos);
                 let (cw, ch) = ax(col, it.main, it.cross);
                 let rect = Rect::new(x + st.pad.left, y + st.pad.top, cw, ch);
                 self.layout(it.id, Req { kw: Some(cw), kh: Some(ch), aw: Some(cw), ah: Some(ch) }, true);
                 self.nodes[it.id.0].rect = rect;
-                let m = self.nodes[it.id.0].style.margin;
-                reach.x = reach.x.max(rect.x + rect.w + m.right.px() + st.pad.right);
-                reach.y = reach.y.max(rect.y + rect.h + m.bottom.px() + st.pad.bottom);
             }
-            self.nodes[id.0].content = reach;
         }
         Out { w, h, baseline }
     }

@@ -1,6 +1,6 @@
 [package]
 name = "nui-layout"
-description = "Pure layout: the reduced flexbox the applications' pages use, over a tree of styles and measured leaves."
+description = "Pure layout: the reduced flexbox, grid, absolute positioning and overflow the applications' pages use, over a tree of styles and measured leaves."
 version.workspace = true
 edition.workspace = true
 publish.workspace = true

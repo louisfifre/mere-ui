@@ -29,6 +29,8 @@ impl Dim {
 pub enum Display {
     #[default]
     Flex,
+    /// A grid whose columns come from Style::cols; rows are implicit and sized by their items.
+    Grid,
     Block,
     None,
 }
@@ -113,7 +115,83 @@ pub enum Justify {
     End,
 }
 
-/// The flex subset of design.md section 1.2. `grow`, `shrink` and `basis` are the parts of `flex:`; the
+/// One column of `grid-template-columns`: only the three forms the pages use.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Track {
+    /// A length; `8ch` and `9em` are converted by the caller (`ch` is 0.6 x the font size in Plex Mono).
+    Px(f32),
+    /// `auto`: between the items' min-content and max-content.
+    Auto,
+    /// `minmax(0, Nfr)`: no minimum, a share N of what is left.
+    MinMaxFr0(f32),
+}
+
+/// A track list kept inline so that `Style` stays `Copy`. The pages' longest list has 6 tracks.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Tracks {
+    len: u8,
+    list: [Track; Tracks::MAX],
+}
+
+impl Default for Tracks {
+    fn default() -> Tracks {
+        Tracks { len: 0, list: [Track::Auto; Tracks::MAX] }
+    }
+}
+
+impl Tracks {
+    pub const MAX: usize = 8;
+
+    pub fn new(list: &[Track]) -> Tracks {
+        assert!(list.len() <= Tracks::MAX, "a grid has at most {} columns, got {}", Tracks::MAX, list.len());
+        let mut t = Tracks::default();
+        t.len = list.len() as u8;
+        t.list[..list.len()].copy_from_slice(list);
+        t
+    }
+
+    pub fn as_slice(&self) -> &[Track] {
+        &self.list[..self.len as usize]
+    }
+}
+
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Position {
+    #[default]
+    Static,
+    /// No offset is applied (no relative box of the pages sets one): it only marks a containing block.
+    Relative,
+    Absolute,
+}
+
+/// `left`/`top`/`right`/`bottom`; `Pct` is taken of the containing block's width (left, right) or height
+/// (top, bottom).
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct Insets {
+    pub left: Dim,
+    pub top: Dim,
+    pub right: Dim,
+    pub bottom: Dim,
+}
+
+impl Insets {
+    /// `inset: 0` is `Insets::all(Dim::Px(0.0))`.
+    pub const fn all(d: Dim) -> Insets {
+        Insets { left: d, top: d, right: d, bottom: d }
+    }
+}
+
+/// `overflow: hidden` and `overflow-y: auto` are the only non-visible values the pages use; `ScrollY` also
+/// clips horizontally, as CSS computes `overflow-x` to auto when `overflow-y` is not visible.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Overflow {
+    #[default]
+    Visible,
+    Hidden,
+    ScrollY,
+}
+
+/// The subset of design.md section 1.2. `grow`, `shrink` and `basis` are the parts of `flex:`; the
 /// defaults are CSS's own (`flex: 0 1 auto`, `align-items: stretch`, row direction, no wrap).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Style {
@@ -143,6 +221,16 @@ pub struct Style {
     pub align_items: Align,
     pub align_self: Option<Align>,
     pub justify: Justify,
+    /// `grid-template-columns`; empty is one implicit auto column. Flex ignores the grid fields.
+    pub cols: Tracks,
+    /// grid-column: 1 / -1.
+    pub col_span_all: bool,
+    /// The second half of place-items. In this axis Baseline behaves as Start.
+    pub justify_items: Align,
+    pub justify_self: Option<Align>,
+    pub position: Position,
+    pub inset: Insets,
+    pub overflow: Overflow,
 }
 
 impl Default for Style {
@@ -168,6 +256,13 @@ impl Default for Style {
             align_items: Align::Stretch,
             align_self: None,
             justify: Justify::Start,
+            cols: Tracks::default(),
+            col_span_all: false,
+            justify_items: Align::Stretch,
+            justify_self: None,
+            position: Position::Static,
+            inset: Insets::all(Dim::Auto),
+            overflow: Overflow::Visible,
         }
     }
 }
