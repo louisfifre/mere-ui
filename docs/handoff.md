@@ -355,6 +355,13 @@ theme follows the system. Built:
   the run finished; `Figures::get` treats NaN as missing; the history entry takes its settings in `SETTINGS` order, a
   page's file keeps its own order.
 
+Steps 14 to 18 ran as one workflow (17 agents, 2 h 40 min; step 17 needed a second round, the others passed in their first): for each step an
+Opus agent set the scope and checked the pictures, a Sonnet agent wrote the code. The session then reran
+`cargo test --offline --workspace` (green), checked the 39 commits (author Louis only, no trailer, clean tree),
+that `C:\Games\preview\out` and `world-preview` were untouched, the one new `windows` feature (`Win32_System_Registry`,
+inside `nui-win32`), and looked at `figures-1400`, `history`, `stage-3d-relief`, `section-1400` and `run-progress`.
+The step 15 and 17 shots still show step 13's placeholder figures in the right column: they are those steps' record.
+
 Next: step 19 (polish: cursor shapes, device loss, DPI change, occlusion, errors; plus export.json and tooltips).
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
