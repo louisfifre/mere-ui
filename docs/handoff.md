@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 8 done (2026-11-14)
+## Status: steps 0 to 9 done (2026-11-14)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -41,7 +41,17 @@ Two observations read from the page's CSS cascade, not checked in a browser:
 - `.ore-row.head` is 11 px, so its `6ch` / `5ch` columns are narrower than the rows' (39.6 / 33 against 43.2 /
   36): the head words sit about 10 px right of the fields' left edges, and about 6 px right of their right edges.
 
-Next: `nui-ui` and the panels, build plan steps 9 to 13.
+Build plan step 9 is done: `crates/nui-ui` (ids by FNV-1a over the key path, left-button pointer input, the page's dark
+and light themes, label, button in three looks, toggle; hit tests use the last frame's rects) and `demos/widgets`
+(window, `--shot`, and the sheet of states in `docs/shots/widgets-dark.png` and `widgets-light.png`: the first
+pictures in the page's own looks). `DrawList` text has a weight (Regular, SemiBold), so `#generate` is drawn in
+Plex Mono 600. Measured: the Plex Mono ascent at 100 px puts the ink bottom of "H" at 113 against the expected
+112.5, so ASCENT_EM = 1.025 stands (within the 2 px tolerance). Still UNVERIFIED: DESCENT_EM = 0.275, and the
+underline's position (3 px under the baseline) and thickness (1 px) against a browser. The page has no :active
+look, so a held widget looks hovered. Disabled widgets ignore the pointer, whereas the browser still matches
+:hover on disabled `.choice` buttons: a known small difference. No transitions, cursor shapes or keyboard yet.
+
+Next: step 10 (tabs, the pressed and reversed choices, fold), then the panels, steps 11 to 13.
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.

@@ -158,6 +158,14 @@ impl Theme { pub fn dark() -> Self; pub fn light() -> Self; }
 ```
 Frame order: build the tree through closures (layout inputs), call `Tree::compute`, then second pass to hit-test and emit commands. Two passes avoid the "one frame late" problem of naive immediate mode (INTERPRETATION). Widgets keep persistent state only in `HashMap<Id, State>` (scroll, text-field caret/selection, fold open).
 
+**As built (step 9).** The real signatures differ from the sketch above: there is no `Text` trait, because Plex Mono is
+monospaced and a text width is arithmetic (`text_width`, `ADVANCE_EM` 0.6); a leaf's measure closure owns its string.
+`Ui::new(theme)`, `event(&Event) -> bool`, `begin_frame(size)`, `end_frame() -> &DrawList`; `node(key: &str, style, children)
+-> Id` takes a key, not an `Id`, and ids are the hash of the keys down from the root (a repeated key in one frame logs a
+warning). `rect(id)` is the widget's absolute rect of the last frame. `button(key, text, ButtonLook) -> Resp` and
+`button_with(key, text, look, ButtonOpts { disabled, grow })`; `Resp { id, rect, hovered, held, clicked }`.
+`toggle(key, &mut bool, on_word, off_word) -> Resp` takes both words, which come from the application's catalog, and flips
+the value before painting. `Theme` holds the page's variables plus `faded(color, opacity)` for CSS opacity.
 ### 1.4 nui-win32
 Implements `Window`, `Text`, `Gfx`, `Backend`. Internals: `win.rs` (class, wndproc, loop, DPI, clipboard, IME later), `d3d.rs` (device, swap chain, pipelines, meshes, depth), `d2d.rs` (device context, brushes, bitmaps, clip), `dwrite.rs` (factory, text format, layout cache, font loading), `offscreen.rs` (texture + staging readback).
 
