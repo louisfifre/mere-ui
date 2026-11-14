@@ -82,6 +82,11 @@ impl PreviewApp {
         self.painted.as_ref().map(|p| p.0)
     }
 
+    /// Whether the cut's picture was made with ores two blocks wide (a scale under 0.75); None before a first picture.
+    pub fn cut_reach(&self) -> Option<bool> {
+        self.cut_painted.as_ref().map(|k| k.5)
+    }
+
     /// The cut being shown, when the section view has one.
     pub fn shown(&self) -> Option<&Shown> {
         self.shown.as_ref()
