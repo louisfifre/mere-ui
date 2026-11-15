@@ -503,7 +503,7 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   - a display scale of 150%;
   - the stand-in icon shapes in the widgets sheet (they are not the launcher's real icons).
 - Not built:
-  - `condense()` (the views turning into icons when the bar is narrow);
+  - `condense()` (the views turning into icons when the bar is narrow): replaced on 2026-11-15 by the bar's overflow, see "Bar overflow" below;
   - the marker's blink;
   - the confirmation on closing while a run computes;
   - the window's remembered place and size;
@@ -588,6 +588,26 @@ own and asked to see the result first, so revisit both once the panels can be lo
 - No height key over the 3D view: applied in step 15. Nothing is drawn over the 3D in the preview (no key, no plate, no facts); the height list stays the right column's list, which does not follow the view yet.
 - The overlay's facts belong to the side panel, which is the right column: applied in step 15 for the preview. The relief demo, a standalone window with no side panel, keeps its filled plate, because grey text without a ground is unreadable over bright snow.
 
+### Bar overflow (2026-11-15)
+
+The maintainer chose "form A" for a narrow bar. The tools show their names ("Home", "Preview", catalog `TOOL_NAMES`; the
+longer `MODES` stay their tooltips), and `overflow.rs` works out, before the bar is built, what to give up. The order is
+the account (an ellipsis down to a 3 letter stub, then gone whole), the greyed views into "More" (`Ui::tab_menu`, on the
+`select_menu` list, with disabled rows), the word MINECRAFT, then the other views into "More" one by one from the strip's
+end; the pressed view never goes. Widths are arithmetic from the monospaced font (`TextLook::width`) and the styles'
+paddings; `tests/bar_overflow.rs` checks the predicted strip width against the laid out one.
+
+Decisions the brief left open: (1) the first state that fits is taken among cumulative steps, and a step that buys no room
+is not kept. The brand (cube, word) is 109 px, narrower than the 138 px of the window's buttons it shares a side with, so
+dropping the word never frees anything: it stays in every real window, and the rule is there for a narrower pair
+(tested with smaller buttons). (2) The views' arrangement is that of the preview tool open, whatever tool is on, so the
+views do not shuffle while they slide; the account and the word follow the tool on show, so Home keeps them at 1000.
+(3) The marker stays on the icon's top right corner.
+
+At 1000 px with the loaded world (stopped at a coarse detail, so Flat, Structures and Section are greyed): the account is
+gone, "More" holds Flat, Structures and Section, Biomes, Relief and Temperature stay, the word stays. With every view on:
+"More" holds Structures and Section (the account gone as well). From 1100 px up, with the current widths, nothing is
+given up.
 ## Goal of this run
 
 Replace the world preview's three.js view (`..\world-preview\page\preview.html`, `refresh3d()` near

@@ -7,6 +7,8 @@ The project's words, each confirmed with the maintainer. Name things this way in
 - **view**: one way of showing the world: Biomes, Flat, Relief, Temperature, Structures, Section. Rejected: mode, layer.
 - **strip**: the row of view tabs at the top of the world preview page; inside the launcher these tabs are drawn in the bar instead. Rejected: tab bar, toolbar.
 - **tab**: a button of the strip or of the bar that stays pressed while it is chosen.
+- **More**: the last tab of the bar's views when the window lacks room; it opens a list of the views that no longer fit (the greyed ones shown disabled). Not a menu of the bar's other things. Rejected: overflow menu, ellipsis menu.
+- **give way**: what the bar does when it lacks room: it drops parts in a set order (the account, the greyed views, the word MINECRAFT, the other views), worked out from measured widths. It is not a breakpoint: nothing is fixed at a number of pixels.
 - **panel**: the left side (settings) or the right side (figures, history, list) of the world preview, each of fixed width; panels never move. Rejected: column, sidebar.
 - **stage**: the centre of the world preview, where the view is drawn (2D map, 3D, or cut); it scales with the window by one continuous rule. Rejected: canvas, viewport, map slot.
 - **map**: the 2D view from above, drawn in the stage. Not the 3D view, not the cut.
