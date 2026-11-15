@@ -233,7 +233,7 @@ cut then draws it alone, the other rows fade).
   probe is empty until then; "Another cut" is built in the section view only; `--cut` is kept within the cuts and `--ore`
   names are not checked; a test also writes `target/tmp/section_none.png` (no section).
 
-Build plan step 17 is done: data and runs (`docs/shots/run-progress.png`, `export-done.png`). `preview` reads
+Build plan step 17 is done: data and runs (`docs/shots/run-progress.png`; `export-done.png` was dropped before publication, as it showed a machine path). `preview` reads
 `--data` (default `C:\Games\preview\out`; without a `preview.json` there it starts with no world, as the page shows
 `noPreview`; an explicit `--data` that fails exits 1) including `run.json` (`world::Made`: the seed and the 43 values the
 map was made from, which fill the form: `PreviewState::for_world`, the page's `loadWorld`). Generate starts the
@@ -543,7 +543,7 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   picture test checks that the native frame is byte-equal to `picture_with_home`); `launcher/app` builds with
   `--locked` and has 2 lib tests; `cargo build --release` of `launcher/native` passes (not run). Pictures in
   `docs/shots`: `launcher-controls-dark.png`, `launcher-controls-light.png`, `bar-slide-mid.png`,
-  `launcher-home-{1000,1400,1920,1400x600,light,settings,launch}.png`,
+  `launcher-home-{1000,1400,1920,1400x600,light,launch}.png` (`launcher-home-settings.png` was dropped before publication, as it showed a machine path),
   `launcher-preview-{1000,1400,1920,light}.png`. There is no 800 picture: the window holds 1000 at the least, so the
   sweep of the launcher's Home is 1000, 1400, 1920 and a short height (1400x600), the layout tests run every width
   from 1000 to 1920, and an 800 request is shown to become 1000 (`l9`).
@@ -669,7 +669,7 @@ and the PNG has been looked at and compared with the web preview's look.
 4. **Review**: take `--shot` pictures at 1280x800 scale 1 and 2560x1600 scale 2, open them with Read, compare
    with the web preview's 3D view (served by the launcher, or reason from `refresh3d()`), fix what differs.
 
-Data for tests: `C:\Games\preview\out` (seed 94427382). Check it exists before relying on it.
+Data for tests: a world preview out folder named by `PREVIEW_DATA_DIR` (the one used here has seed 94427382). Without it, the tests that need it say "skipped".
 
 ## Workflow shape
 

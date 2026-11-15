@@ -19,7 +19,7 @@ The project's words, each confirmed with the maintainer. Name things this way in
 - **figures**: the numbers at the top of the right panel (Flat land, Sea, Highest peak…). Rejected: stats, metrics.
 - **history**: the small trend lines of the runs before, under the figures.
 - **run**: one generation started by Generate preview, with its progress and its stop. Rejected: job, build.
-- **out folder**: the folder a run produces and the preview reads (`C:\Games\preview\out` by default). Rejected: data dir.
+- **out folder**: the folder a run produces and the preview reads (named by `--data`, or by the `PREVIEW_DATA_DIR` environment variable). Rejected: data dir.
 - **export**: what the Export link writes: the pictures and `export.json`.
 - **fold**: a section of a panel that opens and closes (WORLD, SETTINGS…). Rejected: accordion, collapsible.
 - **breakpoint**: a window width at which the layout changes form. Kept as few as possible: none in the world preview, at most one in the launcher's Home.

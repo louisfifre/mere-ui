@@ -2,7 +2,7 @@
 //! the button's running look, the progress read once a second, the stop that takes the process tree, the finished
 //! run's world, a failed or refused run, a run asked for while another is under way, and quitting. The real
 //! preview.ps1 is never run (it downloads, needs a pack, the EULA and Java). Everything is written under target\tmp.
-//! A test says "skipped" without C:\Games\preview\out or powershell.exe.
+//! A test says "skipped" without the out folder PREVIEW_DATA_DIR names, or without powershell.exe.
 
 mod common;
 
@@ -133,7 +133,8 @@ fn r1_a_run_under_way_and_its_stop() {
 fn r2_a_finished_run_becomes_the_map() {
     let Some(world) = world() else { return };
     let root = root("runs-r2");
-    let mut rig = start(&world, &root, &[("NUI_STUB", "finish"), ("NUI_STUB_FROM", r"C:\Games\preview\out")], "r2-seed");
+    let from = preview::world::data_dir();
+    let mut rig = start(&world, &root, &[("NUI_STUB", "finish"), ("NUI_STUB_FROM", from.to_str().expect("a UTF-8 path"))], "r2-seed");
     let g = rig.app.ids().generate;
     rig.click_on(g);
     assert!(rig.app.running());

@@ -4,6 +4,7 @@ description = "Immediate-mode interface: ids, input, theme, widgets over nui-lay
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license = "GPL-3.0-only"
 
 [dependencies]
 nui-base.workspace = true

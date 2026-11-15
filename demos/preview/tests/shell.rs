@@ -16,9 +16,9 @@ fn shell(w: f32, h: f32) -> (Ui, ShellIds, Columns) {
 
 /// The shell with the real preview on the map, or None (with the reason printed) without the data.
 fn shell_real(w: f32, h: f32) -> Option<(Ui, ShellIds, World)> {
-    let dir = std::path::Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     if !dir.join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return None;
     }
     let world = World::load(dir).expect("the data loads");

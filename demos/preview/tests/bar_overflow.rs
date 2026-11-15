@@ -1,7 +1,7 @@
 //! The bar when the window is too narrow for all of it: what it gives up, in which order, and that what it keeps
 //! stays whole. Layout is judged on the real rects of a built frame, from the window's least width to 2560 px.
 //!
-//! The world the tests load (`C:\Games\preview\out`) was stopped at a coarse detail, so Flat, Structures and Section
+//! The world the tests load (the out folder `PREVIEW_DATA_DIR` names) was stopped at a coarse detail, so Flat, Structures and Section
 //! are greyed in it; `None` stands for a world with every view on.
 
 mod common;

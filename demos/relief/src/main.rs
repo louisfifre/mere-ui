@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn reads_the_options() {
-        let a = parse_args(&args(r"C:\Games\out --shot a.png --size 640x480 --scale 2")).unwrap();
+        let a = parse_args(&args(r"out --shot a.png --size 640x480 --scale 2")).unwrap();
         assert_eq!(a.size, (640, 480));
         assert_eq!(a.scale, 2.0);
         assert!(a.shot.is_some());

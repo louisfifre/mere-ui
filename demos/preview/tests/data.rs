@@ -52,9 +52,9 @@ fn d5_run_json_gives_the_ask_of_the_loaded_world() {
     use preview::run::ask_of;
     use preview::settings::pack_values;
     use preview::world::World;
-    let dir = std::path::Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     if !dir.join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return;
     }
     let world = World::load(dir).unwrap();

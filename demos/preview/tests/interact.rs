@@ -3,7 +3,6 @@
 //! events fed to the `Ui` between frames; the last goes through `PreviewApp` and an offscreen renderer.
 
 use std::collections::BTreeSet;
-use std::path::Path;
 
 use nui_base::{App, Button, Event, Rect, Vec2};
 use nui_ui::{Theme, Ui};
@@ -18,9 +17,9 @@ use preview::{PreviewApp, PreviewState, ShellIds, build};
 const SIZE: Vec2 = Vec2::new(1400.0, 940.0);
 
 fn load() -> Option<World> {
-    let dir = Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     if !dir.join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return None;
     }
     Some(World::load(dir).expect("the data loads"))

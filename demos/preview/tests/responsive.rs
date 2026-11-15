@@ -20,9 +20,9 @@ const COL_H: f32 = H - BAR_H - CONTENT_TOP - 22.0;
 const SWEEP: [f32; 9] = [1000.0, 1100.0, 1200.0, 1250.0, 1251.0, 1400.0, 1480.0, 1481.0, 1920.0];
 
 fn load() -> Option<World> {
-    let dir = Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     if !dir.join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return None;
     }
     Some(World::load(dir).expect("the data loads"))
@@ -249,7 +249,7 @@ fn picture(world: &World, state: PreviewState, w: u32, h: u32, name: &str) {
 }
 
 /// The pictures: both panels open at 1920 x 1040, 1280 x 880, 1000 x 700, the stacking width and ten pixels under
-/// it, 700 x 700 and the least window; the settings panel dragged wider; the figures panel closed. (The section's\n/// picture needs a world with one: `--data C:\\Games\\preview\\out-section --view section` makes it.)
+/// it, 700 x 700 and the least window; the settings panel dragged wider; the figures panel closed. (The section's\n/// picture needs a world with one: `--data <an out folder with a section> --view section` makes it.)
 #[test]
 fn pictures_over_the_sweep() {
     let Some(world) = load() else { return };

@@ -1,7 +1,7 @@
 //! The height bands of the relief view: their names and colours, ported from preview.html so that the list
 //! shows what the page's does (lines 509, 1040-1045, 1091-1102, 1134, 1137, 1353-1355).
 
-/// `seaLevel` of `C:\Games\preview\out\preview.json`.
+/// `seaLevel` of the out folder's `preview.json`.
 pub const SEA: f64 = 63.0;
 /// Line 1134: where one band of height ends and the next starts, above the sea.
 pub const HEIGHT_STEPS: [f64; 4] = [100.0, 150.0, 200.0, 250.0];

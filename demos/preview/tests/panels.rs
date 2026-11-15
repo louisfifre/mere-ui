@@ -2,7 +2,6 @@
 //! closed panel gives back, that a stacked panel scrolls as one whole, and the bar's two buttons. Layout is judged
 //! on the real rects of a built page, and the hand through the events a window sends.
 
-use std::path::Path;
 
 use nui_base::{App, Button, Cmd, Color, Cursor, Event, Rect, Vec2};
 use nui_ui::{Id, Theme};
@@ -14,7 +13,7 @@ use preview::{BAR_H, CONTENT_TOP, PreviewApp, PreviewState, ShellIds, picture_wi
 const H: f32 = 800.0;
 
 fn world() -> Option<World> {
-    let dir = Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     dir.join("preview.json").exists().then(|| World::load(dir).expect("the data loads"))
 }
 
