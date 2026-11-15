@@ -54,7 +54,7 @@ impl TextLook {
         ADVANCE_EM * self.size + self.tracking
     }
     pub fn width(&self, s: &str) -> f32 {
-        s.chars().count() as f32 * self.step()
+        cells_of(s) as f32 * self.step()
     }
 }
 
@@ -98,7 +98,16 @@ pub fn ellipsize(s: &str, look: TextLook, w: f32) -> String {
     let step = look.step();
     // The 1e-3 keeps a column that is an exact multiple of the step from losing a glyph to rounding.
     let n = ((w - step) / step + 1e-3).floor().max(0.0) as usize;
-    let mut out: String = s.chars().take(n).collect();
+    // By cells, as a field does: a wide glyph is drawn two steps wide, so a cut by count would overflow the box.
+    let mut out = String::new();
+    let mut used = 0;
+    for c in s.chars() {
+        if used + cells(c) > n {
+            break;
+        }
+        used += cells(c);
+        out.push(c);
+    }
     out.push('\u{2026}');
     out
 }
@@ -122,7 +131,7 @@ pub fn wrap_lines_after(s: &str, look: TextLook, w: f32, lead: f32) -> Vec<Strin
     let mut cur_n = 0usize;
     for word in s.split_whitespace() {
         let room = if lines.is_empty() { w - lead } else { w } + 0.01;
-        let n = word.chars().count();
+        let n = cells_of(word);
         let joined = if cur_n == 0 { n } else { cur_n + 1 + n };
         if joined as f32 * step <= room {
             if cur_n > 0 {
@@ -146,13 +155,18 @@ pub fn wrap_lines_after(s: &str, look: TextLook, w: f32, lead: f32) -> Vec<Strin
         let mut at = 0;
         while at < chars.len() {
             let per = per_of(if lines.is_empty() { w - lead } else { w });
-            let end = (at + per).min(chars.len());
+            // Cells, not chars; a piece takes at least one char so a column under a wide glyph still moves on.
+            let (mut end, mut used) = (at, 0);
+            while end < chars.len() && (end == at || used + cells(chars[end]) <= per) {
+                used += cells(chars[end]);
+                end += 1;
+            }
             let piece: String = chars[at..end].iter().collect();
             at = end;
             if at < chars.len() {
                 lines.push(piece);
             } else {
-                cur_n = piece.chars().count();
+                cur_n = used;
                 cur = piece;
             }
         }
@@ -164,7 +178,7 @@ pub fn wrap_lines_after(s: &str, look: TextLook, w: f32, lead: f32) -> Vec<Strin
 }
 
 pub fn text_width(s: &str, size: f32) -> f32 {
-    s.chars().count() as f32 * ADVANCE_EM * size
+    cells_of(s) as f32 * ADVANCE_EM * size
 }
 
 /// The CSS line box puts half the leading above the font's content; DirectWrite's line box is the content
