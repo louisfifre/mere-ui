@@ -41,7 +41,7 @@ pub use field::{FieldLook, FieldOpts, FieldResp};
 pub use menu::{MENU_ROW, MenuResp, MenuRow, SelectOpts, SelectResp};
 pub use list::{ListRow, PartOpts, RowOpts};
 pub use number::{NumberOpts, NumberSpec};
-pub use scroll::{GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, WHEEL_STEP, scroll_style};
+pub use scroll::{ARROW, GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, THUMB_W, WHEEL_STEP, arrows_shown, scroll_style};
 pub use fold::FoldOpts;
 pub use id::Id;
 pub use input::Input;

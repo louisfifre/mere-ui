@@ -2,7 +2,7 @@
 //! the fade of its bottom 28 px. The application owns the offset (`&mut f32`), as it owns a fold's state; the
 //! Ui keeps only what last frame measured, which is all a widget may judge the pointer against.
 
-use nui_base::{Color, Rect, observe};
+use nui_base::{Color, Rect, Vec2, observe};
 use nui_layout::{Dim, Edges, Margin, Overflow, Side, Style};
 
 use crate::id::Id;
@@ -14,6 +14,10 @@ pub const GUTTER: f32 = 11.0;
 pub const THUMB_MIN: f32 = 18.0;
 /// How far one wheel notch moves the content, in DIP. UNVERIFIED against Chrome.
 pub const WHEEL_STEP: f32 = 100.0;
+/// The room of one arrow at an end of the track, in DIP; the gutter's width stays `GUTTER`.
+pub const ARROW: f32 = 10.0;
+/// The thumb's width, in DIP; the track is 1 px.
+pub const THUMB_W: f32 = 3.0;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct ScrollOpts {
@@ -36,6 +40,16 @@ pub struct ScrollResp {
     pub overflow: bool,
 }
 
+/// Which part of the scrollbar the pointer is on (or holds): it is drawn in the text colour instead of the
+/// muted one.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum BarHot {
+    None,
+    Thumb,
+    Up,
+    Down,
+}
+
 /// What the painter draws for a scroll node.
 #[derive(Copy, Clone, Debug)]
 pub(crate) struct ScrollPaint {
@@ -43,7 +57,11 @@ pub(crate) struct ScrollPaint {
     pub y: f32,
     pub fade: f32,
     pub gutter: bool,
-    pub thumb: Color,
+    /// The theme's line, muted and text colours: the track, the resting thumb and arrows, the hot ones.
+    pub line: Color,
+    pub muted: Color,
+    pub text: Color,
+    pub hot: BarHot,
     pub ground: Color,
 }
 
@@ -61,12 +79,57 @@ pub(crate) struct ScrollMetrics {
     pub gutter: bool,
 }
 
-/// The thumb: its length is the share of the content that shows, and it runs along the box in the same
-/// proportion as the offset along its range.
+/// The centre line of the bar, in the middle of the gutter.
+fn bar_x(view: Rect) -> f32 {
+    view.x + view.w - GUTTER / 2.0
+}
+
+/// The track: the box's height less the room of the two arrows, which is kept at both ends even when an arrow
+/// is absent, so that the thumb never jumps when one appears.
+pub(crate) fn track_rect(view: Rect) -> Rect {
+    Rect::new(bar_x(view) - 0.5, view.y + ARROW, 1.0, (view.h - 2.0 * ARROW).max(0.0))
+}
+
+/// The thumb: its length is the share of the content that shows (of the track), and it runs along the track in
+/// the same proportion as the offset along its range.
 pub(crate) fn thumb_rect(view: Rect, content_h: f32, max: f32, off: f32) -> Rect {
-    let h = (view.h * view.h / content_h).max(THUMB_MIN);
-    let y = if max > 0.0 { view.y + (view.h - h) * off / max } else { view.y };
-    Rect::new(view.x + view.w - GUTTER + 2.0, y, GUTTER - 4.0, h)
+    let track = track_rect(view);
+    let h = (track.h * view.h / content_h).max(THUMB_MIN).min(track.h);
+    let y = if max > 0.0 { track.y + (track.h - h) * off / max } else { track.y };
+    Rect::new(bar_x(view) - THUMB_W / 2.0, y, THUMB_W, h)
+}
+
+/// Where a press grabs the thumb: the thumb's length by the whole gutter's width, since 3 px is too thin to aim at.
+pub(crate) fn thumb_grip(view: Rect, thumb: Rect) -> Rect {
+    Rect::new(view.x + view.w - GUTTER, thumb.y, GUTTER, thumb.h)
+}
+
+/// The two arrow buttons: the gutter's width by `ARROW`, at the top and at the bottom of the box.
+pub(crate) fn arrow_rects(view: Rect) -> (Rect, Rect) {
+    let x = view.x + view.w - GUTTER;
+    (Rect::new(x, view.y, GUTTER, ARROW), Rect::new(x, view.y + view.h - ARROW, GUTTER, ARROW))
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ArrowDir {
+    Up,
+    Down,
+}
+
+/// The chevron of an arrow: about 5 px wide and 3 high, centred in the arrow's rect, drawn as a polyline.
+pub(crate) fn chevron(area: Rect, dir: ArrowDir) -> Vec<Vec2> {
+    let (cx, cy) = (area.x + area.w / 2.0, area.y + area.h / 2.0);
+    let (tip, foot) = match dir {
+        ArrowDir::Up => (cy - 1.5, cy + 1.5),
+        ArrowDir::Down => (cy + 1.5, cy - 1.5),
+    };
+    vec![Vec2::new(cx - 2.5, foot), Vec2::new(cx, tip), Vec2::new(cx + 2.5, foot)]
+}
+
+/// Which arrows show: up when there is content above the box, down when there is content below. Half a pixel
+/// of slack, so that a rounding left over does not keep an arrow that leads nowhere.
+pub fn arrows_shown(max: f32, off: f32) -> (bool, bool) {
+    (off > 0.5, off < max - 0.5)
 }
 
 /// `.scroll` (lines 133-137): `flex: 1; min-height: 0; overflow-y: auto; margin-right: -10px;
@@ -102,21 +165,44 @@ impl Ui {
         body(self);
 
         let thumb_id = self.key("thumb");
+        let mut hot = BarHot::None;
         if let Some(m) = m {
             let thumb = thumb_rect(m.view, m.content_h, m.max, m.off);
+            let grip = thumb_grip(m.view, thumb);
+            let (up, down) = arrow_rects(m.view);
+            let (show_up, show_down) = arrows_shown(m.max, m.off);
             if m.overflow && self.input.pressed && self.active.is_none() {
-                if let Some(p) = self.input.press_pos.filter(|p| thumb.contains(*p)) {
-                    self.active = Some(thumb_id);
-                    self.grab = Some(p.y - thumb.y);
+                if let Some(p) = self.input.press_pos {
+                    if grip.contains(p) {
+                        self.active = Some(thumb_id);
+                        self.grab = Some(p.y - thumb.y);
+                    } else if show_up && up.contains(p) {
+                        *y -= WHEEL_STEP;
+                    } else if show_down && down.contains(p) {
+                        *y += WHEEL_STEP;
+                    }
                 }
             }
             if self.active == Some(thumb_id) && self.input.down {
-                let track = m.view.h - thumb.h;
+                let track = track_rect(m.view);
+                let room = track.h - thumb.h;
                 if let (Some(p), Some(grab)) = (self.input.pos, self.grab) {
-                    if track > 0.0 {
-                        *y = (p.y - grab - m.view.y) / track * m.max;
+                    if room > 0.0 {
+                        *y = (p.y - grab - track.y) / room * m.max;
                     }
                 }
+            }
+            if m.overflow {
+                hot = if self.active == Some(thumb_id) {
+                    BarHot::Thumb
+                } else {
+                    match self.input.pos {
+                        Some(p) if self.active.is_none() && grip.contains(p) => BarHot::Thumb,
+                        Some(p) if self.active.is_none() && show_up && up.contains(p) => BarHot::Up,
+                        Some(p) if self.active.is_none() && show_down && down.contains(p) => BarHot::Down,
+                        _ => BarHot::None,
+                    }
+                };
             }
             if self.input.wheel != 0.0 && m.max > 0.0 && self.input.wheel_pos.is_some_and(|p| m.visible.contains(p)) {
                 *y -= self.input.wheel * WHEEL_STEP;
@@ -130,7 +216,7 @@ impl Ui {
         }
 
         let t = *self.theme();
-        self.set_paint(node, Paint::Scroll(ScrollPaint { id, y: *y, fade: opts.fade, gutter, thumb: t.line, ground: t.ground }));
+        self.set_paint(node, Paint::Scroll(ScrollPaint { id, y: *y, fade: opts.fade, gutter, line: t.line, muted: t.muted, text: t.text, hot, ground: t.ground }));
         self.close();
         ScrollResp { id, max: m.map_or(0.0, |m| m.max), overflow: m.is_some_and(|m| m.overflow) }
     }
