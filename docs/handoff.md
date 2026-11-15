@@ -383,8 +383,8 @@ the window stays open (the CLI no longer exits 1 for it).
   `demos/preview/tests/polish.rs`: P1 (a lost device, then a new renderer: the same bytes as a fresh app), P2 (a move to
   scale 1.5: the same bytes as a fresh 1.5 renderer), P3 (a run under way: `frame` asks for no other frame, `wake_in`
   within 1 s, `tick` reads `progress.json` with no renderer).
-- PLACEHOLDER: `HOME_LATER` ("The launcher's home comes with step 21.") and the Home pane it fills, which is empty
-  otherwise; Home's own content and its one switch (two parts side by side or one above the other) belong to step 21.
+- PLACEHOLDER: `HOME_LATER` (at step 19 it said Home came with step 21; since the final review it says Home belongs to
+  the launcher) and the Home pane it fills, which is empty otherwise; Home's own content belongs to step 21.
 - New `windows` features, all inside `nui-win32`: `Win32_Graphics_Dwm` (`DwmExtendFrameIntoClientArea`, to keep the
   window's shadow on the own frame) and `Win32_UI_Controls` (`TrackMouseEvent`, so that the pointer leaving the window
   is known). `RegisterOcclusionStatusWindow` needed nothing new (`Win32_Graphics_Dxgi` was already on).
@@ -486,8 +486,9 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
     binary behind the `window` feature (so `launcher/native` pulls no tao or wry); `launcher/native` is the new
     package (`LauncherHome`, a bridge to `launcher::api::Api` in process with origin `native://launcher`, a fake api for
     tests and pictures, `main.rs` with the window and `--shot`); `scripts/launcher.ps1 -Native`; docs.
-  - The one switch of the Home is at 860: the two parts stack when the window is 860 wide or less. The window never
-    reaches it (the least size is 1000), so the stacked form appears only in the 800 and 860 pictures.
+  - The Home has no switch: two columns that fill the window continuously. The page's 860 one-column form was built
+    first, but the window never goes under 1000 (each part is still 448 px wide there), so it could not be reached and
+    the final review removed it (`HOME_SWITCH`, `HomeIds::stacked`, the 800 and 860 pictures).
   - Page rules dropped on purpose: the 1120 cap, the padding change at 860, and `@media (max-width: 640px)` hiding the
     account.
 - PLACEHOLDER: `HOME_LATER` stays only in the standalone `preview` binary's Home. The launcher's Home is real.
@@ -513,7 +514,8 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   - a multi-line text area (the Java field is one line in a 52 px box);
   - the page's "empty number = min";
   - a live change of reduced motion (read once at start);
-  - bringing a running native window to the front (no `hwnd.txt`);
+  - bringing a running native window to the front (the native window writes no `hwnd.txt`; a refused second start is
+    logged, and a stale `hwnd.txt` is removed once the lock is held);
   - the page's `@media 640`, the 1120 cap, the 860 padding change.
 - Choices where the brief was silent:
   - the bar normalises a state that names a tool without its slide (Home with the views open becomes closed, and the
@@ -537,8 +539,10 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   picture test checks that the native frame is byte-equal to `picture_with_home`); `launcher/app` builds with
   `--locked` and has 2 lib tests; `cargo build --release` of `launcher/native` passes (not run). Pictures in
   `docs/shots`: `launcher-controls-dark.png`, `launcher-controls-light.png`, `bar-slide-mid.png`,
-  `launcher-home-{800,1000,1400,1920,1400x600,light,settings,launch}.png`,
-  `launcher-preview-{800,1000,1400,1920,light}.png`.
+  `launcher-home-{1000,1400,1920,1400x600,light,settings,launch}.png`,
+  `launcher-preview-{1000,1400,1920,light}.png`. There is no 800 picture: the window holds 1000 at the least, so the
+  sweep of the launcher's Home is 1000, 1400, 1920 and a short height (1400x600), the layout tests run every width
+  from 1000 to 1920, and an 800 request is shown to become 1000 (`l9`).
 - The manual check, by the maintainer (the same twelve points are in the pack's setup notes, "Native launcher"):
   1. Close the page launcher. In the pack's repository: `$env:WORLD_PREVIEW_DIR = '..\world-preview'; .\scripts\launcher.ps1 -Native`.
   2. Home: the profiles with their lines, the account after MINECRAFT; a row lights under the pointer.
@@ -552,6 +556,28 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   10. Switch Windows to light: the window follows.
   11. Close: the window and a run under way stop; `run\launcher.log` has "started (native)" and "stopped: the window was closed".
   12. `.\scripts\launcher.ps1` with no switch still opens the page launcher.
+
+Final review of step 21 (2026-11-15): eleven findings, all real, all fixed. In the pack's repository: Play no longer reads
+the launch state before its POST answered (`next_launch` waits at infinity until the Play answer, as the page awaits
+the POST), which removes a race that could end the follow early; a fast click on Back now saves first (saves are
+sorted before navigation in `act`); a refused second start is logged and a stale `hwnd.txt` is removed; Home's
+unreachable stacked form and its 800/860 pictures are gone. Here: a minimised window now ends its run and tells it at
+once (`tick` runs `finish` without a device; only the mesh upload waits in `upload_pending`); labels measure, cut and
+wrap by cells as fields do (wide glyphs); the standalone Home placeholder no longer names a step; no probe line before a
+map exists (as the page); the 1100 px list variant (`narrow`) is removed; crisp icon edges of equal width stay equal
+(origin snapped first, offsets rounded by one rule; the maximise box now has four edges of the same width, checked
+at four scales and five fractional positions); the 800 pictures and this list's claim about them are corrected.
+Not settled by tests: the Play race and the Back-after-save order are fixed by construction in the real window only
+(inline bridges answer at once), so they are UNVERIFIED live; the save POST and the list reload that Back sends right
+after it go out on separate threads and their order is not guaranteed. The wide-glyph measure assumes the fallback font
+draws a wide glyph two advances wide, UNVERIFIED in a real window.
+
+Closing state of the chapter: the toolkit, the native world preview (steps 13 to 20) and the native launcher (step 21)
+are built and covered by tests and pictures; all that is left is manual for the maintainer, the twelve points above
+plus: Play a profile twice in one session (the second must follow its own start), edit Java arguments and click the
+back arrow at once, minimise during a Generate and look at the taskbar title, a profile named in Japanese. Still
+UNVERIFIED: the live window, a display scale of 150%, the real `preview.ps1` run from the launcher. Not built: the list
+above. The build plan has no further step.
 
 Next: the maintainer's manual check of the native launcher (above); then the orchestrator merges `feat/native-launcher` of both repositories and repoints `launcher/native`'s paths at `../../../rust-native-ui`. The build plan has no step after 21.
 
