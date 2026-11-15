@@ -58,6 +58,37 @@ impl TextLook {
     }
 }
 
+/// How many monospaced cells `c` takes in a text field: 2 for an East Asian Wide or Fullwidth char, else 1.
+/// A reduced table of UAX #11 (the practice of terminals' wcwidth), written here, nothing copied: it lists the
+/// blocks the applications can meet (Hangul Jamo, CJK symbols, kana, CJK ideographs, Hangul syllables,
+/// fullwidth forms, emoji, the supplementary ideographic planes), not every range. Half-width katakana
+/// (U+FF61..FF9F) stays one cell.
+pub fn cells(c: char) -> usize {
+    const WIDE: [(u32, u32); 15] = [
+        (0x1100, 0x115F),
+        (0x2E80, 0x303E),
+        (0x3041, 0x33FF),
+        (0x3400, 0x4DBF),
+        (0x4E00, 0x9FFF),
+        (0xA000, 0xA4CF),
+        (0xAC00, 0xD7A3),
+        (0xF900, 0xFAFF),
+        (0xFE30, 0xFE4F),
+        (0xFF00, 0xFF60),
+        (0xFFE0, 0xFFE6),
+        (0x1F300, 0x1F64F),
+        (0x1F900, 0x1F9FF),
+        (0x20000, 0x2FFFD),
+        (0x30000, 0x3FFFD),
+    ];
+    let u = c as u32;
+    if WIDE.iter().any(|&(a, b)| (a..=b).contains(&u)) { 2 } else { 1 }
+}
+
+/// The cells of a whole string: see `cells`.
+pub fn cells_of(s: &str) -> usize {
+    s.chars().map(cells).sum()
+}
 /// `text-overflow: ellipsis` with `white-space: nowrap`: `s` if it fits in `w`, else the longest whole-glyph
 /// prefix that leaves room for the ellipsis, which is one monospaced cell (Chrome cuts at glyph boundaries).
 pub fn ellipsize(s: &str, look: TextLook, w: f32) -> String {

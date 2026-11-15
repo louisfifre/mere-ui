@@ -674,3 +674,45 @@ fn compact_look_is_22_tall_and_the_pad_is_the_look() {
     });
     rect_is(ui.rect(id.unwrap()).unwrap(), 20.0, 20.0, 130.0, 22.0);
 }
+
+#[test]
+fn cells_count_wide_chars_as_two() {
+    assert_eq!(nui_ui::cells('a'), 1);
+    assert_eq!(nui_ui::cells('日'), 2);
+    // Half-width katakana is one cell, fullwidth Latin two.
+    assert_eq!(nui_ui::cells('\u{FF71}'), 1);
+    assert_eq!(nui_ui::cells('\u{FF21}'), 2);
+    assert_eq!(nui_ui::cells_of("ab日本"), 6);
+}
+
+#[test]
+fn a_wide_char_takes_two_cells_in_the_caret_and_the_text() {
+    let t = Theme::dark();
+    // x0 is the content's left edge, 27. "ab日本" is 6 cells, so the caret at the end sits at 27 + 43.2.
+    let (mut ui, mut s) = focused_at("ab日本", 10.0);
+    let (l, _) = plain(&mut ui, &mut s);
+    near(caret(&l, &t).unwrap().x, (27.0f32 + 43.2).round());
+    // Cells: "ab" at 0, 日 at 2 (14.4), 本 at 4 (28.8), each centred by (2 * 7.2 - 12) / 2 = 1.2.
+    let tx = texts(&l);
+    assert_eq!(tx.len(), 3);
+    assert_eq!(tx[0].1, "ab");
+    near(tx[0].0.x, 27.0);
+    assert_eq!(tx[1].1, "日");
+    near(tx[1].0.x, 27.0 + 14.4 + 1.2);
+    assert_eq!(tx[2].1, "本");
+    near(tx[2].0.x, 27.0 + 28.8 + 1.2);
+}
+
+#[test]
+fn a_click_lands_on_the_nearest_gap_of_cells() {
+    // x0 + 20 is cell 2.78: the gaps are at cells 0, 1, 2, 4, 6, so the nearest is 2, before 日 (byte 2).
+    let (mut ui, mut s) = focused_at("ab日本", 10.0);
+    let p = Vec2::new(27.0 + 20.0, MID_Y);
+    mv(&mut ui, p);
+    down(&mut ui, p, 1);
+    up(&mut ui, p);
+    plain(&mut ui, &mut s);
+    typ(&mut ui, "X");
+    plain(&mut ui, &mut s);
+    assert_eq!(s, "abX日本");
+}

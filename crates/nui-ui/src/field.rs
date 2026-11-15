@@ -12,7 +12,7 @@ use nui_layout::{Dim, Edges, Measured, Style};
 
 use crate::edit::{Accept, Edit, Outcome};
 use crate::number::{self, NumberSpec, js_number};
-use crate::text::{ASCENT_EM, DESCENT_EM, TextLook, Tone, baseline, half_leading};
+use crate::text::{ASCENT_EM, DESCENT_EM, TextLook, Tone, baseline, cells, cells_of, half_leading};
 use crate::ui::{Paint, Resp, Ui};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -97,9 +97,9 @@ pub(crate) struct FieldPaint {
     pub muted: Color,
     pub select: Color,
     pub select_text: Color,
-    /// The caret's char column, when focused with nothing selected: the browser hides it over a selection.
+    /// The caret's cell column, when focused with nothing selected: the browser hides it over a selection.
     pub caret: Option<usize>,
-    /// The selection's char columns, when focused.
+    /// The selection's cell columns, when focused.
     pub selection: Option<(usize, usize)>,
 }
 
@@ -268,13 +268,12 @@ impl Ui {
             (Target::Number { .. }, true) => self.state().edit.text.clone(),
             (Target::Number { v, .. }, false) => js_number(**v),
         };
-        let chars = shown.chars().count();
-        let text_w = chars as f32 * step;
+        let text_w = cells_of(&shown) as f32 * step;
         let mut scroll = 0.0;
         let (mut caret, mut selection) = (None, None);
         if focused {
             let st = self.state();
-            let (cur, sel) = (st.edit.col(st.edit.cursor), st.edit.selection().map(|(a, b)| (st.edit.col(a), st.edit.col(b))));
+            let (cur, sel) = (st.edit.cells_before(st.edit.cursor), st.edit.selection().map(|(a, b)| (st.edit.cells_before(a), st.edit.cells_before(b))));
             if let Some(r) = rect {
                 let inner_w = inner_of(r, pad).w;
                 let caret_px = cur as f32 * step;
@@ -348,20 +347,19 @@ impl Ui {
         let (clicks, pos) = (self.input.clicks, self.input.pos);
         let st = self.state();
         let inner = inner_of(r, pad);
-        let chars = st.edit.text.chars().count();
-        let x0 = text_x(inner, chars as f32 * step, right, st.scroll);
-        // Nearest gap between two chars for a caret, the char under the pointer for a word.
-        let index_at = |x: f32| (((x - x0) / step).round().clamp(0.0, chars as f32)) as usize;
-        let char_at = |x: f32| (((x - x0) / step).floor().clamp(0.0, chars.saturating_sub(1) as f32)) as usize;
+        let x0 = text_x(inner, cells_of(&st.edit.text) as f32 * step, right, st.scroll);
+        // The cell position of a pointer x: the caret takes the nearest gap between two chars, a word click
+        // the char under the pointer.
+        let cell_at = |x: f32| (x - x0) / step;
         if let Some(p) = press {
             match clicks {
                 0 | 1 => {
-                    let i = st.edit.byte_at_col(index_at(p.x));
+                    let i = st.edit.byte_near_cell(cell_at(p.x));
                     st.edit.set_caret(i, false);
                     st.drag = true;
                 }
                 2 => {
-                    let i = st.edit.byte_at_col(char_at(p.x));
+                    let i = st.edit.byte_under_cell(cell_at(p.x));
                     st.edit.select_word_at(i);
                     st.drag = false;
                 }
@@ -372,7 +370,7 @@ impl Ui {
             }
         } else if held && st.drag {
             if let Some(p) = pos {
-                let i = st.edit.byte_at_col(index_at(p.x));
+                let i = st.edit.byte_near_cell(cell_at(p.x));
                 st.edit.set_caret(i, true);
             }
         }
@@ -392,7 +390,7 @@ pub(crate) fn paint_field(list: &mut DrawList, f: &FieldPaint, r: Rect, pad: Edg
     let top = inner.y + half_leading(look);
     let glyph_h = (ASCENT_EM + DESCENT_EM) * look.size;
     let chars = f.text.chars().count();
-    let x0 = text_x(inner, chars as f32 * step, f.right, f.scroll);
+    let x0 = text_x(inner, cells_of(&f.text) as f32 * step, f.right, f.scroll);
     if let Some((a, b)) = f.selection {
         list.fill(Rect::new(x0 + a as f32 * step, top, (b - a) as f32 * step, glyph_h), f.select);
     }
@@ -402,10 +400,10 @@ pub(crate) fn paint_field(list: &mut DrawList, f: &FieldPaint, r: Rect, pad: Edg
             list.text(Vec2::new(text_x(inner, pw, f.right, 0.0), top), f.placeholder.clone(), look.size, f.muted);
         }
     } else {
-        list.text(Vec2::new(x0, top), f.text.clone(), look.size, f.text_color);
+        draw_cells(list, &f.text, x0, top, look, f.text_color);
         if let Some((a, b)) = f.selection {
             list.push_clip(Rect::new(x0 + a as f32 * step, top, (b - a) as f32 * step, glyph_h));
-            list.text(Vec2::new(x0, top), f.text.clone(), look.size, f.select_text);
+            draw_cells(list, &f.text, x0, top, look, f.select_text);
             list.pop_clip();
         }
     }
@@ -414,4 +412,31 @@ pub(crate) fn paint_field(list: &mut DrawList, f: &FieldPaint, r: Rect, pad: Edg
         list.fill(Rect::new((x0 + c as f32 * step).round(), top, 1.0, glyph_h), f.text_color);
     }
     list.pop_clip();
+}
+
+/// Draws `text` from `x0` cell by cell. A maximal run of one-cell chars is one command at its cell, so plain
+/// text is one command as before. A two-cell char is its own command, centred in its two cells: the offset
+/// assumes the fallback font's glyph advances 1 em (an INTERPRETATION; IBM Plex Mono has no CJK glyphs, so
+/// DirectWrite falls back to a system font).
+fn draw_cells(list: &mut DrawList, text: &str, x0: f32, top: f32, look: TextLook, color: Color) {
+    let step = look.step();
+    let (mut cell, mut run, mut run_cell) = (0usize, String::new(), 0usize);
+    for c in text.chars() {
+        if cells(c) == 1 {
+            if run.is_empty() {
+                run_cell = cell;
+            }
+            run.push(c);
+            cell += 1;
+        } else {
+            if !run.is_empty() {
+                list.text(Vec2::new(x0 + run_cell as f32 * step, top), std::mem::take(&mut run), look.size, color);
+            }
+            list.text(Vec2::new(x0 + cell as f32 * step + (2.0 * step - look.size) / 2.0, top), c.to_string(), look.size, color);
+            cell += 2;
+        }
+    }
+    if !run.is_empty() {
+        list.text(Vec2::new(x0 + run_cell as f32 * step, top), run, look.size, color);
+    }
 }

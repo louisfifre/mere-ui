@@ -133,7 +133,43 @@ impl Edit {
         self.text[..i].chars().count()
     }
 
+    /// How many cells (monospaced columns; a wide char takes two) come before byte `i`.
+    pub fn cells_before(&self, i: usize) -> usize {
+        crate::text::cells_of(&self.text[..i])
+    }
+
+    /// The char boundary whose cell position is nearest to `x` (in cells), for a caret. Halfway goes to the
+    /// later boundary, as `round` does for plain one-cell text.
+    pub fn byte_near_cell(&self, x: f32) -> usize {
+        let (mut best, mut best_d) = (0, x.abs());
+        let mut cell = 0usize;
+        for (b, c) in self.text.char_indices() {
+            cell += crate::text::cells(c);
+            let d = (cell as f32 - x).abs();
+            if d <= best_d {
+                best = b + c.len_utf8();
+                best_d = d;
+            }
+        }
+        best
+    }
+
+    /// The char whose span of cells contains `x` (in cells), clamped to the first and the last char, for a
+    /// word click. 0 for an empty text.
+    pub fn byte_under_cell(&self, x: f32) -> usize {
+        let mut cell = 0usize;
+        let mut last = 0;
+        for (b, c) in self.text.char_indices() {
+            cell += crate::text::cells(c);
+            last = b;
+            if x < cell as f32 {
+                return b;
+            }
+        }
+        last
+    }
     /// The byte index of char number `c`, or the end of the text.
+    #[cfg(test)]
     pub fn byte_at_col(&self, c: usize) -> usize {
         self.text.char_indices().nth(c).map_or(self.text.len(), |(b, _)| b)
     }

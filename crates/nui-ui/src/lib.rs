@@ -41,7 +41,7 @@ pub use fold::FoldOpts;
 pub use id::Id;
 pub use input::Input;
 pub use tab::{TabLook, TabOpts, choice_style, details_style, strip_style};
-pub use text::{ADVANCE_EM, ASCENT_EM, DESCENT_EM, TextLook, Tone, ellipsize, text_width, wrap_lines, wrap_lines_after};
+pub use text::{ADVANCE_EM, ASCENT_EM, DESCENT_EM, TextLook, Tone, cells, cells_of, ellipsize, text_width, wrap_lines, wrap_lines_after};
 pub use theme::{Theme, mix};
 pub use ui::{Resp, TIP_DELAY, Ui};
 pub use widgets::{ButtonLook, ButtonOpts};
