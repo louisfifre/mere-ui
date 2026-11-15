@@ -15,6 +15,7 @@
 //! This crate names no operating system: the draw list is drawn by whichever backend the application uses.
 
 mod chrome;
+mod compose;
 mod edit;
 mod field;
 mod fold;

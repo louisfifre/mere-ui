@@ -228,6 +228,11 @@ impl Edit {
         self.insert_as(s, max_chars, accept, Run::Typing)
     }
 
+    /// Inserts text the input method finished, over the selection. A commit is an undo step of its own.
+    pub fn commit(&mut self, s: &str, max_chars: usize) -> bool {
+        self.insert_as(s, max_chars, Accept::Any, Run::None)
+    }
+
     fn insert_as(&mut self, s: &str, max_chars: usize, accept: Accept, kind: Run) -> bool {
         let mut room = usize::MAX;
         let (lo, hi) = self.selection().unwrap_or((self.cursor, self.cursor));

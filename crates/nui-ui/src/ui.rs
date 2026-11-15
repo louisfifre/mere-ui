@@ -71,6 +71,8 @@ pub struct Ui {
     pub(crate) grab: Option<f32>,
     /// What each scroll area measured in the LAST frame.
     pub(crate) scrolls: HashMap<Id, ScrollMetrics>,
+    /// The caret of the focused text field as painted this frame: where the input method may write.
+    pub(crate) spot: Option<Rect>,
     list: DrawList,
     size: Vec2,
     /// Keys and characters since the last frame, in arrival order, for the focused field.
@@ -121,6 +123,7 @@ impl Ui {
             active: None,
             grab: None,
             scrolls: HashMap::new(),
+            spot: None,
             list: DrawList::default(),
             size: Vec2::new(0.0, 0.0),
             typed: Vec::new(),
@@ -159,8 +162,18 @@ impl Ui {
                 self.typed.push(Typed::Char(ch));
                 true
             }
+            Event::Ime(ref i) => {
+                self.typed.push(Typed::Ime(i.clone()));
+                true
+            }
             _ => self.input.feed(e),
         }
+    }
+
+    /// Where the input method may write, as of the last frame: the caret of the focused text field in dip, or
+    /// the start of its composition. None when no text field has the keyboard (a number field neither).
+    pub fn ime_spot(&self) -> Option<Rect> {
+        self.spot
     }
 
     /// The field that has the keyboard.
@@ -307,6 +320,7 @@ impl Ui {
         let mut vis = vec![Rect::default(); self.paints.len()];
         let window = Rect::new(0.0, 0.0, self.size.x, self.size.y);
         self.scrolls.clear();
+        self.spot = None;
         let mut painter = Painter {
             tree: &self.tree,
             paints: &self.paints,
@@ -314,6 +328,7 @@ impl Ui {
             abs: &mut abs,
             vis: &mut vis,
             scrolls: &mut self.scrolls,
+            spot: &mut self.spot,
         };
         painter.node(self.root, Vec2::new(0.0, 0.0), window);
         self.paint_tip();
@@ -601,6 +616,8 @@ struct Painter<'a> {
     vis: &'a mut [Rect],
     /// Filled for every scroll area painted.
     scrolls: &'a mut HashMap<Id, ScrollMetrics>,
+    /// Set by the focused text field painted.
+    spot: &'a mut Option<Rect>,
 }
 
 impl Painter<'_> {
@@ -643,7 +660,11 @@ impl Painter<'_> {
                 self.list.frame(r, 1.0, *frame);
                 self.list.fill(Rect::new(r.x + 1.0, r.y + 1.0, share.clamp(0.0, 1.0) * (r.w - 2.0), r.h - 2.0), *bar);
             }
-            Paint::Field(f) => paint_field(self.list, f, r, self.tree.style(n).pad),
+            Paint::Field(f) => {
+                if let Some(s) = paint_field(self.list, f, r, self.tree.style(n).pad) {
+                    *self.spot = Some(s);
+                }
+            }
             Paint::Cmds(cmds) => {
                 let d = Vec2::new(r.x, r.y);
                 self.list.cmds.extend(cmds.iter().map(|c| c.translated(d)));

@@ -7,9 +7,10 @@
 //! the keys are read, so a press on one field and the typing after it land on the right one whichever field
 //! was built first.
 
-use nui_base::{Color, Cursor, DrawList, Key, Mods, Rect, Vec2, observe};
+use nui_base::{Color, Cursor, DrawList, Ime, Key, Mods, Rect, Vec2, observe};
 use nui_layout::{Dim, Edges, Measured, Style};
 
+use crate::compose::{self, Compose};
 use crate::edit::{Accept, Edit, Outcome};
 use crate::number::{self, NumberSpec, js_number};
 use crate::text::{ASCENT_EM, DESCENT_EM, TextLook, Tone, baseline, cells, cells_of, half_leading};
@@ -60,11 +61,14 @@ pub struct FieldResp {
     pub cancelled: bool,
     /// The field lost the keyboard: a press elsewhere, Tab, Enter or Escape.
     pub blurred: bool,
+    /// An input method composition is showing in the field after this frame's events.
+    pub composing: bool,
 }
 
 pub(crate) enum Typed {
     Key(Key, Mods),
     Char(char),
+    Ime(Ime),
 }
 
 /// What a focused field is doing. Dropped with the focus.
@@ -76,6 +80,8 @@ pub(crate) struct FieldState {
     pub at_focus: f64,
     /// The left button went down inside the field and is still the drag that extends the selection.
     pub drag: bool,
+    /// The input method's composition, while there is one: shown at the caret, never part of the value.
+    pub compose: Option<Compose>,
 }
 
 pub(crate) struct Focus {
@@ -101,6 +107,11 @@ pub(crate) struct FieldPaint {
     pub caret: Option<usize>,
     /// The selection's cell columns, when focused.
     pub selection: Option<(usize, usize)>,
+    /// The composition's cells (start, end), underlined once.
+    pub underline: Option<(usize, usize)>,
+    /// The cell where the input method may write, for a focused text field: the composition's start while
+    /// composing, else the caret.
+    pub spot: Option<usize>,
 }
 
 /// What a field edits.
@@ -209,8 +220,21 @@ impl Ui {
             for item in &typed {
                 let focus = self.focus.as_mut().expect("still focused: the loop stops at a blur");
                 let st = focus.state.as_mut().expect("the state was made above");
-                let outcome = match *item {
-                    Typed::Key(k, m) => st.edit.key(k, m, &mut *self.clipboard, max_chars, accept),
+                // While a composition shows, the input method owns the keys: it eats them, and one that slipped
+                // through is dropped rather than edit the value under the preedit.
+                if matches!(item, Typed::Key(..) | Typed::Char(_)) && st.compose.as_ref().is_some_and(Compose::shown) {
+                    observe!(Debug, "{:x}: key dropped while composing", id.0);
+                    continue;
+                }
+                let outcome = match item {
+                    Typed::Ime(i) => match &target {
+                        Target::Text { .. } => compose::apply(st, i, max_chars),
+                        Target::Number { .. } => {
+                            observe!(Debug, "{:x}: input method ignored in a number field", id.0);
+                            Outcome::None
+                        }
+                    },
+                    Typed::Key(k, m) => st.edit.key(*k, *m, &mut *self.clipboard, max_chars, accept),
                     Typed::Char(c) => {
                         if st.edit.insert(c.encode_utf8(&mut [0; 4]), max_chars, accept) {
                             Outcome::Edited
@@ -263,17 +287,36 @@ impl Ui {
 
         // ---- scrolling: keep the caret in view; a field that is not focused shows its start ----
         let focused = mine && self.focus.as_ref().is_some_and(|f| f.id == id);
-        let shown = match (&target, focused) {
+        let mut shown = match (&target, focused) {
             (Target::Text { s, .. }, _) => (**s).clone(),
             (Target::Number { .. }, true) => self.state().edit.text.clone(),
             (Target::Number { v, .. }, false) => js_number(**v),
         };
+        // A composition replaces the selection in the display (the commit will) and sits at its start:
+        // (start cell, end cell, caret cell).
+        let mut comp: Option<(usize, usize, usize)> = None;
+        if let (Target::Text { .. }, true) = (&target, focused) {
+            let st = self.state();
+            if let Some(c) = st.compose.as_ref().filter(|c| c.shown()) {
+                let (lo, hi) = st.edit.selection().unwrap_or((st.edit.cursor, st.edit.cursor));
+                shown = format!("{}{}{}", &st.edit.text[..lo], c.text, &st.edit.text[hi..]);
+                let a = st.edit.cells_before(lo);
+                let before_caret: String = c.text.chars().take(c.cursor).collect();
+                comp = Some((a, a + cells_of(&c.text), a + cells_of(&before_caret)));
+            }
+        }
         let text_w = cells_of(&shown) as f32 * step;
         let mut scroll = 0.0;
-        let (mut caret, mut selection) = (None, None);
+        let (mut caret, mut selection, mut spot) = (None, None, None);
         if focused {
             let st = self.state();
-            let (cur, sel) = (st.edit.cells_before(st.edit.cursor), st.edit.selection().map(|(a, b)| (st.edit.cells_before(a), st.edit.cells_before(b))));
+            let (cur, sel) = match comp {
+                Some((_, _, c)) => (c, None),
+                None => (st.edit.cells_before(st.edit.cursor), st.edit.selection().map(|(a, b)| (st.edit.cells_before(a), st.edit.cells_before(b)))),
+            };
+            if shape != Shape::Number {
+                spot = Some(comp.map_or_else(|| st.edit.cells_before(st.edit.cursor), |(a, _, _)| a));
+            }
             if let Some(r) = rect {
                 let inner_w = inner_of(r, pad).w;
                 let caret_px = cur as f32 * step;
@@ -309,12 +352,14 @@ impl Ui {
             select_text: t.select_text,
             caret,
             selection,
+            underline: comp.map(|(a, b, _)| (a, b)),
+            spot,
         };
         // Number fields are as wide as their text; the grid cell they sit in stretches them.
         let content_w = if shape == Shape::Number { text_w } else { 20.0 * step };
         let measured = Measured { size: Vec2::new(content_w, body().line), baseline: baseline(body()) };
         self.add_keyed_leaf("field", id, Style { w: width, pad, ..Style::default() }, Paint::Field(Box::new(paint)), measured);
-        FieldResp { resp, focused, changed, submitted, cancelled, blurred }
+        FieldResp { resp, focused, changed, submitted, cancelled, blurred, composing: comp.is_some() }
     }
 
     /// The focused field's state; callers know there is one.
@@ -327,8 +372,8 @@ impl Ui {
     fn start_state(&mut self, target: &Target) {
         let focus = self.focus.as_mut().expect("the caller checked");
         let st = focus.state.get_or_insert_with(|| match target {
-            Target::Text { s, .. } => FieldState { edit: Edit::new(s), scroll: 0.0, at_focus: 0.0, drag: false },
-            Target::Number { v, .. } => FieldState { edit: Edit::new(&js_number(**v)), scroll: 0.0, at_focus: **v, drag: false },
+            Target::Text { s, .. } => FieldState { edit: Edit::new(s), scroll: 0.0, at_focus: 0.0, drag: false, compose: None },
+            Target::Number { v, .. } => FieldState { edit: Edit::new(&js_number(**v)), scroll: 0.0, at_focus: **v, drag: false, compose: None },
         });
         if std::mem::take(&mut focus.select_all) {
             st.edit.select_all();
@@ -380,7 +425,7 @@ impl Ui {
 /// Paints a field in `r` (absolute) with padding `pad`: the frame, then, clipped to the content box (one
 /// pixel wider on the right so a caret at the very edge shows), the selection, the text, the text again in
 /// the selection's colour inside the selection, and the caret.
-pub(crate) fn paint_field(list: &mut DrawList, f: &FieldPaint, r: Rect, pad: Edges) {
+pub(crate) fn paint_field(list: &mut DrawList, f: &FieldPaint, r: Rect, pad: Edges) -> Option<Rect> {
     let look = body();
     let step = look.step();
     let inner = inner_of(r, pad);
@@ -411,7 +456,13 @@ pub(crate) fn paint_field(list: &mut DrawList, f: &FieldPaint, r: Rect, pad: Edg
         // One dip wide: exact at scale 1, and it lands on the pixel grid by rounding.
         list.fill(Rect::new((x0 + c as f32 * step).round(), top, 1.0, glyph_h), f.text_color);
     }
+    if let Some((a, b)) = f.underline {
+        // One pixel under the whole composition, in the text colour: the composition's attributes (clauses,
+        // the target clause) are not read.
+        list.fill(Rect::new(x0 + a as f32 * step, (top + ASCENT_EM * look.size + 1.5).round(), (b - a) as f32 * step, 1.0), f.text_color);
+    }
     list.pop_clip();
+    f.spot.map(|c| Rect::new((x0 + c as f32 * step).clamp(inner.x, inner.x + inner.w), top, 1.0, glyph_h))
 }
 
 /// Draws `text` from `x0` cell by cell. A maximal run of one-cell chars is one command at its cell, so plain
