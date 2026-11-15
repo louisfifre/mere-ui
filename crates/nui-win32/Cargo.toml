@@ -4,6 +4,7 @@ description = "The Windows backend: a Win32 window, Direct3D 11 for meshes, Dire
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license = "GPL-3.0-only"
 
 [dependencies]
 nui-base.workspace = true

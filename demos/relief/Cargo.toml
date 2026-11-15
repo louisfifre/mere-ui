@@ -4,6 +4,7 @@ description = "The world preview's relief from a real out folder: terrain in 3D,
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license = "GPL-3.0-only"
 
 [dependencies]
 nui-base.workspace = true

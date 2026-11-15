@@ -4,6 +4,7 @@ description = "The widgets of nui-ui in the page's looks, live in a window and a
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license = "GPL-3.0-only"
 
 [dependencies]
 nui-base.workspace = true

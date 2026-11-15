@@ -4,6 +4,7 @@ description = "The world preview's page shell at three widths, and a gallery of 
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license = "GPL-3.0-only"
 
 [dependencies]
 nui-base.workspace = true
