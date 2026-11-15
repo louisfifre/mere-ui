@@ -1,0 +1,24 @@
+# Glossary
+
+The project's words, each confirmed with the maintainer. Name things this way in code, docs, prompts and conversation.
+
+- **bar**: the strip across the very top of the launcher's window, in place of the system's title bar: the pack icon, the tools, the selected tool's tabs, and the window buttons (minimise, maximise, close). Not the strip, which belongs to the preview page. Rejected: title bar, header, toolbar.
+- **tool**: one of the two things the bar switches between, **Home** (the profiles and the dev server) and **World preview**. Rejected: mode, app, page.
+- **view**: one way of showing the world: Biomes, Flat, Relief, Temperature, Structures, Section. Rejected: mode, layer.
+- **strip**: the row of view tabs at the top of the world preview page; inside the launcher these tabs are drawn in the bar instead. Rejected: tab bar, toolbar.
+- **tab**: a button of the strip or of the bar that stays pressed while it is chosen.
+- **panel**: the left side (settings) or the right side (figures, history, list) of the world preview, each of fixed width; panels never move. Rejected: column, sidebar.
+- **stage**: the centre of the world preview, where the view is drawn (2D map, 3D, or cut); it scales with the window by one continuous rule. Rejected: canvas, viewport, map slot.
+- **map**: the 2D view from above, drawn in the stage. Not the 3D view, not the cut.
+- **cut**: one vertical slice of the world, drawn by the Section view. Rejected: section (the view's name, not the slice), slice.
+- **probe**: the line under the stage that describes the point under the pointer. Rejected: caption, tooltip.
+- **band**: one range of heights in the relief's key ("63 to 100"). Rejected: level, range.
+- **figures**: the numbers at the top of the right panel (Flat land, Sea, Highest peak…). Rejected: stats, metrics.
+- **history**: the small trend lines of the runs before, under the figures.
+- **run**: one generation started by Generate preview, with its progress and its stop. Rejected: job, build.
+- **out folder**: the folder a run produces and the preview reads (`C:\Games\preview\out` by default). Rejected: data dir.
+- **export**: what the Export link writes: the pictures and `export.json`.
+- **fold**: a section of a panel that opens and closes (WORLD, SETTINGS…). Rejected: accordion, collapsible.
+- **breakpoint**: a window width at which the layout changes form. Kept as few as possible: none in the world preview, at most one in the launcher's Home.
+- **shot**: a PNG rendered offscreen, the same frame the window shows. Rejected: screenshot, capture.
+- **PLACEHOLDER**: a provisional value shown until the real one exists, always marked as such in the handoff.
