@@ -375,6 +375,11 @@ mod tests {
 pub const BAR_TITLE: &str = "Minecraft";
 /// Line 341: the two tools, Home first.
 pub const MODES: [&str; 2] = ["Home", "World preview"];
+/// What the bar's two tools say on their buttons, beside their icons. The longer `MODES` stay their tooltips.
+pub const TOOL_NAMES: [&str; 2] = ["Home", "Preview"];
+/// The strip's last tab when the bar lacks room: it holds the views that no longer fit, and its tooltip.
+pub const MORE: &str = "More";
+pub const MORE_TITLE: &str = "More views";
 /// Line 342: where a run of the preview stands, by marker.
 pub const PREVIEW_STATE: [&str; 3] = ["computing", "ready", "failed"];
 /// Line 343.

@@ -124,19 +124,25 @@ fn rect_of(ui: &Ui, id: Id) -> Rect {
 /// size; the tools are centred; the window's buttons end at the right edge; and nothing overlaps, at 1000 included.
 #[test]
 fn b1_the_bar_keeps_its_form_at_every_width() {
+    // The brand, the tools and the window's buttons never change size; a tab keeps its size too, but the bar may
+    // hold fewer of them at a narrow width (the rest are in "More", tests/bar_overflow.rs): the ones it holds are
+    // those of the full bar, less the ones in More.
     let sizes = |ids: &ShellIds, ui: &Ui| -> Vec<(f32, f32)> {
-        let mut parts = vec![ids.brand, ids.tools[0], ids.tools[1], ids.ends[0], ids.ends[1], ids.ends[2]];
-        parts.extend(ids.tabs.iter().copied());
+        let parts = [ids.brand, ids.tools[0], ids.tools[1], ids.ends[0], ids.ends[1], ids.ends[2]];
         parts.iter().map(|&p| (rect_of(ui, p).w, rect_of(ui, p).h)).collect()
     };
+    let tab_sizes = |ids: &ShellIds, ui: &Ui| -> Vec<(f32, f32)> { ids.tabs.iter().map(|&p| (rect_of(ui, p).w, rect_of(ui, p).h)).collect() };
     let (_, ui14, ids14) = picture(Theme::dark(), Vec2::new(1400.0, 940.0));
     let reference = sizes(&ids14, &ui14);
+    let tab_reference = tab_sizes(&ids14, &ui14);
     assert_eq!(ids14.tabs.len(), 8, "six views, 2D and 3D, always as words");
     near(rect_of(&ui14, ids14.bar).h, 40.0, "bar height");
     let mut w = 1000.0;
     while w <= 1920.0 {
         let (_, ui, ids) = picture(Theme::dark(), Vec2::new(w, 940.0));
         assert_eq!(sizes(&ids, &ui), reference, "the parts' sizes at {w}");
+        let kept: Vec<(f32, f32)> = (0..8).filter(|i| !ids.form.more.contains(i)).map(|i| tab_reference[i]).collect();
+        assert_eq!(tab_sizes(&ids, &ui), kept, "the tabs' sizes at {w}");
         let (brand, strip) = (rect_of(&ui, ids.brand), rect_of(&ui, ids.strip));
         assert!((strip.x + strip.w / 2.0 - w / 2.0).abs() <= 0.5, "tools centred at {w}: {strip:?}");
         for (i, e) in ids.ends.iter().enumerate() {
@@ -265,8 +271,8 @@ fn b4_the_buttons_and_the_title_are_requests() {
         let i = (y as usize * 1400 + x as usize) * 4;
         [rgba[i], rgba[i + 1], rgba[i + 2]]
     };
-    // 5 x 5, 4 px from the top and right edges of the tool's box.
-    let (mx, my) = (tool.x + tool.w - 4.0 - 5.0, tool.y + 4.0);
+    // 5 x 5, on the icon's top right corner: 27 px in from the tool's left edge and 4 px down.
+    let (mx, my) = (tool.x + 27.0, tool.y + 4.0);
     assert_eq!(at(mx + 2.0, my + 2.0), rgb(theme.text), "the marker, steady");
     assert_eq!(at(mx - 2.0, my + 2.0), rgb(theme.ground), "and nothing around it");
 }
@@ -335,7 +341,8 @@ fn b6_the_bar_is_whole_device_pixels_at_every_scale() {
         // The icons: each is its colour or the ground, nothing between.
         for (what, id, side) in [("home", ids.tools[0], 36.0), ("minimise", ids.ends[0], 46.0), ("maximise", ids.ends[1], 46.0), ("close", ids.ends[2], 46.0)] {
             let r = rig.rect(id);
-            let c = centre(r);
+            // The home tool is its icon, 10 px in, and its name; the others are the icon alone.
+            let c = if what == "home" { Vec2::new(r.x + 10.0 + 8.0, r.y + r.h / 2.0) } else { centre(r) };
             let _ = side;
             let (x0, y0) = (((c.x - 8.0) * scale).floor() as u32, ((c.y - 8.0) * scale).floor() as u32);
             let (x1, y1) = (((c.x + 8.0) * scale).ceil() as u32, ((c.y + 8.0) * scale).ceil() as u32);
@@ -564,22 +571,28 @@ fn a4_the_account_follows_the_name() {
     for (mode, w) in [(Mode::Home, 1000), (Mode::Home, 1920), (Mode::Preview, 1000), (Mode::Preview, 1400), (Mode::Preview, 1920)] {
         let rig = slide_rig(mode, true, Some("PlayerOne"), w, 1.0);
         let shown: Vec<(String, Vec2)> = rig.app.list().cmds.iter().filter_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { text.starts_with("Player").then(|| (text.clone(), *at)) } else { None }).collect();
+        // At 1000 the preview tool's views leave the brand no room for even a short stub: the account is gone
+        // (tests/bar_overflow.rs holds the rule).
+        if (mode, w) == (Mode::Preview, 1000) {
+            assert!(shown.is_empty(), "{shown:?}");
+            continue;
+        }
         assert_eq!(shown.len(), 1, "{mode:?} {w}");
         let (text, at) = &shown[0];
         assert!((at.x - 119.28).abs() < 0.5, "{mode:?} {w}: {}", at.x);
         let brand = rig.rect(rig.app.ids().brand);
         assert!((at.y + 9.0 - (brand.y + brand.h / 2.0)).abs() < 3.0, "on the bar's centre line");
-        // Whole whenever the free space left of the tools holds it: always in Home, from 1200 in the preview tool
-        // (at 1000 its tabs leave 179 px, which holds 8 letters).
+        // Whole whenever the free space left of the tools holds it: always in Home, from 1200 in the preview tool.
         if mode == Mode::Home || w >= 1200 {
             assert_eq!(text, "PlayerOne", "{mode:?} {w}");
         }
         let strip = rig.rect(rig.app.ids().strip);
         assert!(at.x + text.chars().count() as f32 * 7.2 <= strip.x + 0.01, "{mode:?} {w}: runs into the tools");
-    }    let long = "A".repeat(40);
-    let rig = slide_rig(Mode::Preview, true, Some(&long), 1000, 1.0);
+    }
+    let long = "A".repeat(40);
+    let rig = slide_rig(Mode::Preview, true, Some(&long), 1100, 1.0);
     let cut = rig.app.list().cmds.iter().find_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { (text.ends_with('\u{2026}') && text.starts_with("AAA")).then(|| (text.clone(), *at)) } else { None });
-    let (text, at) = cut.expect("a 40 char account does not fit before the tools at 1000 and ends in an ellipsis");
+    let (text, at) = cut.expect("a 40 char account does not fit before the tools at 1100 and ends in an ellipsis");
     let right = at.x + text.chars().count() as f32 * 7.2;
     let strip = rig.rect(rig.app.ids().strip);
     assert!(right <= strip.x + 0.01, "{right} runs into the strip at {}", strip.x);
