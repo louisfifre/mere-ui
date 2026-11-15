@@ -553,6 +553,12 @@ impl PreviewApp {
             if let Some((w, h, rgba)) = &self.last_sheet {
                 std::fs::write(folder.join("section.png"), nui_png::encode(*w, *h, rgba))?;
             }
+            // The settings and figures come last, as the page's last step; the pictures are already kept if this fails.
+            let (seed, values) = self.state.made.as_ref().map_or((self.state.seed.as_str(), &self.state.values), |m| (m.seed.as_str(), &m.values));
+            let ores = self.shown.as_ref().map(|s| &s.play.per_chunk);
+            let data = crate::export_data::export_json(world, seed, values, &kinds, self.state.before.as_ref(), ores);
+            std::fs::write(folder.join("export.json"), data)?;
+            steps.push((text::EXPORT_DATA.to_string(), 0));
             Ok(())
         })();
         match result {

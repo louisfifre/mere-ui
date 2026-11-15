@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use common::*;
 use nui_base::Launcher;
 use preview::paint::{View, paint};
+use preview::json::Json;
 use preview::run::{Runs, Steps};
 use preview::{PreviewState, text};
 
@@ -49,7 +50,7 @@ fn e1_the_exported_picture_is_the_stage_content() {
         assert_eq!((png.width, png.height), (n, n));
         assert!(png.rgba == paint(&world, view, true, &BTreeSet::new()), "{} differs from paint()", view.key());
     }
-    for absent in ["structures.png", "export.json", "section.png"] {
+    for absent in ["structures.png", "section.png"] {
         assert!(!folder.join(absent).exists(), "{absent} is not exported yet");
     }
     assert_eq!(rig.app.state().said, text::EXPORTED);
@@ -158,4 +159,44 @@ fn e4_the_notice_opens_the_folder_and_closes() {
     assert!(matches!(rig.app.state().steps, Steps::Saved { .. }), "opening leaves the notice");
     rig.click_on(ids.close_notice);
     assert_eq!(rig.app.state().steps, Steps::Empty);
+}
+
+/// E5: export.json holds what the page's does: the settings of the try, the pack, the figures, a list per
+/// exported view with the page's rows, the biomes the pack could place and did not, and no ores outside a cut.
+#[test]
+fn e5_the_data_file_holds_the_settings_and_the_figures() {
+    let Some(world) = world() else { return };
+    let root = root("export-e5");
+    let mut rig = Rig::new(&world, PreviewState { view: 0, ..PreviewState::for_world(Some(&world)) }, Some(export_runs(&root)));
+    rig.park();
+    let export = rig.app.ids().export;
+    rig.click_on(export);
+    let file = saved(&rig).join("export.json");
+    let text = std::fs::read_to_string(&file).unwrap_or_else(|e| panic!("{}: {e}", file.display()));
+    let json = Json::parse(&text).expect("the file is JSON");
+
+    assert_eq!(json.get("seed").and_then(Json::text).as_deref(), Some("cap-1"));
+    assert_eq!(json.get("blocks").and_then(Json::num), Some(world.samples as f64 * world.step));
+    assert_eq!(json.get("seaLevel").and_then(Json::num), Some(world.sea_level));
+    let figures = preview::figures::Figures::from_json(json.get("figures").unwrap()).unwrap();
+    assert_eq!(figures, world.measured.figures, "the figures come back whole");
+    assert!(matches!(json.get("figuresBefore"), Some(Json::Null)), "no run before, no figures before");
+    assert!(matches!(json.get("ores"), Some(Json::Null)), "no cut shown, no ores");
+    let Some(Json::Obj(pack)) = json.get("pack") else { panic!("no pack") };
+    let Some(Json::Obj(tectonic)) = json.get("tectonic") else { panic!("no tectonic") };
+    assert_eq!((pack.len(), tectonic.len()), (43, 43), "every setting is named in both");
+    let absent = json.get("biomesAbsent").and_then(Json::array).unwrap();
+    assert_eq!(absent.len(), world.absent.len());
+
+    let lists = json.get("lists").expect("lists");
+    let biomes = lists.get("biomes").and_then(Json::array).expect("the biomes' rows");
+    let shares: Vec<f64> = biomes.iter().map(|r| r.get("share").and_then(Json::num).unwrap()).collect();
+    assert!(shares.windows(2).all(|p| p[0] >= p[1]), "the biomes come biggest first");
+    assert!((shares.iter().sum::<f64>() - 100.0).abs() < 1e-6, "the shares are of the whole map: {}", shares.iter().sum::<f64>());
+    assert!(lists.get("structures").is_none(), "structures are not exported yet");
+    assert!(text.ends_with("}\n") && text.contains("\n  \"seed\": "), "laid out as the page's two-space JSON");
+
+    // The notice's steps list ends with the data step, as the page's does.
+    assert_eq!(rig.app.state().said, text::EXPORTED);
+    println!("E5: {} bytes, {} biome rows", text.len(), biomes.len());
 }

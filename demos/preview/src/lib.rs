@@ -6,6 +6,7 @@ pub mod bands;
 pub mod bar;
 pub mod colour;
 pub mod cut;
+pub mod export_data;
 pub mod figures;
 pub mod history;
 pub mod json;
