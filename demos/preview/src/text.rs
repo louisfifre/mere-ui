@@ -371,8 +371,9 @@ mod tests {
 
 // ---- the launcher's bar (outpost-tools\index.html, `text`, lines 336-415) ----
 
-/// Line 337: the game's name, which the bar shows in capitals and the window's title says.
-pub const BAR_TITLE: &str = "Minecraft";
+/// Line 337: the application's name, Outpost Tools (the launcher's spec), which the bar shows in
+/// capitals and the window's title says. No Mojang trademark: the game's name stays in sentences about the game.
+pub const BAR_TITLE: &str = "Outpost Tools";
 /// Line 341: the two tools, Home first.
 pub const MODES: [&str; 2] = ["Home", "World preview"];
 /// What the bar's two tools say on their buttons, beside their icons. The longer `MODES` stay their tooltips.
@@ -393,7 +394,7 @@ pub fn mode_with(name: &str, marker: &str) -> String {
 }
 /// Line 344.
 pub fn title_with(marker: &str) -> String {
-    format!("Minecraft \u{b7} preview {marker}")
+    format!("{BAR_TITLE} \u{b7} preview {marker}")
 }
 /// Lines 410-413: the window's own buttons.
 pub const MINIMIZE: &str = "Minimise";

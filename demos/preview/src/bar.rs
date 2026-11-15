@@ -8,7 +8,7 @@
 //!
 //! The bar has no fixed breakpoint, and it never turns a word into an icon (the page's `condense()` is not built).
 //! When it lacks room it gives parts up in a set order, worked out from the real widths in `overflow.rs`: the
-//! account name, the greyed views (into "More"), the word MINECRAFT, then the other views one by one.
+//! account name, the greyed views (into "More"), the brand's name, then the other views one by one.
 
 use std::sync::OnceLock;
 

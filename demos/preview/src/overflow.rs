@@ -10,7 +10,7 @@
 //! taking the first step that fits:
 //!
 //! 1. in Home, the account name (cut with an ellipsis down to a short stub, then gone whole), then the word
-//!    MINECRAFT if that buys room;
+//!    the brand's name if that buys room;
 //! 2. in the preview tool, the views that are greyed (they need the 16-block detail) move into "More", then the
 //!    other views, one at a time from the strip's end, the pressed one staying;
 //! 3. in the preview tool, when even that bar cannot be centred, the tools stop being centred and sit left after
@@ -90,7 +90,7 @@ pub const NARROW_BAR: f32 = LEFT_NEED + TOOLS_GAP + NARROW_STRIP + RIGHT_NEED;
 pub struct Form {
     /// The account name is shown (cut with an ellipsis if need be). Home only.
     pub account: bool,
-    /// The word MINECRAFT is shown. Home only.
+    /// The brand's name (OUTPOST TOOLS) is shown. Home only.
     pub word: bool,
     /// The views the "More" tab holds, in the strip's order.
     pub more: Vec<usize>,

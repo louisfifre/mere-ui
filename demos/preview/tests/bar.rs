@@ -217,7 +217,7 @@ fn b4_the_buttons_and_the_title_are_requests() {
     let root = common::root("bar_requests");
     let mut rig = Rig::new(Some(&world), PreviewState::for_world(Some(&world)), 1400, 940, 1.0, true);
     // The first frame names the window.
-    assert_eq!(rig.drain(), vec![WindowRequest::Title("Minecraft".into())]);
+    assert_eq!(rig.drain(), vec![WindowRequest::Title("Outpost Tools".into())]);
     assert_eq!(rig.drain(), vec![], "a request is taken once");
     let ids = rig.app.ids().clone();
     for (i, want) in [WindowRequest::Minimize, WindowRequest::ToggleMaximize, WindowRequest::Close].into_iter().enumerate() {
@@ -259,7 +259,7 @@ fn b4_the_buttons_and_the_title_are_requests() {
     while let Some(q) = app.take_request() {
         titles.push(q);
     }
-    assert_eq!(titles, vec![WindowRequest::Title("Minecraft \u{b7} preview computing".into())]);
+    assert_eq!(titles, vec![WindowRequest::Title("Outpost Tools \u{b7} preview computing".into())]);
     // Home on: the marker is still there, and it is the square on the preview tool.
     let home = app.ui().rect(app.ids().tools[0]).unwrap();
     let c = centre(home);
@@ -600,7 +600,9 @@ fn a4_the_account_follows_the_name() {
         let shown: Vec<(String, Vec2)> = rig.app.list().cmds.iter().filter_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { text.starts_with("Player").then(|| (text.clone(), *at)) } else { None }).collect();
         assert_eq!(shown.len(), 1, "Home {w}");
         let (text, at) = &shown[0];
-        assert!((at.x - 119.28).abs() < 0.5, "Home {w}: {}", at.x);
+        // The brand's padding (12), the cube (16) and two gaps (10 each), then the brand's name, whatever it says.
+        let after_name = 48.0 + nui_ui::TextLook::heading().width(&preview::text::BAR_TITLE.to_uppercase());
+        assert!((at.x - after_name).abs() < 0.5, "Home {w}: {} for {after_name}", at.x);
         let brand = rig.rect(rig.app.ids().brand);
         assert!((at.y + 9.0 - (brand.y + brand.h / 2.0)).abs() < 3.0, "on the bar's centre line");
         assert_eq!(text, "PlayerOne", "whole whenever the free space left of the tools holds it: always in Home, {w}");
