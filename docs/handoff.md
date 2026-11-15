@@ -363,8 +363,8 @@ inside `nui-win32`), and looked at `figures-1400`, `history`, `stage-3d-relief`,
 The step 15 and 17 shots still show step 13's placeholder figures in the right column: they are those steps' record.
 
 Step 19 (2026-11-15) answered the maintainer's remark that the page had too many breakpoints: the world preview's
-panels never move (left 320, right 330, gap 28, padding 18/28/22/28), the centre is one column that scales by one
-rule (the map's square side is `min(W - 762, H - 144)`; the brief's `W - 752` left ten pixels out: 320 + 330 + 2 x 28 +
+panels never move (left 320, right 330, gap 28, padding 18/28/22/28; step 19.5: 10/28/22/28), the centre is one column that scales by one
+rule (the map's square side is `min(W - 762, H - 144)` (step 19.5: `H - 136`); the brief's `W - 752` left ten pixels out: 320 + 330 + 2 x 28 +
 2 x 28 = 762), and the top bar has one form from 1000 px up. The window has a minimum of 1000x600, so no layout
 below it exists. The bar is the launcher's, on a frame of our own (`WM_NCCALCSIZE` returns 0, `WM_NCHITTEST` asks
 `App::hit`, the buttons are drawn by `nui-ui`'s `chrome.rs`), with the tool switch Home / preview. The same step
@@ -398,7 +398,7 @@ the window stays open (the CLI no longer exits 1 for it).
   a hidden window's `tick()` looks at the run and leaves the end for the next frame, which holds the device;
   `export.json` writes `ores.added` as null (no editor for the added rows natively) and `ores` as null outside the
   section view; the Home pane is a placeholder text; `UNREADABLE` is our own sentence in the page's style.
-- UNVERIFIED: the bar's hairline at scale 1.5 spills one device row below the bar and was not compared with Chrome;
+- UNVERIFIED, moot since step 19.5 (the hairline is gone): the bar's hairline at scale 1.5 spills one device row below the bar and was not compared with Chrome;
   no live check of the window (the cursor, the tooltip delay, the minimum size, occlusion, a DPI change between monitors,
   Aero snap on the own frame) was made, only the pure functions behind them and the offscreen pictures.
 - Also UNVERIFIED: the DWM margins of 1 px on a live window (a system-coloured line at the top would mean using 0),
@@ -407,6 +407,20 @@ the window stays open (the CLI no longer exits 1 for it).
 - Not built: glyph tabs and `condense`, the options transition, the marker blink, snap layouts on Maximise, the close
   confirmation, `#account`, caret blink, focus rings, changed marks and their hints; the 3D and structures pictures in
   the export; the window's dark title bar (the own frame has none); IME.
+
+Step 19.5 (2026-11-15) answered the maintainer's remark on `bar-1400.png`: the header should float, with no line
+separating it, and the gap under the bar was too big. The bar's hairline is removed (a deliberate departure from the
+launcher page's `#titlebar` border-bottom; the pack's repository is not changed). The content now starts `CONTENT_TOP` =
+10 px under the bar, for the preview and for Home, instead of the page's 18. The rule is now
+`side = min(W - 762, H - 136)` (40 + 10 + 22 + 64 = 136); the panels start at y 50 and are `H - 72` high. The bar's
+1 px bottom padding is kept so no part moved. Home's pane is inset like the preview's page and holds a `homeBody`
+box (step 21 builds in it).
+- Evidence: `cargo test --offline --workspace` 380 passed, 0 failed, 1 ignored; B6 asserts no full-width line in the top
+  60 px and the page's ground in rows 39..50 at scales 1, 1.5, 2. Regenerated in `docs/shots`: `bar-1400`,
+  `bar-1400-light`, `bar-x2`, `bar-home`, `bar-maximized`, `bar-hover-close`, `responsive-1920`,
+  `responsive-1400x600`, `responsive-section-1000`. The other shots are earlier steps' records and were not redone.
+- PLACEHOLDER: the Home pane is unchanged (`HOME_LATER`, now inside `home_body`).
+- Not built: unchanged (no animation, `#account`).
 
 Next: step 20 (IME in the text field, UNVERIFIED need) and step 21 (the launcher's own migration, in the pack's repository).
 
