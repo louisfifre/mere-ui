@@ -110,11 +110,10 @@ mod tests {
     use std::f32::consts::FRAC_PI_2;
     use std::path::Path;
 
-    const DATA: &str = r"C:\Games\preview\out";
     const SIZE: (u32, u32) = (960, 600);
 
     fn app() -> Option<(Relief, Renderer)> {
-        let dir = Path::new(DATA);
+        let dir = &preview::world::data_dir();
         if !dir.join("preview.json").exists() {
             return None;
         }

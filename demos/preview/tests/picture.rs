@@ -72,9 +72,9 @@ fn check(theme: Theme, w: u32, name: &str) {
 /// P4: the first row of the relief list is the lowest band the area has, and its swatch is that band's colour.
 #[test]
 fn p4_the_first_row_swatch_is_its_bands_colour() {
-    let dir = std::path::Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     if !dir.join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return;
     }
     let world = preview::world::World::load(dir).expect("the data loads");

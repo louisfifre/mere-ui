@@ -22,9 +22,9 @@ const DARK_TEXT: [u8; 3] = [0xec, 0xec, 0xec];
 const LINE: [u8; 3] = [0x2a, 0x2a, 0x2a];
 
 fn load() -> Option<World> {
-    let dir = Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     if !dir.join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return None;
     }
     Some(World::load(dir).expect("the data loads"))
@@ -598,7 +598,9 @@ fn cli_shot_is_byte_identical_to_the_test_shot() {
     let out = tmp("cli_section.png");
     let _ = std::fs::remove_file(&out);
     let run = std::process::Command::new(env!("CARGO_BIN_EXE_preview"))
-        .args(["--data", r"C:\Games\preview\out", "--view", "section", "--shot"])
+        .arg("--data")
+        .arg(preview::world::data_dir())
+        .args(["--view", "section", "--shot"])
         .arg(&out)
         .output()
         .expect("the preview runs");

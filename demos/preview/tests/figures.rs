@@ -377,7 +377,8 @@ fn h4_a_finished_run_keeps_the_run_before_and_the_new_map() {
     state.seed = "h4-seed".to_string();
     // One setting moved before Generate, as a person would.
     state.values[0] += 0.01;
-    let env = [("NUI_STUB", "finish"), ("NUI_STUB_FROM", r"C:\Games\preview\out")];
+    let from = preview::world::data_dir();
+    let env = [("NUI_STUB", "finish"), ("NUI_STUB_FROM", from.to_str().expect("a UTF-8 path"))];
     let mut rig = Rig::new(&world, state, Some(runs(&root, &env)));
     rig.park();
     assert_eq!(history::load(&root.join("history.json")).len(), 1, "the map on screen is kept at the start");
@@ -442,7 +443,9 @@ fn cli_theme_light_gives_the_light_ground_and_a_list() {
     let _ = std::fs::remove_file(&out);
     let runs_root = tmp().join("cli-runs");
     let status = Command::new(env!("CARGO_BIN_EXE_preview"))
-        .args(["--data", r"C:\Games\preview\out", "--theme", "light", "--view", "biomes", "--shot"])
+        .arg("--data")
+        .arg(preview::world::data_dir())
+        .args(["--theme", "light", "--view", "biomes", "--shot"])
         .arg(&out)
         .arg("--runs")
         .arg(&runs_root)

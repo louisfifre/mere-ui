@@ -15,9 +15,9 @@ const W: u32 = 1400;
 const H: u32 = 940;
 
 fn load() -> Option<World> {
-    let dir = Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     if !dir.join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return None;
     }
     Some(World::load(dir).expect("the data loads"))

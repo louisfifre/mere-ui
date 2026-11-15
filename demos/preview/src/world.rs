@@ -1,12 +1,21 @@
 //! A run's output folder, read the way the page reads it (preview.html `loadWorld` 1142-1167, `loadStructures`
 //! 1171-1185, `measure` 1255-1322 for the level and flat land, `loadSection` 1975-1982 for the cut).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::colour::{biome_colour, structure_colour, underground};
 use crate::figures::{Measured, measure};
 use crate::json::Json;
 use crate::section::Section;
+
+/// The environment variable that names a world preview's out folder: the default of `--data` and the world the
+/// tests read. A folder of one machine never lives in the code.
+pub const DATA_VAR: &str = "PREVIEW_DATA_DIR";
+
+/// The out folder `PREVIEW_DATA_DIR` names, or an empty path, which holds no `preview.json`, when it is not set.
+pub fn data_dir() -> PathBuf {
+    std::env::var_os(DATA_VAR).map(PathBuf::from).unwrap_or_default()
+}
 
 #[derive(Clone, Debug)]
 pub struct Biome {
@@ -262,14 +271,14 @@ mod tests {
 
     #[test]
     fn a_missing_folder_is_an_error_not_a_panic() {
-        assert!(World::load(Path::new(r"C:\Games\no\such\folder")).is_err());
+        assert!(World::load(Path::new(r"no\such\folder")).is_err());
     }
 
     #[test]
     fn reads_the_real_out_folder_when_it_is_there() {
-        let dir = Path::new(r"C:\Games\preview\out");
+        let dir = &data_dir();
         if !dir.join("preview.json").exists() {
-            println!("skipped: no C:\\Games\\preview\\out");
+            println!("skipped: PREVIEW_DATA_DIR names no out folder");
             return;
         }
         let w = World::load(dir).unwrap();

@@ -19,9 +19,9 @@ const LIGHT_GROUND: [u8; 3] = [0xfa, 0xfa, 0xf8];
 const DARK_TEXT: [u8; 3] = [0xec, 0xec, 0xec];
 
 fn load() -> Option<World> {
-    let dir = Path::new(r"C:\Games\preview\out");
+    let dir = &preview::world::data_dir();
     if !dir.join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return None;
     }
     Some(World::load(dir).expect("the data loads"))

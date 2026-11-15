@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn the_overlay_speaks_like_the_pages_caption() {
-        let dir = std::path::Path::new(r"C:\Games\preview\out");
+        let dir = &preview::world::data_dir();
         if !dir.join("preview.json").exists() {
             return;
         }

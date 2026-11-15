@@ -3,7 +3,7 @@
 //!         [--runs DIR] [--generator PATH] [--pack DIR]
 //!
 //! Without --shot, opens the world preview's window. With it, draws one frame offscreen and writes the PNG: the
-//! same frame the window would show. The out folder of --data (by default C:\Games\preview\out, and without a
+//! same frame the window would show. The out folder of --data (by default the folder PREVIEW_DATA_DIR names, and without a
 //! preview.json there the page shows no preview) fills the stage (step 14).
 //! A run (step 17): Generate starts --generator, the script the page's server runs (scripts\preview.ps1; no default,
 //! and without it Generate says the run failed), with --pack if given. Everything a run or an export writes (its out
@@ -84,8 +84,6 @@ fn apply_view(state: &mut PreviewState, key: &str) {
     }
 }
 
-/// Where the world preview's data is looked for without --data.
-const DEFAULT_DATA: &str = r"C:\Games\preview\out";
 /// The only place a run may write for now: this repository's target\tmp.
 const TMP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp");
 
@@ -181,7 +179,10 @@ fn main() {
     }
     // A folder that is missing or unreadable is not a reason to close the window: the page then shows its `noPreview`
     // note, and a folder that is there but cannot be read says so in the status line, where the page puts a trouble.
-    let data = data.or_else(|| Path::new(DEFAULT_DATA).join("preview.json").exists().then(|| PathBuf::from(DEFAULT_DATA)));
+    let data = data.or_else(|| {
+        let dir = preview::world::data_dir();
+        dir.join("preview.json").exists().then_some(dir)
+    });
     let mut trouble = String::new();
     let world = data.and_then(|dir| match World::load(&dir) {
         Ok(w) => Some(w),

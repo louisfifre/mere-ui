@@ -161,7 +161,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
     // middle whatever the width (line 76); when the bar is too narrow to centre them they sit left, after the
     // settings button, and the middle column takes what is left. The launcher page has a 1 px border-bottom on
     // #titlebar (line 77); the native bar drops it by the maintainer's choice (2026-11-15: the header should float,
-    // no separating line), a deliberate departure from the page (the wry page in the pack's repository is not changed).
+    // no separating line), a deliberate departure from the page (the launcher's own page is not changed).
     // The 1 px bottom padding is kept so the parts stay where the page centres them above its border: removing it
     // would move them 0.5 px.
     let cols = if form.centred { [Track::MinMaxFr0(1.0), Track::Auto, Track::MinMaxFr0(1.0)] } else { [Track::Auto, Track::MinMaxFr0(1.0), Track::Auto] };

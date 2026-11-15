@@ -14,11 +14,19 @@ use preview::text;
 use preview::world::World;
 
 fn data_dir() -> PathBuf {
-    PathBuf::from(std::env::var("PREVIEW_DATA").unwrap_or_else(|_| r"C:\Games\preview\out".to_string()))
+    preview::world::data_dir()
 }
 
 fn page() -> PathBuf {
-    PathBuf::from(std::env::var("WORLD_PREVIEW_HTML").unwrap_or_else(|_| r"..\world-preview\page\preview.html".to_string()))
+    match std::env::var_os("WORLD_PREVIEW_HTML") {
+        Some(page) => PathBuf::from(page),
+        // The world-preview repository beside this one, unless WORLD_PREVIEW_DIR names it.
+        None => std::env::var_os("WORLD_PREVIEW_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../world-preview")))
+            .join("page")
+            .join("preview.html"),
+    }
 }
 
 /// The page's answers, or None (with the reason printed) when they cannot be had. Node runs once for all the

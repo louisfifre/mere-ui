@@ -16,12 +16,11 @@ use preview::{PreviewApp, PreviewState};
 
 pub const W: u32 = 1400;
 pub const H: u32 = 940;
-const DATA: &str = r"C:\Games\preview\out";
 
 /// The world of the real out folder, or None (with the reason printed) when the data or PowerShell is missing.
 pub fn world() -> Option<World> {
-    if !Path::new(DATA).join("preview.json").exists() {
-        println!("skipped: no C:\\Games\\preview\\out");
+    if !&preview::world::data_dir().join("preview.json").exists() {
+        println!("skipped: PREVIEW_DATA_DIR names no out folder");
         return None;
     }
     let ps = Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", "exit 0"]).stdin(Stdio::null()).output();
@@ -29,7 +28,7 @@ pub fn world() -> Option<World> {
         println!("skipped: no powershell.exe");
         return None;
     }
-    Some(World::load(Path::new(DATA)).expect("the data loads"))
+    Some(World::load(&preview::world::data_dir()).expect("the data loads"))
 }
 
 /// A plain (not `\\?\`) absolute path.
