@@ -67,6 +67,9 @@ pub fn runs(root: &Path, env: &[(&str, &str)]) -> Runs {
         root: root.to_path_buf(),
         env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
         launcher: Box::new(SystemLauncher),
+        server_dir: None,
+        out_dir: None,
+        exports_dir: None,
     }
 }
 

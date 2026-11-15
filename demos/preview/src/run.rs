@@ -296,23 +296,28 @@ pub struct Runs {
     /// Environment for the generator, for tests (the stub's mode): it avoids `set_var` in a multi-threaded test binary.
     pub env: Vec<(String, String)>,
     pub launcher: Box<dyn Launcher>,
+    /// Folders named one by one, for a host that already has them (the launcher gives serve.ps1 its own);
+    /// None puts them under `root`. The pace, the log, the history and `before` always stay under `root`.
+    pub server_dir: Option<PathBuf>,
+    pub out_dir: Option<PathBuf>,
+    pub exports_dir: Option<PathBuf>,
 }
 
 impl Runs {
     /// The generator's output folder.
     pub fn out(&self) -> PathBuf {
-        self.root.join("out")
+        self.out_dir.clone().unwrap_or_else(|| self.root.join("out"))
     }
     /// The generator's working folder (the game server's).
     pub fn server(&self) -> PathBuf {
-        self.root.join("server")
+        self.server_dir.clone().unwrap_or_else(|| self.root.join("server"))
     }
     /// The learned pace.
     pub fn pace(&self) -> PathBuf {
         self.root.join("pace.json")
     }
     pub fn exports(&self) -> PathBuf {
-        self.root.join("exports")
+        self.exports_dir.clone().unwrap_or_else(|| self.root.join("exports"))
     }
     /// What the generator printed.
     pub fn log(&self) -> PathBuf {
@@ -356,6 +361,32 @@ mod tests {
         assert!(!s.contains("-Pack") && s.ends_with(" }"));
         let c = command(Path::new("powershell.exe"), Path::new("g.ps1"), Some(Path::new(r"D:\pack")), Path::new("d"), Path::new("o"), &ask());
         assert!(args(&c)[5].ends_with(r" } -Pack 'D:\pack'"));
+    }
+
+    struct Nothing;
+    impl Launcher for Nothing {
+        fn spawn(&self, _: &mut Command) -> io::Result<std::process::Child> {
+            Err(io::Error::other("unused"))
+        }
+        fn stop(&self, _: &mut std::process::Child) -> io::Result<()> {
+            Ok(())
+        }
+        fn open_folder(&self, _: &Path) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn u1b_named_folders_win_over_the_root() {
+        let mut r = Runs { shell: PathBuf::from("pwsh"), generator: Some(PathBuf::from("g.ps1")), pack: None, root: PathBuf::from(r"C:\r"), env: Vec::new(), launcher: Box::new(Nothing), server_dir: None, out_dir: None, exports_dir: None };
+        assert_eq!((r.server(), r.out(), r.exports()), (PathBuf::from(r"C:\r\server"), PathBuf::from(r"C:\r\out"), PathBuf::from(r"C:\r\exports")));
+        r.server_dir = Some(PathBuf::from(r"D:\s"));
+        r.out_dir = Some(PathBuf::from(r"D:\o"));
+        r.exports_dir = Some(PathBuf::from(r"D:\e"));
+        assert_eq!((r.server(), r.out(), r.exports(), r.pace()), (PathBuf::from(r"D:\s"), PathBuf::from(r"D:\o"), PathBuf::from(r"D:\e"), PathBuf::from(r"C:\r\pace.json")));
+        let c = command(&r.shell, r.generator.as_ref().unwrap(), None, &r.server(), &r.out(), &ask());
+        let s = &args(&c)[5];
+        assert!(s.contains(r"-Dir 'D:\s' -Out 'D:\o'"), "{s}");
     }
 
     #[test]
