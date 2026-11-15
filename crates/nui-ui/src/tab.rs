@@ -3,7 +3,7 @@
 //! reported in `Resp.clicked` and the app changes its selection, which the next frame shows.
 
 use nui_base::{Color, Cursor};
-use nui_layout::{Align, Dim, Display, Edges, Margin, Position, Side, Style, Track, Tracks};
+use nui_layout::{Align, Dim, Display, Edges, Margin, NodeId, Position, Side, Style, Track, Tracks};
 use nui_base::Vec2;
 
 use crate::text::{TextLook, Tone};
@@ -54,6 +54,14 @@ impl Ui {
     /// A tab of the strip or a choice. Two adjacent tabs both count as hovered on their shared 1 px seam
     /// (the browser gives it to the later one): accepted.
     pub fn tab(&mut self, key: &str, text: &str, look: TabLook, opts: TabOpts) -> Resp {
+        let (resp, _, _) = self.tab_open(key, text, look, opts);
+        self.close();
+        resp
+    }
+
+    /// A tab left open: the caller adds what else the box holds and closes it. Answers the box's node and the
+    /// colour its word took.
+    pub(crate) fn tab_open(&mut self, key: &str, text: &str, look: TabLook, opts: TabOpts) -> (Resp, NodeId, Color) {
         let id = self.key(key);
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
@@ -85,10 +93,9 @@ impl Ui {
             ),
             TabLook::Choice => (Style { pad: Edges::vh(1.0, 6.0), ..Style::default() }, None),
         };
-        self.open(key, id, style, Paint::Box { fill, frame });
+        let node = self.open(key, id, style, Paint::Box { fill, frame });
         self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
-        self.close();
-        resp
+        (resp, node, fade(word))
     }
 
     /// `#details button` (lines 195-200): a word and its wait on a second, smaller line. No hover rule

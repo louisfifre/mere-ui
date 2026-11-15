@@ -279,6 +279,10 @@ pub struct ShellIds {
     /// The box that slides the preview's tabs open (Id::ROOT while they are not built).
     pub options: Id,
     pub tabs: Vec<Id>,
+    /// The strip's "More" tab (Id::ROOT unless the bar lacks room for every view) and the form the bar took at this
+    /// width: what it shows and what "More" holds.
+    pub more: Id,
+    pub form: crate::overflow::Form,
     pub world_head: Id,
     pub settings_head: Id,
     pub figures_head: Id,
@@ -380,6 +384,8 @@ impl Default for ShellIds {
             strip: o,
             options: o,
             tabs: Vec::new(),
+            more: o,
+            form: crate::overflow::Form::default(),
             world_head: o,
             settings_head: o,
             figures_head: o,
@@ -506,7 +512,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
 
     // body (lines 63-72): a column filling the window.
     ui.node("body", Style { column: true, ..fills() }, |ui| {
-        crate::bar::build(ui, s, &mut ids, world);
+        crate::bar::build(ui, s, &mut ids, world, size.x);
         // Home: the page's columns are not built. The launcher's home is step 21, so its pane says so.
         if s.mode == Mode::Home {
             // A host that gives a Home fills the whole pane (it pads inside its own scroll area).

@@ -34,11 +34,11 @@ mod ui;
 mod widgets;
 
 pub use anim::{SLIDE_SECONDS, Slide, ease};
-pub use chrome::{CORNER, GRIP, IconLook, IconOpts, chrome_hit, grip};
+pub use chrome::{CORNER, GRIP, IconLook, IconOpts, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, chrome_hit, grip, tool_button_width};
 pub use edit::MemoryClipboard;
 pub use icon::Icon;
 pub use field::{FieldLook, FieldOpts, FieldResp};
-pub use menu::{MENU_ROW, SelectOpts, SelectResp};
+pub use menu::{MENU_ROW, MenuResp, MenuRow, SelectOpts, SelectResp};
 pub use list::{ListRow, PartOpts, RowOpts};
 pub use number::{NumberOpts, NumberSpec};
 pub use scroll::{GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, WHEEL_STEP, scroll_style};

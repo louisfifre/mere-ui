@@ -6,8 +6,19 @@ use nui_layout::{Align, Dim, Justify, Margin, Position, Side, Style};
 
 use crate::icon::{Icon, icon_shape};
 use crate::id::Id;
+use crate::text::{TextLook, Tone};
 use crate::theme::mix;
 use crate::ui::{Paint, Resp, Ui};
+
+/// A tool button with its name (`Ui::tool_button`): 10 px before the icon, 7 between the icon and the word, 12 after.
+pub const TOOL_PAD_L: f32 = 10.0;
+pub const TOOL_GAP: f32 = 7.0;
+pub const TOOL_PAD_R: f32 = 12.0;
+
+/// How wide a tool button with this name is: what the bar measures before it builds.
+pub fn tool_button_width(label: &str) -> f32 {
+    TOOL_PAD_L + 16.0 + TOOL_GAP + TextLook::body(Tone::Text).width(label) + TOOL_PAD_R
+}
 
 /// `.grip` bands along the sides are 5 px, and 8 x 8 boxes at the corners (launcher lines 94-103).
 pub const GRIP: f32 = 5.0;
@@ -170,6 +181,36 @@ impl Ui {
             cmds.push(Cmd::Fill { rect: Rect::new(36.0 - 4.0 - 5.0 - 10.0, 4.0 - 6.0, 5.0, 5.0), color: m });
         }
         self.add("icon", slot, Paint::Cmds(cmds));
+        self.close();
+        resp
+    }
+
+    /// A tool of the bar as an icon and its name: the look of `IconLook::Tool` (framed, reversed when pressed),
+    /// as wide as its word. The marker sits on the icon's top right corner, where the icon-only button has it.
+    pub fn tool_button(&mut self, key: &str, icon: &Icon, label: &str, opts: IconOpts) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, false, Cursor::Hand);
+        let t = *self.theme();
+        let lit = resp.hovered || resp.held;
+        let style = Style {
+            h: Dim::Px(28.0),
+            pad: nui_layout::Edges::new(0.0, TOOL_PAD_R, 0.0, TOOL_PAD_L),
+            gap: Vec2::new(TOOL_GAP, 0.0),
+            shrink: 0.0,
+            margin: Margin { left: Side::Px(-1.0), ..Margin::default() },
+            align_items: Align::Center,
+            position: if opts.pressed { Position::Relative } else { Position::Static },
+            ..Style::default()
+        };
+        let (fill, frame, color) = if opts.pressed { (Some(t.text), Some(t.text), t.ground) } else { (None, Some(t.edge), if lit { t.text } else { t.muted }) };
+        self.open(key, id, style, Paint::Box { fill, frame });
+        let slot = Style { w: Dim::Px(16.0), h: Dim::Px(16.0), shrink: 0.0, ..Style::default() };
+        let mut cmds = vec![icon_shape(icon, 16.0, color, icon.axis_aligned())];
+        if let Some(m) = opts.marker {
+            cmds.push(Cmd::Fill { rect: Rect::new(16.0 + 1.0, -2.0, 5.0, 5.0), color: m });
+        }
+        self.add("icon", slot, Paint::Cmds(cmds));
+        self.add_text(label, TextLook::body(Tone::Text), color, false, Style::default());
         self.close();
         resp
     }

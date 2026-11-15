@@ -6,16 +6,17 @@
 //! The icon paths below come from the launcher page (the line numbers are its), which draws them after
 //! Pixelarticons (MIT): see THIRD-PARTY.md.
 //!
-//! The bar has no breakpoint. The launcher's `condense()` turns the views' names into icons when the bar is
-//! too narrow, which is the page's own breakpoint and is not built: the window's minimum width holds the
-//! words, and only the two free spaces beside the tools grow or shrink.
+//! The bar has no fixed breakpoint, and it never turns a word into an icon (the page's `condense()` is not built).
+//! When it lacks room it gives parts up in a set order, worked out from the real widths in `overflow.rs`: the
+//! account name, the greyed views (into "More"), the word MINECRAFT, then the other views one by one.
 
 use std::sync::OnceLock;
 
 use nui_base::{Cmd, Color, Rect, Vec2};
 use nui_layout::{Align, Dim, Display, Edges, Overflow, Position, Style, Track, Tracks};
-use nui_ui::{Icon, IconLook, IconOpts, Slide, TabLook, TabOpts, TextLook, Tone, Ui, strip_style};
+use nui_ui::{Icon, IconLook, IconOpts, MenuRow, Slide, TabLook, TabOpts, TextLook, Tone, Ui, strip_style};
 
+use crate::overflow::{self, Form, VIEW_COUNT};
 use crate::shell::{BAR_H, Mode, PreviewState, RunEnd, ShellIds, Want};
 use crate::text;
 use crate::world::World;
@@ -116,8 +117,24 @@ pub fn window_title(s: &PreviewState) -> String {
     }
 }
 
-/// Builds the bar and fills `ids` with where its parts are.
-pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>) {
+/// The views that cannot be shown for this world: Flat, Structures and Section come after the full map only (line 2506).
+fn greyed(world: Option<&World>) -> [bool; VIEW_COUNT] {
+    let coarse = world.is_some_and(World::coarse);
+    std::array::from_fn(|i| coarse && matches!(i, 1 | 4 | 5))
+}
+
+/// What the bar shows at a window `width` wide: see `overflow.rs`. The views' arrangement is the one of the preview
+/// tool open, whatever tool is on, so the views do not shuffle while they slide; the brand's parts follow the
+/// tool on show, so Home, which has the room, keeps the account and the word.
+pub fn form_for(s: &PreviewState, world: Option<&World>, width: f32) -> (Form, Form) {
+    let inputs = |preview_open| overflow::Inputs { width, ends: overflow::ENDS_W, account: s.account.as_deref(), preview_open, pressed: s.view, disabled: greyed(world), shapes: s.view != 5 };
+    let open = overflow::plan(&inputs(true));
+    let on_show = if s.mode == Mode::Preview { open.clone() } else { overflow::plan(&inputs(false)) };
+    (open, on_show)
+}
+
+/// Builds the bar and fills `ids` with where its parts are. `width` is the window's.
+pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>, width: f32) {
     let t = *ui.theme();
     let icons = icons();
     let marker = marker(s);
@@ -130,6 +147,8 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
     }
     let now = ui.clock();
     let value = s.options.value(now, s.reduce_motion);
+    let (views_form, form) = form_for(s, world, width);
+    ids.form = Form { more: views_form.more.clone(), ..form.clone() };
     // The bar is a grid of three columns with a free space on each side of the tools, so the tools stay in the
     // middle whatever the width (line 76). The launcher page has a 1 px border-bottom on #titlebar (line 77); the
     // native bar drops it by the maintainer's choice (2026-11-15: the header should float, no separating line), a
@@ -154,10 +173,12 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             ui.canvas("pack", cube, |_, _| {
                 icons.pack.iter().map(|(i, c)| Cmd::Shape { rect: Rect::new(0.0, 0.0, 16.0, 16.0), grid: i.grid, figures: i.figures.clone(), color: *c, crisp: false }).collect()
             });
-            ui.text(&text::BAR_TITLE.to_uppercase(), TextLook::heading());
-            // `#account` (line 84): muted, and cut with an ellipsis only when the free space left of the tools is
-            // narrower than it. The page hides it under 640 px (line 85); the window is never under 1000.
-            if let Some(a) = &s.account {
+            if form.word {
+                ui.text(&text::BAR_TITLE.to_uppercase(), TextLook::heading());
+            }
+            // `#account` (line 84): muted, cut with an ellipsis when the free space left of the tools is narrower
+            // than it, and gone whole when even a short stub no longer fits (`overflow.rs`).
+            if let (true, Some(a)) = (form.account, &s.account) {
                 ui.ellipsis(a, TextLook::body(Tone::Muted));
             }
         });
@@ -168,7 +189,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
                 let (mode, icon) = if which == 0 { (Mode::Home, &icons.home) } else { (Mode::Preview, &icons.preview) };
                 let word = if which == 1 { marker.map(|m| text::PREVIEW_STATE[m]) } else { None };
                 let dot = word.map(|_| if marker == Some(2) { t.warn } else { t.text });
-                let r = ui.icon_button(&format!("tool{which}"), icon, IconLook::Tool, IconOpts { pressed: s.mode == mode, disabled: false, joined: false, marker: dot });
+                let r = ui.tool_button(&format!("tool{which}"), icon, text::TOOL_NAMES[which], IconOpts { pressed: s.mode == mode, disabled: false, joined: false, marker: dot });
                 ids.tools[which] = r.id;
                 ids.bar_buttons.push(r.id);
                 let name = text::MODES[which];
@@ -197,7 +218,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
                     };
                     let mut inner = None;
                     ids.options = ui.node("options", outer, |ui| {
-                        inner = Some(ui.node("inner", Style { pad: Edges::new(0.0, 0.0, 0.0, 1.0), shrink: 0.0, ..Style::default() }, |ui| tabs(ui, s, ids, world)));
+                        inner = Some(ui.node("inner", Style { pad: Edges::new(0.0, 0.0, 0.0, 1.0), shrink: 0.0, ..Style::default() }, |ui| tabs(ui, s, ids, world, &views_form)));
                     });
                     if let Some(r) = inner.and_then(|id| ui.rect(id)) {
                         s.options_w = r.w;
@@ -235,12 +256,12 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
 
 /// The preview's tabs as the page sends them to its host (lines 749-754): the six views, then, outside the section,
 /// a gap and 2D and 3D. A disabled one carries the page's `needsFull` as its title, an enabled one its label.
-fn tabs(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>) {
-    let views = text::VIEWS.iter().copied().chain([text::SECTION]);
-    // Flat, Structures and Section come after the full map only (line 2506).
-    let coarse = world.is_some_and(World::coarse);
-    for (i, word) in views.enumerate() {
-        let disabled = coarse && matches!(i, 1 | 4 | 5);
+/// The views the form holds back are not tabs: they are the rows of "More", at the end of the views.
+fn tabs(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>, form: &Form) {
+    let off = greyed(world);
+    for i in (0..VIEW_COUNT).filter(|i| !form.more.contains(i)) {
+        let word = overflow::view_word(i);
+        let disabled = off[i];
         let r = ui.tab(&format!("view{i}"), word, TabLook::Strip, TabOpts { pressed: i == s.view, disabled });
         ids.tabs.push(r.id);
         ids.bar_buttons.push(r.id);
@@ -248,6 +269,16 @@ fn tabs(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&Wo
         // `inert` while the tool is not the one on screen (the page's closing slide).
         if r.clicked && s.mode == Mode::Preview {
             s.view = i;
+        }
+    }
+    if !form.more.is_empty() {
+        let rows: Vec<MenuRow> = form.more.iter().map(|&v| MenuRow { text: overflow::view_word(v).to_string(), disabled: off[v] }).collect();
+        let r = ui.tab_menu("more", text::MORE, &rows);
+        ids.more = r.resp.id;
+        ids.bar_buttons.push(r.resp.id);
+        ui.title(r.resp.id, text::MORE_TITLE);
+        if let (Some(row), true) = (r.picked, s.mode == Mode::Preview) {
+            s.view = form.more[row];
         }
     }
     // The section has no 2D or 3D (line 2540): the tabs and the gap before them are not built.
