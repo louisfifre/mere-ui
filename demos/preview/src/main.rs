@@ -272,7 +272,7 @@ fn main() {
         }
         None => {
             // The window draws its own bar (src/bar.rs) and holds the minimum size the layout needs.
-            let frame = nui_win32::Frame { own: true, min: MIN_SIZE };
+            let frame = nui_win32::Frame { own: true, min: MIN_SIZE, ..Default::default() };
             if let Err(e) = nui_win32::run_with(text::BAR_TITLE, &mut app, frame) {
                 eprintln!("preview: {e}");
                 std::process::exit(1);
