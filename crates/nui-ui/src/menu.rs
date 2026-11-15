@@ -10,6 +10,7 @@ use nui_base::{Cursor, DrawList, Rect, Vec2};
 use nui_layout::{Align, Dim, Edges, Margin, Side, Style};
 
 use crate::id::Id;
+use crate::tab::{TabLook, TabOpts};
 use crate::text::{TextLook, Tone, half_leading};
 use crate::ui::{Paint, Resp, Ui, draw_line};
 
@@ -36,10 +37,29 @@ pub struct SelectResp {
     pub open: bool,
 }
 
+/// One row of a menu opened from a tab (`Ui::tab_menu`): a disabled row is shown faded and a press on it does
+/// nothing, the list staying open.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MenuRow {
+    pub text: String,
+    pub disabled: bool,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct MenuResp {
+    pub resp: Resp,
+    /// The row chosen this frame, as an index into the rows given.
+    pub picked: Option<usize>,
+    pub open: bool,
+}
+
 /// The one open menu.
 pub(crate) struct Menu {
     pub id: Id,
     pub options: Vec<String>,
+    /// Which rows are disabled (empty: none), and the width the list needs for its longest row (0: the box's).
+    pub disabled: Vec<bool>,
+    pub wide: f32,
     pub hot: usize,
     /// Where it was painted in the last frame, and the box it hangs from: what the pointer is judged against.
     pub rect: Rect,
@@ -76,7 +96,7 @@ impl Ui {
                 None
             } else {
                 let rect = resp.rect.unwrap_or_default();
-                Some(Menu { id, options: options.to_vec(), hot: *chosen, rect: Rect::default(), box_rect: rect })
+                Some(Menu { id, options: options.to_vec(), disabled: Vec::new(), wide: 0.0, hot: *chosen, rect: Rect::default(), box_rect: rect })
             };
         }
         let open = self.menu.as_ref().is_some_and(|m| m.id == id);
@@ -111,6 +131,45 @@ impl Ui {
         SelectResp { resp, changed, open }
     }
 
+    /// A tab of the strip that opens a list of rows under it (the bar's "More"): the same menu as `select_menu`,
+    /// drawn by the same code, hung from a strip tab instead of a select box. The tab is drawn pressed while the
+    /// list is open. `picked` is the row chosen this frame; the app does what that row stands for.
+    pub fn tab_menu(&mut self, key: &str, label: &str, rows: &[MenuRow]) -> MenuResp {
+        let id = self.key(key);
+        let mut picked = None;
+        if let Some((pid, row)) = self.menu_pick {
+            if pid == id {
+                self.menu_pick = None;
+                picked = Some(row.min(rows.len().saturating_sub(1)));
+            }
+        }
+        let was_open = self.menu.as_ref().is_some_and(|m| m.id == id);
+        let (resp, node, word) = self.tab_open(key, label, TabLook::Strip, TabOpts { pressed: was_open, disabled: false });
+        let chevron = Style { w: Dim::Px(8.0), h: Dim::Px(5.0), shrink: 0.0, margin: Margin { left: Side::Px(7.0), ..Margin::default() }, ..Style::default() };
+        self.add("chevron", chevron, Paint::Chevron { color: word });
+        self.close();
+        if resp.clicked {
+            self.menu = if was_open {
+                None
+            } else {
+                let rect = resp.rect.unwrap_or_default();
+                Some(Menu { id, options: Vec::new(), disabled: Vec::new(), wide: 0.0, hot: 0, rect: Rect::default(), box_rect: rect })
+            };
+        }
+        let open = self.menu.as_ref().is_some_and(|m| m.id == id);
+        if open {
+            self.menu_node = Some(node);
+            let look = TextLook::body(Tone::Text);
+            if let Some(m) = &mut self.menu {
+                m.options = rows.iter().map(|r| r.text.clone()).collect();
+                m.disabled = rows.iter().map(|r| r.disabled).collect();
+                // The text starts 7 px in from the frame and keeps 6 px after it.
+                m.wide = rows.iter().map(|r| look.width(&r.text)).fold(0.0, f32::max) + 7.0 + 6.0 + 2.0;
+            }
+        }
+        MenuResp { resp, picked, open }
+    }
+
     /// At the start of a frame, before any widget reads the pointer: moves the hot row, and takes the press
     /// the menu owns (a row picks and closes; anywhere but the box closes). Taken presses are removed from the
     /// input so no widget acts on them.
@@ -124,8 +183,11 @@ impl Ui {
         let Some(p) = self.input.press_pos.filter(|_| self.input.pressed) else { return };
         if m.rect.contains(p) {
             let row = m.row_at(p);
-            self.menu_pick = Some((m.id, row));
-            self.menu = None;
+            // A disabled row takes the press and does nothing: the list stays open.
+            if !m.disabled.get(row).copied().unwrap_or(false) {
+                self.menu_pick = Some((m.id, row));
+                self.menu = None;
+            }
         } else if !m.box_rect.contains(p) {
             self.menu = None;
         } else {
@@ -153,7 +215,10 @@ impl Ui {
         let h = m.options.len() as f32 * MENU_ROW + 2.0;
         let below = b.y + b.h;
         let y = if below + h <= self.size.y || b.y - h < 0.0 { below } else { b.y - h };
-        let r = Rect::new(b.x, y, b.w, h);
+        // A list that needs more than its box's width (a tab's) takes it, and slides back in if the window ends first.
+        let w = b.w.max(m.wide);
+        let x = if m.wide > 0.0 { b.x.min(self.size.x - w).max(0.0) } else { b.x };
+        let r = Rect::new(x, y, w, h);
         m.rect = r;
         m.box_rect = b;
         let look = TextLook::body(Tone::Text);
@@ -162,11 +227,12 @@ impl Ui {
         list.frame(r, 1.0, t.edge);
         for (i, text) in m.options.iter().enumerate() {
             let top = r.y + 1.0 + i as f32 * MENU_ROW;
-            let hot = i == m.hot;
+            let off = m.disabled.get(i).copied().unwrap_or(false);
+            let hot = i == m.hot && !off;
             if hot {
                 list.fill(Rect::new(r.x + 1.0, top, r.w - 2.0, MENU_ROW), t.select);
             }
-            let color = if hot { t.select_text } else { t.text };
+            let color = if hot { t.select_text } else if off { t.faded(t.text, 0.35) } else { t.text };
             draw_line(list, text, look, color, r.x + 1.0 + 6.0, top + 1.0 + half_leading(look));
         }
     }
