@@ -10,6 +10,9 @@ use crate::ui::{Paint, Resp, Ui};
 pub struct FoldOpts {
     /// `.fold.grow` (line 120): open, it takes the column's free height and so does its body.
     pub grow: bool,
+    /// No hairline on top (the page's `border-top`): for a fold that opens a panel with nothing above it to separate
+    /// it from.
+    pub bare: bool,
 }
 
 /// `flex: 1` (grow 1, shrink 1, basis 0) with the automatic minimum switched off.
@@ -35,7 +38,9 @@ impl Ui {
         let container_style = Style { column: true, shrink: 0.0, min_h: Dim::Px(0.0), ..Style::default() };
         let container = self.open(key, id, container_style, Paint::None);
         // The border-top: a 1 px fill takes the same room and paints the same pixels.
-        self.add("rule", Style { h: Dim::Px(1.0), shrink: 0.0, ..Style::default() }, Paint::Box { fill: Some(t.edge), frame: None });
+        if !opts.bare {
+            self.add("rule", Style { h: Dim::Px(1.0), shrink: 0.0, ..Style::default() }, Paint::Box { fill: Some(t.edge), frame: None });
+        }
 
         let head_id = self.key("head");
         let resp = self.interact(head_id, false, Cursor::Hand);

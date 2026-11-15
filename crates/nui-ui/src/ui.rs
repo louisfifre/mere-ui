@@ -328,6 +328,12 @@ impl Ui {
         self.input.pos
     }
 
+    /// Presses in a row at one spot that the last left press made, as the backend counted them: 1, 2 or 3. It
+    /// means something on the frame where a widget's `Resp::pressed` is true: a double click is `pressed` with 2.
+    pub fn clicks(&self) -> u8 {
+        self.input.clicks
+    }
+
     /// The wheel notches of this frame (positive away from the user) and where the pointer was, when it was
     /// over the visible part of widget id in the last frame. Takes them: a second call, or a scroll area
     /// closing later, gets nothing, as with nested scroll areas.
