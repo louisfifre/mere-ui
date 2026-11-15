@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::time::Instant;
 
-use nui_base::{App, Button, Cursor, Edge, Event, Hit, Key, Mods, Vec2, WindowRequest, observe};
+use nui_base::{App, Button, Cursor, Edge, Event, Hit, Ime, Key, Mods, Rect, Vec2, WindowRequest, observe};
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
 use windows::Win32::Graphics::Gdi::{InvalidateRect, ScreenToClient, ValidateRect};
@@ -14,6 +14,7 @@ use windows::Win32::UI::Controls::{MARGINS, WM_MOUSELEAVE};
 use windows::Win32::UI::HiDpi::{
     AdjustWindowRectExForDpi, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForWindow, GetSystemMetricsForDpi, SetProcessDpiAwarenessContext,
 };
+use windows::Win32::UI::Input::Ime::ISC_SHOWUICOMPOSITIONWINDOW;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetDoubleClickTime, GetKeyState, ReleaseCapture, SetCapture, TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TRACKMOUSEEVENT_FLAGS, TrackMouseEvent,
     VIRTUAL_KEY, VK_BACK, VK_CONTROL, VK_DELETE, VK_DOWN, VK_END, VK_ESCAPE, VK_HOME, VK_LEFT,
@@ -159,6 +160,12 @@ struct State {
     tracking_nc: bool,
     /// The shape last set, so the next frame sets one only when it differs.
     cursor: Cursor,
+    /// The input method is associated with the window: a text field has the keyboard.
+    ime_on: bool,
+    /// The spot last given to the input method, in dip.
+    ime_spot: Option<Rect>,
+    /// A composition is open (between the start and end messages).
+    composing: bool,
 }
 
 impl State {
@@ -269,6 +276,53 @@ unsafe fn sync_cursor(state: *mut State) {
     }
 }
 
+/// Gives the input method the caret's spot as of the last frame: on while a text field has the keyboard, off
+/// otherwise (a number field neither). The spot is placed again whenever it moves, which is on every typed char,
+/// so only the switch is logged.
+unsafe fn sync_ime(state: *mut State) {
+    unsafe {
+        if (*state).in_app {
+            return;
+        }
+        let spot = call_app(state, |app| app.ime_spot());
+        let hwnd = (*state).hwnd;
+        match (spot, (*state).ime_on) {
+            (None, false) => return,
+            (None, true) => {
+                // A composition is cancelled before the input method is taken away, or it would be left open
+                // with no window to finish in.
+                if (*state).composing {
+                    crate::ime::cancel(hwnd);
+                }
+                crate::ime::set_enabled(hwnd, false);
+                (*state).ime_on = false;
+                observe!(Debug, "ime off");
+            }
+            (Some(_), false) => {
+                crate::ime::set_enabled(hwnd, true);
+                (*state).ime_on = true;
+                observe!(Debug, "ime on");
+            }
+            (Some(s), true) => {
+                if (*state).ime_spot == Some(s) {
+                    return;
+                }
+            }
+        }
+        (*state).ime_spot = spot;
+        if let Some(s) = spot {
+            let px = spot_px(s, GetDpiForWindow(hwnd) as f32 / 96.0);
+            crate::ime::place(hwnd, px);
+        }
+    }
+}
+
+/// A spot in dip as a rectangle of client pixels: at least one pixel wide.
+fn spot_px(s: Rect, scale: f32) -> RECT {
+    let left = (s.x * scale).round() as i32;
+    RECT { left, top: (s.y * scale).round() as i32, right: left + ((s.w * scale).round() as i32).max(1), bottom: ((s.y + s.h) * scale).round() as i32 }
+}
+
 unsafe fn send(state: *mut State, event: Event) {
     unsafe {
         (*state).queued.push_back(event);
@@ -317,6 +371,7 @@ unsafe fn draw(state: *mut State) {
         flush(state);
         settle(state);
         sync_cursor(state);
+        sync_ime(state);
         rearm(state);
     }
 }
@@ -496,9 +551,15 @@ pub fn run_with(title: &str, app: &mut dyn App, frame: Frame) -> Result<()> {
             tracking: false,
             tracking_nc: false,
             cursor: Cursor::Arrow,
+            ime_on: true,
+            ime_spot: None,
+            composing: false,
         }));
         guard.state = state;
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, state as isize);
+        // No field means no input method: it is switched on only while a text field has the keyboard.
+        crate::ime::set_enabled(hwnd, false);
+        (*state).ime_on = false;
 
         // Size the client area to the start size on the screen the window landed on. The renderer does not
         // exist yet, so the WM_SIZE this sends is ignored.
@@ -822,6 +883,34 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     None => DefWindowProcW(hwnd, msg, wparam, lparam),
                 }
             }
+            // We draw the composition ourselves; the system still draws the candidate list.
+            WM_IME_SETCONTEXT => {
+                let lparam = if wparam.0 != 0 { LPARAM(lparam.0 & !(ISC_SHOWUICOMPOSITIONWINDOW as isize)) } else { lparam };
+                DefWindowProcW(hwnd, msg, wparam, lparam)
+            }
+            WM_IME_STARTCOMPOSITION => {
+                (*state).composing = true;
+                // Some input methods reset the place at the start of a composition.
+                if let Some(s) = (*state).ime_spot {
+                    crate::ime::place(hwnd, spot_px(s, scale()));
+                }
+                send(state, Event::Ime(Ime::Start));
+                // Not DefWindowProcW: it would open the system's own composition window.
+                LRESULT(0)
+            }
+            WM_IME_COMPOSITION => {
+                for ime in crate::ime::on_composition(hwnd, lparam.0) {
+                    send(state, Event::Ime(ime));
+                }
+                // Never DefWindowProcW: it turns the result string into WM_IME_CHAR and then WM_CHAR, which
+                // would type the committed text a second time.
+                LRESULT(0)
+            }
+            WM_IME_ENDCOMPOSITION => {
+                (*state).composing = false;
+                send(state, Event::Ime(Ime::End));
+                LRESULT(0)
+            }
             WM_CHAR => {
                 if let Some(ch) = char_of(state, wparam.0 as u16) {
                     send(state, Event::Char { ch });
@@ -892,6 +981,8 @@ fn key_of(vk: u16, shortcut: bool) -> Option<Key> {
         VK_RETURN => Key::Enter,
         VK_ESCAPE => Key::Escape,
         VK_TAB => Key::Tab,
+        // VK_PROCESSKEY (0xE5): the input method owns this key, whatever physical key it was.
+        VIRTUAL_KEY(0xE5) => return None,
         // Letters have no VK_ names: they are their capital's ASCII code.
         VIRTUAL_KEY(0x41) if shortcut => Key::A,
         VIRTUAL_KEY(0x43) if shortcut => Key::C,
@@ -959,6 +1050,12 @@ unsafe fn resized(state: *mut State) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_input_methods_process_key_is_not_a_key_of_ours() {
+        assert_eq!(key_of(0xE5, false), None);
+        assert_eq!(key_of(0xE5, true), None);
+    }
 
     #[test]
     fn hit_codes_are_the_systems() {

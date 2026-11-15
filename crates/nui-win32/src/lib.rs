@@ -5,6 +5,7 @@
 
 mod clipboard;
 mod fonts;
+mod ime;
 mod process;
 mod renderer;
 mod scheme;
