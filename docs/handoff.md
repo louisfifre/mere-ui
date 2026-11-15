@@ -682,3 +682,12 @@ The steps depend on each other, so the workflow is a chain, not a fan-out; keep 
 - The orchestrator (the session) reads each verdict, looks at the final PNGs itself, and reports in French.
 - Every agent prompt carries the rules of `AGENTS.md` and the commit rule above.
 
+## Fluid side panels (branch feat/fluid-panels, 2026-11-15)
+
+Replaces step 19's fixed panels (left 320, right 330, minimum window 1000x600). Decided with the maintainer; the prototype is a page outside this repository.
+- The numbers set by hand are in `demos/preview/src/panels.rs`: panel minimum 220, natural cap 330, map minimum 238, gaps 28 (beside) and 16 (stacked), height 600. The stacking width (790 with both panels open), the least window (`MIN_SIZE`, const arithmetic: the larger of the narrow bar, `overflow::NARROW_BAR`, and 2 x 220 + 3 x 16) and the bar's centred threshold are derived.
+- Natural width = widest row on one line (label, field, gaps, scrollbar gutter) under the cap: 319 settings, 321 figures. The rows are the panels' fixed words, never a run's data. Labels wider than their cell wrap.
+- Beside: the map's column shrinks first, then the panels toward 220 in proportion to their slack. Grips (8 px, in the gap) drag, no maximum, double click resets; the width lives in `PreviewState::panel_w`, not on disk. Stacked: the stage on the half of the height under the bar, the panels below in equal columns, each one scroll area (no nesting), no rule.
+- The bar in the preview tool: the settings panel's button replaces the brand, the figures panel's sits before the window's buttons; below the width where the tools can be centred they sit left, then 2D and 3D go into More (`overflow.rs`). Home keeps brand and account.
+- Pictures: `docs/shots/responsive-*` and `bar-*`. `responsive-section-1000.png` is `--data C:\Games\preview\out-section --view section`.
+- Checks on this machine: the loaded `C:\Games\preview\out` is a coarse 320-sample world without a section, so the section, map, figures, page_* and run tests that need it already failed before this branch (same tests, same reasons).

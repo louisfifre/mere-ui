@@ -9,7 +9,7 @@ The project's words, each confirmed with the maintainer. Name things this way in
 - **tab**: a button of the strip or of the bar that stays pressed while it is chosen.
 - **More**: the last tab of the bar's views when the window lacks room; it opens a list of the views that no longer fit (the greyed ones shown disabled). Not a menu of the bar's other things. Rejected: overflow menu, ellipsis menu.
 - **give way**: what the bar does when it lacks room: it drops parts in a set order (the account, the greyed views, the word MINECRAFT, the other views), worked out from measured widths. It is not a breakpoint: nothing is fixed at a number of pixels.
-- **panel**: the left side (settings) or the right side (figures, history, list) of the world preview, each of fixed width; panels never move. Rejected: column, sidebar.
+- **panel**: the left side (settings) or the right side (figures, history, list) of the world preview, each as wide as its content wants (or as dragged), beside the stage or, when the window is narrow, stacked under it; the bar's two buttons open and close them. Rejected: column, sidebar.
 - **stage**: the centre of the world preview, where the view is drawn (2D map, 3D, or cut); it scales with the window by one continuous rule. Rejected: canvas, viewport, map slot.
 - **map**: the 2D view from above, drawn in the stage. Not the 3D view, not the cut.
 - **cut**: one vertical slice of the world, drawn by the Section view. Rejected: section (the view's name, not the slice), slice.
