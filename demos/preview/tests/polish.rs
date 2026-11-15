@@ -157,3 +157,54 @@ fn icon_sheets() {
         assert!(seen.iter().all(|p| *p == ground || *p == muted), "scale {scale}: a blended pixel in a crisp icon: {seen:?}");
     }
 }
+
+/// A crisp icon's equal edges are equal on screen wherever the icon sits: the maximise box has four edges of 2 grid
+/// units, and each must come out as many device pixels as the others (issue: the top edge was 2 px, the rest 1 px).
+#[test]
+fn crisp_icon_edges_of_equal_width_stay_equal() {
+    let t = Theme::dark();
+    let i = preview::bar::icons();
+    let ground = [(t.ground.r * 255.0).round() as u8, (t.ground.g * 255.0).round() as u8, (t.ground.b * 255.0).round() as u8];
+    for scale in [1.0f32, 1.25, 1.5, 2.0] {
+        for (fx, fy) in [(0.0, 0.0), (0.25, 0.5), (0.5, 0.25), (0.75, 0.75), (0.33, 0.66)] {
+            let (w, h) = (40.0f32, 40.0f32);
+            let (pw, ph) = ((w * scale).round() as u32, (h * scale).round() as u32);
+            let mut r = Renderer::offscreen(pw, ph, scale).unwrap();
+            let mut list = DrawList::default();
+            let rect = Rect::new(10.0 + fx, 10.0 + fy, 16.0, 16.0);
+            list.shape(rect, i.maximize.grid, i.maximize.figures.clone(), t.text, true);
+            r.begin(t.ground);
+            r.draw_list(&list);
+            r.end();
+            let rgba = r.read_rgba().unwrap();
+            let inked = |x: u32, y: u32| {
+                let k = (y as usize * pw as usize + x as usize) * 4;
+                [rgba[k], rgba[k + 1], rgba[k + 2]] != ground
+            };
+            let (cx, cy) = (((rect.x + 8.0) * scale) as u32, ((rect.y + 8.0) * scale) as u32);
+            // The runs of ink down the middle column (top then bottom edge) and along the middle row (left then right).
+            let runs = |len: u32, at: &dyn Fn(u32) -> bool| {
+                let mut v = Vec::new();
+                let mut n = 0;
+                for k in 0..len {
+                    if at(k) {
+                        n += 1;
+                    } else if n > 0 {
+                        v.push(n);
+                        n = 0;
+                    }
+                }
+                if n > 0 {
+                    v.push(n);
+                }
+                v
+            };
+            let col = runs(ph, &|y| inked(cx, y));
+            let row = runs(pw, &|x| inked(x, cy));
+            assert_eq!(col.len(), 2, "scale {scale} at {fx},{fy}: {col:?}");
+            assert_eq!(col[0], col[1], "scale {scale} at {fx},{fy}: the top and bottom edges differ: {col:?}");
+            assert_eq!(row.len(), 2, "scale {scale} at {fx},{fy}: {row:?}");
+            assert_eq!(row[0], row[1], "scale {scale} at {fx},{fy}: the left and right edges differ: {row:?}");
+        }
+    }
+}

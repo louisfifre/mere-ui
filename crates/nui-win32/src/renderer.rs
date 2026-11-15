@@ -675,13 +675,18 @@ impl Renderer {
                         let sink = geometry.Open()?;
                         sink.SetFillMode(D2D1_FILL_MODE_WINDING);
                         // The point type belongs to a crate this one may not name, so it is taken from an ellipse's centre.
+                        // Crisp icons: the origin lands on a device pixel first, then each vertex's offset from it is
+                        // rounded by one rule, so two edges of the same width in the path are the same width on screen
+                        // (rounding the absolute position made a 1.33 px stroke 1 or 2 px by where the icon sat).
+                        let (ox, oy) = if *crisp { ((rect.x * s).round() / s, (rect.y * s).round() / s) } else { (rect.x, rect.y) };
                         let pt = |p: &nui_base::Vec2| {
-                            let mut x = rect.x + p.x * rect.w / grid;
-                            let mut y = rect.y + p.y * rect.h / grid;
+                            let mut dx = p.x * rect.w / grid;
+                            let mut dy = p.y * rect.h / grid;
                             if *crisp {
-                                x = (x * s).round() / s;
-                                y = (y * s).round() / s;
+                                dx = (dx * s).round() / s;
+                                dy = (dy * s).round() / s;
                             }
+                            let (x, y) = (ox + dx, oy + dy);
                             let mut v = D2D1_ELLIPSE::default().point;
                             v.X = x;
                             v.Y = y;
