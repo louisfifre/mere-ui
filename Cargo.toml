@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/nui-base", "crates/nui-png", "crates/nui-win32", "crates/nui-layout", "crates/nui-ui", "demos/relief", "demos/shell-boxes", "demos/widgets", "demos/preview"]
 
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 publish = false
 
