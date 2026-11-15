@@ -9,7 +9,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use std::collections::VecDeque;
 
-use nui_base::{App, Cursor, DrawList, Event, Gfx, Hit, Vec2, WindowRequest, observe};
+use nui_base::{App, Cursor, DrawList, Event, Gfx, Hit, Rect, Vec2, WindowRequest, observe};
 use nui_ui::{Id, Theme, Ui, chrome_hit};
 
 use crate::cut::{self, CUT_IMAGE, NAV_H, NAV_IMAGE, CutLook};
@@ -682,6 +682,10 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
 
     fn hit(&self, pos: Vec2) -> Hit {
         chrome_hit(&self.ui, pos, self.size, self.state.maximized, self.ids.bar, &self.ids.bar_buttons)
+    }
+
+    fn ime_spot(&self) -> Option<Rect> {
+        self.ui.ime_spot()
     }
 
     fn cursor(&self) -> Cursor {

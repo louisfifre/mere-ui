@@ -5,7 +5,7 @@
 //! the wheel and the thumb working, and the trend rows). With it, draws one frame offscreen and writes
 //! the PNG: the same frame the window would show.
 
-use nui_base::{App, DrawList, Event, Gfx, Vec2, log};
+use nui_base::{App, DrawList, Event, Gfx, Rect, Vec2, log};
 use nui_ui::{Theme, Ui};
 use widgets::{CONTROLS, ControlsState, FIELDS, FieldsState, LISTS, ListsState, SHEET, controls_live, fields_live, live, lists_live, lists_marks, text};
 
@@ -28,6 +28,10 @@ impl App for Widgets {
             return true;
         }
         self.ui.event(&e)
+    }
+
+    fn ime_spot(&self) -> Option<Rect> {
+        self.ui.ime_spot()
     }
 
     fn frame(&mut self, gfx: &mut dyn Gfx, _: f32) -> bool {

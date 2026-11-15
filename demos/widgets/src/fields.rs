@@ -2,7 +2,7 @@
 //! `Ui` driven by a script of events, the way a person would drive it, so the picture shows real states:
 //! a double click's selection, a Tab's, a long text scrolled with its caret at the edge.
 
-use nui_base::{Button, DrawList, Event, Key, Mods, Vec2};
+use nui_base::{Button, DrawList, Event, Ime, Key, Mods, Vec2};
 use nui_layout::{Dim, Style};
 use nui_ui::{FieldLook, FieldOpts, Id, NumberSpec, TextLook, Theme, Tone, Ui};
 
@@ -36,7 +36,7 @@ impl Default for FieldsState {
 }
 
 /// `vertical_scale` and `elevation_boost` of the page's `known` table (line 655).
-const SCALE: NumberSpec = NumberSpec { min: 0.5, max: 3.0, step: 0.025 };
+pub(crate) const SCALE: NumberSpec = NumberSpec { min: 0.5, max: 3.0, step: 0.025 };
 const BOOST: NumberSpec = NumberSpec { min: 0.0, max: 1.0, step: 0.05 };
 
 fn seed_opts(width: f32) -> FieldOpts<'static> {
@@ -53,7 +53,7 @@ fn name_opts() -> FieldOpts<'static> {
 }
 
 /// A `.setting` row: its label, an empty output, and a number field.
-fn setting_row(ui: &mut Ui, key: &str, w: Dim, label: &str, v: &mut f64, spec: NumberSpec) -> Id {
+pub(crate) fn setting_row(ui: &mut Ui, key: &str, w: Dim, label: &str, v: &mut f64, spec: NumberSpec) -> Id {
     let mut id = None;
     ui.node(key, setting_style(w), |ui| {
         ui.label(label, Tone::Text);
@@ -80,28 +80,30 @@ pub fn fields_live(ui: &mut Ui, s: &mut FieldsState) {
 // ---- the scripted cells ----
 
 /// What a step does to the field, by the char column under the pointer (0 is the start of the content box).
-#[derive(Copy, Clone)]
-enum Ev {
+#[derive(Clone)]
+pub(crate) enum Ev {
     Click(f32, u8),
     Key(Key, Mods),
     Type(&'static str),
+    /// The system's input method, one message at a time.
+    Ime(Ime),
 }
 
-const NONE: Mods = Mods { ctrl: false, shift: false };
+pub(crate) const NONE: Mods = Mods { ctrl: false, shift: false };
 const CTRL: Mods = Mods { ctrl: true, shift: false };
-const SHIFT: Mods = Mods { ctrl: false, shift: true };
+pub(crate) const SHIFT: Mods = Mods { ctrl: false, shift: true };
 
-fn rep(key: Key, mods: Mods, n: usize) -> Vec<Ev> {
+pub(crate) fn rep(key: Key, mods: Mods, n: usize) -> Vec<Ev> {
     vec![Ev::Key(key, mods); n]
 }
 
 /// Builds one frame of a cell and answers the id of the field the script's clicks aim at.
-type Build<'a> = dyn Fn(&mut Ui, &mut FieldsState) -> Id + 'a;
+pub(crate) type Build<'a> = dyn Fn(&mut Ui, &mut FieldsState) -> Id + 'a;
 
 /// A fresh `Ui` per cell: frame 0 builds with no events (so every widget knows where it stands), then each
 /// step injects its events and builds one frame, and one more when the frame asked for it (a Tab's focus
 /// only shows on the next frame). The last frame's list is the cell's picture.
-fn drive(theme: Theme, st: &mut FieldsState, build: &Build, steps: &[Vec<Ev>]) -> DrawList {
+pub(crate) fn drive(theme: Theme, st: &mut FieldsState, build: &Build, steps: &[Vec<Ev>]) -> DrawList {
     let size = Vec2::new(FIELDS.0 as f32, FIELDS.1 as f32);
     let mut ui = Ui::new(theme);
     let frame = |ui: &mut Ui, st: &mut FieldsState| {
@@ -112,18 +114,21 @@ fn drive(theme: Theme, st: &mut FieldsState, build: &Build, steps: &[Vec<Ev>]) -
     let (mut id, mut list) = frame(&mut ui, st);
     for step in steps {
         for ev in step {
-            match *ev {
+            match ev {
                 Ev::Click(col, clicks) => {
                     let r = ui.rect(id).expect("frame 0 laid the field out");
                     // The content box starts 7 in (padding 6 and the border); the extra 1 puts the pointer inside
                     // the char rather than on the gap between two, so a word click means the char at `col`.
-                    let p = Vec2::new(r.x + 7.0 + 7.2 * col + 1.0, r.y + r.h / 2.0);
+                    let p = Vec2::new(r.x + 7.0 + 7.2 * *col + 1.0, r.y + r.h / 2.0);
                     ui.event(&Event::PointerMoved { pos: p });
-                    ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks });
+                    ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: *clicks });
                     ui.event(&Event::PointerUp { pos: p, button: Button::Left });
                 }
                 Ev::Key(key, mods) => {
-                    ui.event(&Event::Key { key, mods });
+                    ui.event(&Event::Key { key: *key, mods: *mods });
+                }
+                Ev::Ime(i) => {
+                    ui.event(&Event::Ime(i.clone()));
                 }
                 Ev::Type(s) => {
                     for ch in s.chars() {

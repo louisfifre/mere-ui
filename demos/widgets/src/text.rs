@@ -108,3 +108,12 @@ pub const COL_SHARE: &str = "share";
 /// Lines 605-609, `figureNames`: flat, expanse, typical, ocean, high.
 pub const FIGURE_NAMES: [&str; 5] = ["Flat land", "Typical flat zone", "Typical biome", "Sea", "High land"];
 pub const WINDOW_TITLE: &str = "Widgets";
+/// The input method sheet's captions, one per row: what the script did to the field beside it.
+pub const CAP_IME: [&str; 6] = [
+    "composing, cursor at the end",
+    "composing, cursor after the first char",
+    "committed once",
+    "cancelled",
+    "over a selection",
+    "number field: input method off",
+];
