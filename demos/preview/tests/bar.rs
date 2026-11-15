@@ -391,3 +391,73 @@ fn bar_pictures() {
     let min = rig.rect(rig.app.ids().ends[0]);
     assert_eq!(rig.px(&rgba, (min.x + 3.0) as u32, (min.y + 3.0) as u32), rgb(rig.theme.ground));
 }
+
+fn says(rig: &Rig, words: &str) -> bool {
+    rig.app.list().cmds.iter().any(|c| matches!(c, nui_base::Cmd::Text { text, .. } if text == words))
+}
+
+/// B3: the pointer's shape follows what is under it: a hand on a tab, the arrow on the bare shell, a crosshair on
+/// the map, and the sizing arrows only where the window's frame is (an edge of the bar).
+#[test]
+fn b3_the_cursor_follows_what_is_under_the_pointer() {
+    use nui_base::Cursor;
+    let Some(world) = load() else { return };
+    let mut rig = Rig::standard(&world);
+    let tab = centre(rig.rect(rig.app.ids().tabs[1]));
+    rig.hover(tab);
+    assert_eq!(rig.app.cursor(), Cursor::Hand, "over a tab");
+    let map = centre(rig.rect(rig.app.ids().stage));
+    rig.hover(map);
+    assert_eq!(rig.app.cursor(), Cursor::Crosshair, "over the map");
+    rig.hover(Vec2::new(5.0, 500.0));
+    assert_eq!(rig.app.cursor(), Cursor::Arrow, "over the bare shell");
+    assert_eq!(rig.app.hit(Vec2::new(1.0, 500.0)), Hit::Resize(Edge::W), "the frame's edge is the system's");
+}
+
+/// P1: a tooltip waits half a second under the pointer, asks the window to wake then, and is painted last.
+#[test]
+fn p1_a_tooltip_comes_after_its_delay_and_goes_with_the_pointer() {
+    let Some(world) = load() else { return };
+    let mut rig = Rig::standard(&world);
+    rig.app.set_clock(Some(10.0));
+    let min = centre(rig.rect(rig.app.ids().ends[0]));
+    rig.hover(min);
+    let wait = rig.app.wake_in().expect("a tip is due");
+    assert!(wait > 0.0 && wait <= 0.5, "wakes within the delay: {wait}");
+    assert!(!says(&rig, preview::text::MINIMIZE), "not before the delay");
+    rig.app.set_clock(Some(10.6));
+    rig.frame();
+    assert!(says(&rig, preview::text::MINIMIZE), "after the delay");
+    assert_eq!(rig.app.wake_in(), None, "nothing more to wait for");
+    rig.write("tooltip.png");
+    rig.hover(Vec2::new(5.0, 500.0));
+    assert!(!says(&rig, preview::text::MINIMIZE), "gone with the pointer");
+}
+
+/// P2: with no run under way the app asks for no frames and has nothing to look at while hidden.
+#[test]
+fn p2_an_idle_app_asks_for_nothing() {
+    let Some(world) = load() else { return };
+    let mut rig = Rig::standard(&world);
+    rig.hover(Vec2::new(5.0, 500.0));
+    assert_eq!(rig.app.wake_in(), None);
+    assert!(!rig.app.tick());
+    assert!(!rig.app.frame(&mut rig.r, 0.0), "a settled page is not drawn again");
+}
+
+/// P3: a preview folder that is missing shows the page's note and nothing else; one that is there and cannot be
+/// read says so in the status line, in the warning tone. Neither closes the window.
+#[test]
+fn p3_errors_are_the_pages_note_and_the_status_line() {
+    let mut rig = Rig::new(None, PreviewState::for_world(None), 1400, 940, 1.0, true);
+    assert!(says(&rig, preview::text::NO_PREVIEW));
+    assert!(!says(&rig, preview::text::UNREADABLE));
+    rig.write("error_missing.png");
+
+    let mut state = PreviewState::for_world(None);
+    state.trouble = preview::text::UNREADABLE.to_string();
+    let mut rig = Rig::new(None, state, 1400, 940, 1.0, true);
+    assert!(says(&rig, preview::text::NO_PREVIEW));
+    assert_eq!(rig.app.ids().status_text, preview::text::UNREADABLE, "the status line holds the trouble");
+    rig.write("error_unreadable.png");
+}

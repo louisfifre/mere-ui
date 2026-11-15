@@ -117,6 +117,9 @@ pub fn duration(s: u64) -> String {
     }
 }
 
+/// Not the page's: its server never hands over a folder it cannot read. Written in the page's wording for the one
+/// case a native window has, a preview folder that is there and cannot be read.
+pub const UNREADABLE: &str = "The preview could not be read. Generate it again.";
 /// Line 593.
 pub const NO_PREVIEW: &str = "No preview yet. Choose a seed and generate one.";
 /// Line 599.
@@ -387,3 +390,50 @@ pub const CLOSE_WINDOW: &str = "Close";
 pub const NEEDS_FULL: &str = "Needs the 16-block detail: generate the map again at 16 blocks.";
 /// PLACEHOLDER: the launcher's Home is step 21; until then its pane says so. Not the launcher's wording.
 pub const HOME_LATER: &str = "The launcher's home comes with step 21.";
+
+// ---- the titles (the page's `title` attributes) ----
+
+/// Line 460.
+pub const SPAN_COARSE: &str = "Past 32,768 blocks, a point every 32 blocks at the finest.";
+/// Line 465.
+pub const DETAIL_HINT: &str = "Blocks between two points of the map. A coarser map comes sooner, without the flat land, the structures and the section.";
+/// Line 481.
+pub const EXPORT_HINT: &str = "Keeps the settings, the figures, and a picture of each view, flat and in 3D as it is looked at now, in a folder.";
+/// Line 484.
+pub const EXPORT_DATA: &str = "Settings and figures";
+/// Line 503.
+pub fn was(v: &str) -> String {
+    format!("before: {v}")
+}
+/// Line 517.
+pub fn pick_remove(name: &str) -> String {
+    format!("Remove {name}")
+}
+/// Line 523.
+pub const COL_SPACING_HINT: &str = "About how far apart two of them are: the side of the square each has to itself on this area.";
+/// Line 583.
+pub const PROFILE_PACK_HINT: &str = "Put everything back to the pack\u{2019}s values";
+/// Line 601.
+pub const PART_HINT: &str = "Click to draw this whole part; again to draw none.";
+/// Line 615.
+pub const ABSENT_HINT: &str = "Biomes the generator can place at the surface, that this area does not hold.";
+/// Line 622.
+pub const NEXT_CUT_HINT: &str = "The cuts are the lines of this map that cross the most different ground: a height, some sea, some level land.";
+/// Line 632.
+pub fn ore_columns_hint(plays: &str) -> String {
+    format!("Blocks of ore per chunk within 64 blocks under the ground: where the ground is under height 80, and from 80 up. Counted over {plays} chunks played along this cut.")
+}
+/// Line 634.
+pub fn ore_from(rules: &str) -> String {
+    format!("From: {rules}")
+}
+/// Lines 605-611: what each figure is, shown on hover, in the order of `FIGURE_NAMES`.
+pub const FIGURE_DEFS: [&str; 7] = [
+    "Share of the land. Flat: the ground moves by 2 blocks at most to the neighbour points, 16 blocks away. A lone flat point does not count.",
+    "Width of the flat zone a flat point taken at random falls in. A river does not cut a zone.",
+    "Width of the biome zone a point taken at random on land falls in.",
+    "Share of the whole area below sea level, rivers and lakes included.",
+    "Share of the land higher than 150.",
+    "",
+    "Surface biomes met in this area, of all those the generator can place. The others are named at the end of the list of biomes.",
+];

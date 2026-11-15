@@ -71,6 +71,11 @@ pub struct PreviewApp {
     /// What the window was asked for (the bar's buttons), and the title it was last given.
     requests: VecDeque<WindowRequest>,
     title_sent: Option<String>,
+    /// The app's own time, for the tooltips' delay; a test fixes it with `set_clock`.
+    born: Instant,
+    clock: Option<f64>,
+    /// The generator's end, seen while the window was hidden and not yet acted on (`look`).
+    ended: Option<Option<ExitStatus>>,
 }
 
 type CutKey = (usize, usize, usize, usize, usize, bool, BTreeSet<String>, u32);
@@ -103,6 +108,9 @@ impl PreviewApp {
             follows_scheme: false,
             requests: VecDeque::new(),
             title_sent: None,
+            born: Instant::now(),
+            clock: None,
+            ended: None,
         };
         // Line 2815: the map that opens the page is kept like any other (in memory until there are runs).
         app.remember();
@@ -138,6 +146,11 @@ impl PreviewApp {
     }
 
     /// Makes the app switch theme when the system's setting changes, as the page does with prefers-color-scheme.
+    /// Fixes the time the tooltips see (seconds), or gives it back to the real clock with None. For tests.
+    pub fn set_clock(&mut self, seconds: Option<f64>) {
+        self.clock = seconds;
+    }
+
     pub fn follow_scheme(mut self, yes: bool) -> PreviewApp {
         self.follows_scheme = yes;
         self
@@ -301,13 +314,30 @@ impl PreviewApp {
     /// Looks at the generator: whether it has ended, how old it is, and (once a second) what its progress file says.
     /// Before the frame is built, so the frame shows what was found.
     fn poll(&mut self, gfx: &mut dyn Gfx) {
+        self.look();
+        if let Some(status) = self.ended.take() {
+            self.finish(status, gfx);
+        }
+    }
+
+    /// The part of `poll` that needs no drawing, so that it also runs while the window is hidden: a hidden window
+    /// is not drawn, but its run goes on and its end must be noticed. An end found here waits in `ended` for the
+    /// next frame, which has the device `finish` needs to upload the new meshes.
+    fn look(&mut self) {
+        if self.ended.is_some() {
+            return;
+        }
         let Some(run) = self.running.as_mut() else { return };
         match run.child.try_wait() {
-            Ok(Some(status)) => return self.finish(Some(status), gfx),
+            Ok(Some(status)) => {
+                self.ended = Some(Some(status));
+                return;
+            }
             Ok(None) => {}
             Err(e) => {
                 observe!(Warn, "the generator could not be looked at: {e}");
-                return self.finish(None, gfx);
+                self.ended = Some(None);
+                return;
             }
         }
         let (Some(follow), Some(runs)) = (self.state.follow.as_mut(), self.runs.as_ref()) else { return };
@@ -575,6 +605,7 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
 
     fn frame(&mut self, gfx: &mut dyn Gfx, seconds: f32) -> bool {
         self.poll(gfx);
+        self.ui.set_clock(self.clock.unwrap_or_else(|| self.born.elapsed().as_secs_f64()));
         // Before building, so the frame shows the settled pose.
         let moving = match (&mut self.state.orbit, &self.world) {
             (Some(orbit), Some(world)) => scene::settle(orbit, world, seconds),
@@ -625,7 +656,22 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
         gfx.draw_list(&list);
         self.last = list;
         gfx.end();
-        self.ui.want_redraw() || moving || self.running.is_some()
+        // A run under way no longer asks for frames at full speed: `wake_in` says when the clock next changes.
+        self.ui.want_redraw() || moving
+    }
+
+    fn wake_in(&self) -> Option<f32> {
+        // The status shows whole seconds and the end of the run is looked for four times a second.
+        let run = self.running.is_some().then_some(0.25);
+        match (self.ui.wake_in(), run) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
+    }
+
+    fn tick(&mut self) -> bool {
+        self.look();
+        self.ended.is_some()
     }
 
     fn hit(&self, pos: Vec2) -> Hit {

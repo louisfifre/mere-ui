@@ -134,8 +134,8 @@ impl Ui {
 
     /// `.legend` (lines 352-354): the same columns at 11 px, muted. `min-width` is in 11 px `ch`, so the
     /// cells are narrower than the rows' (52.8 and 39.6 against 57.6 and 43.2); the right edges still meet
-    /// because the cells are right-aligned.
-    pub fn list_head(&mut self, key: &str, column: &str, width: &str, share: &str, narrow: bool) {
+    /// because the cells are right-aligned. Returns the ids of the width and share cells, which may carry a title.
+    pub fn list_head(&mut self, key: &str, column: &str, width: &str, share: &str, narrow: bool) -> [Id; 2] {
         let id = self.key(key);
         let t = *self.theme();
         let look = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Muted) };
@@ -143,9 +143,10 @@ impl Ui {
         self.add("pad", Style { w: Dim::Px(12.0), ..Style::default() }, Paint::None);
         self.add_text(column, look, t.muted, false, Style::default());
         let (w, s) = if narrow { (46.2, 33.0) } else { (52.8, 39.6) };
-        self.cell("width", end_cell(w), width, look, t.muted);
-        self.cell("share", end_cell(s), share, look, t.muted);
+        let w = self.cell("width", end_cell(w), width, look, t.muted);
+        let s = self.cell("share", end_cell(s), share, look, t.muted);
         self.close();
+        [w, s]
     }
 
     /// One `.trend` row of the history (lines 310-313): a name that ends in an ellipsis, the value, and a
@@ -173,10 +174,11 @@ impl Ui {
     }
 
     /// A box with one word in it, for the cells that align their word to the right.
-    fn cell(&mut self, name: &str, style: Style, text: &str, look: TextLook, color: Color) {
+    fn cell(&mut self, name: &str, style: Style, text: &str, look: TextLook, color: Color) -> Id {
         let id = self.key(name);
         self.open(name, id, style, Paint::None);
         self.add_text(text, look, color, false, Style::default());
         self.close();
+        id
     }
 }

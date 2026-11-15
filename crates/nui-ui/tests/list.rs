@@ -278,7 +278,9 @@ fn legend_columns() {
     for narrow in [false, true] {
         let mut ui = Ui::new(t);
         ui.begin_frame(SIZE);
-        ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| ui.list_head("head", "biome", "typical width", "share", narrow));
+        ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| {
+            ui.list_head("head", "biome", "typical width", "share", narrow);
+        });
         let l = ui.end_frame().clone();
         // The row's right edge is 350. "share" is 5 x 6.6 = 33 wide in a cell of at least 39.6 (33 narrow).
         near(text_at(&l, "share").0.x, 350.0 - 33.0);
@@ -292,7 +294,9 @@ fn legend_columns() {
     // The widest case of the narrow minimum 46.2 for the width cell: a short word is held to it.
     let mut ui = Ui::new(t);
     ui.begin_frame(SIZE);
-    ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| ui.list_head("head", "biome", "w", "s", true));
+    ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| {
+        ui.list_head("head", "biome", "w", "s", true);
+    });
     let l = ui.end_frame().clone();
     // Cells of 46.2 and 33, right-aligned: "w" ends at 350 - 33 - 8 = 309, so it starts at 309 - 6.6.
     near(text_at(&l, "w").0.x, 309.0 - 6.6);

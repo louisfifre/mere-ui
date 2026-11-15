@@ -179,16 +179,23 @@ fn main() {
             _ => usage(),
         }
     }
-    // An explicit --data that fails is an error; the default one is the page's `noPreview` when it is not there.
+    // A folder that is missing or unreadable is not a reason to close the window: the page then shows its `noPreview`
+    // note, and a folder that is there but cannot be read says so in the status line, where the page puts a trouble.
     let data = data.or_else(|| Path::new(DEFAULT_DATA).join("preview.json").exists().then(|| PathBuf::from(DEFAULT_DATA)));
-    let world = data.map(|dir| {
-        World::load(&dir).unwrap_or_else(|e| {
-            eprintln!("preview: {e}");
-            std::process::exit(1);
-        })
+    let mut trouble = String::new();
+    let world = data.and_then(|dir| match World::load(&dir) {
+        Ok(w) => Some(w),
+        Err(e) => {
+            nui_base::observe!(Warn, "{}: {e}", dir.display());
+            if dir.join("preview.json").exists() {
+                trouble = text::UNREADABLE.to_string();
+            }
+            None
+        }
     });
 
     let mut state = PreviewState::for_world(world.as_ref());
+    state.trouble = trouble;
     for key in &views {
         apply_view(&mut state, key);
     }

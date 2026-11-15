@@ -349,7 +349,7 @@ pub const KEYS: [&str; 7] = ["flat", "expanse", "typical", "ocean", "high", "top
 const GOAL: [&str; 3] = ["flat", "expanse", "typical"];
 
 /// How a figure is shown (`format`, 1500).
-fn format_value(f: &Figures, key: &str, v: f64) -> String {
+pub fn format_value(f: &Figures, key: &str, v: f64) -> String {
     match key {
         "ocean" | "flat" | "high" => percent(v),
         "top" => text::altitude(v),

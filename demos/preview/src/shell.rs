@@ -9,7 +9,7 @@
 
 use std::collections::BTreeSet;
 
-use nui_base::{Cmd, Color, DrawList, Orbit, Rect, Vec2, Weight};
+use nui_base::{Cmd, Color, Cursor, DrawList, Orbit, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
     ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
@@ -18,7 +18,7 @@ use nui_ui::{
 
 use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
 use crate::colour::biome_colour;
-use crate::figures::{CellKind, Figures, List, blocks, figure_cells, js_round, percent};
+use crate::figures::{self, CellKind, Figures, List, blocks, figure_cells, js_round, percent};
 use crate::history::{Entry, PLOT_H, here, trend};
 use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
 use crate::paint::{View, rows};
@@ -517,6 +517,7 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme)
         ids.profiles = ui.node("profiles", style, |ui| {
             let at_pack = s.values == pack_values();
             let r = ui.tab("pack", text::PACK, TabLook::Choice, TabOpts { pressed: at_pack, disabled: false });
+            ui.title(r.id, text::PROFILE_PACK_HINT);
             if r.clicked {
                 s.values = pack_values();
             }
@@ -624,6 +625,7 @@ fn run_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme) {
                     // The sixteen-block map of a wide area is out of reach (line 823).
                     let disabled = DETAIL_BLOCKS[i] == 16 && s.samples > 2048;
                     let r = ui.detail_tab(&format!("d{i}"), word, &wait, TabOpts { pressed: i == s.detail, disabled });
+                    ui.title(r.id, if disabled { text::SPAN_COARSE } else { text::DETAIL_HINT });
                     if r.clicked {
                         s.detail = i;
                     }
@@ -649,6 +651,7 @@ fn run_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme) {
                 if let Some((_, _, stopping)) = busy {
                     let r = ui.stop_button("stopRun", stopping);
                     ids.stop = r.id;
+                    ui.title(r.id, text::STOP);
                     if r.clicked {
                         s.want = Some(Want::Stop);
                     }
@@ -710,12 +713,14 @@ fn middle_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
                     if cuts > 0 {
                         let r = ui.button("nextCut", text::NEXT_CUT, ButtonLook::Link);
                         ids.next_cut = r.id;
+                        ui.title(r.id, text::NEXT_CUT_HINT);
                         if r.clicked {
                             s.cut_at = (s.cut_at + 1) % cuts;
                         }
                     }
                     let r = ui.button("export", text::EXPORT, ButtonLook::Link);
                     ids.export = r.id;
+                    ui.title(r.id, text::EXPORT_HINT);
                     if r.clicked {
                         s.want = Some(Want::Export);
                     }
@@ -846,6 +851,11 @@ fn cut_frame(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, w
                     }
                 }
                 let frame = cut::nav_frame(s.cut_look, bw, bh, length, ground, section, range, bw).rect();
+                // `#nav` is a pointer, its frame a hand that grabs, and both grab while carried (lines 285, 288, 2329).
+                if resp.hovered || resp.held {
+                    let on_frame = resp.rect.zip(ui.pointer()).is_some_and(|(r, p)| frame.contains(Vec2::new(p.x - r.x, p.y - r.y)));
+                    ui.want_cursor(if s.nav_carry.is_some() || on_frame { Cursor::Grab } else { Cursor::Hand });
+                }
                 vec![
                     Cmd::Image { image: NAV_IMAGE, rect: Rect::new(0.0, 0.0, w, NAV_H - 1.0) },
                     // `outline: 1px solid var(--text)` inside the frame's box.
@@ -878,6 +888,10 @@ fn cut_frame(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, w
                     if !resp.held {
                         s.cut_carry = None;
                     }
+                }
+                // `cursor: crosshair` (line 290); the page sets no other while the cut is carried.
+                if resp.hovered || resp.held {
+                    ui.want_cursor(Cursor::Crosshair);
                 }
                 let mut cmds = vec![Cmd::PushClip { rect: Rect::new(0.0, 0.0, w, box_h - 1.0) }];
                 if let Some(sight) = cut::sight(s.cut_look, bw, bh, length, ground.rows) {
@@ -988,6 +1002,11 @@ fn map_canvas(ui: &mut Ui, s: &mut PreviewState, t: &Theme, side: f32, world: &W
                     }
                 }
             }
+            // `cursor: crosshair`, and `grabbing` once the press has travelled (lines 233, 1813).
+            if resp.hovered || resp.held {
+                let carried = s.carry.is_some_and(|c| c.carried) && resp.held;
+                ui.want_cursor(if carried { Cursor::Grab } else { Cursor::Crosshair });
+            }
             if !resp.held {
                 s.carry = None;
             }
@@ -1067,12 +1086,12 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option
     let title = text::ORE_LIST[0].to_uppercase();
     let section = world.and_then(|w| w.section.as_ref());
     // Names and figures of the ore rows, in `ORE_KINDS` order; empty without a cut.
-    let figures: Vec<(usize, String, String)> = match shown {
+    let figures: Vec<(usize, String, String, String)> = match shown {
         Some(shown) => (0..ORE_KINDS.len())
             .filter_map(|k| {
                 let f = shown.play.per_chunk[k].as_ref()?;
                 let figure = |v: Option<f64>| v.map_or("\u{2013}".to_string(), |v| text::num_digits(v, 1));
-                Some((k, figure(f.low), figure(f.high)))
+                Some((k, figure(f.low), figure(f.high), f.from.join(", ")))
             })
             .collect(),
         None => Vec::new(),
@@ -1093,14 +1112,18 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option
     ids.list_title = title;
     // Line 2370-2372: the legend names the columns; a list without a cut has no legend.
     if shown.is_some() {
-        ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1], false);
+        let head = ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1], false);
+        let hint = text::ore_columns_hint(&text::num(shown.map_or(0, |s| s.play.counted) as f64));
+        ui.title(head[0], &hint);
+        ui.title(head[1], &hint);
     }
     let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
-        for (k, low, high) in &figures {
+        for (k, low, high, from) in &figures {
             let name = ORE_KINDS[*k];
             let row = ListRow { swatch: rgb(ORE_COLOURS[*k]), name: text::ORES[*k], width: low, share: high };
             let opts = RowOpts { pressed: s.chosen_ores.contains(name), choosing: !s.chosen_ores.is_empty(), narrow: false, ..RowOpts::default() };
             let r = ui.list_row(&format!("ore{k}"), &row, opts);
+            ui.title(r.id, &text::ore_from(from));
             ids.ores.push(r.id);
             // A click picks the ore, or lets it go (2385).
             if r.clicked && !s.chosen_ores.remove(name) {
@@ -1176,6 +1199,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
                         said.push_str(", ");
                     }
                     let r = ui.button(&format!("pick{i}"), &l.names[i], ButtonLook::Pick);
+                    ui.title(r.id, &text::pick_remove(&l.names[i]));
                     ids.pick_names.push(r.id);
                     said.push_str(&l.names[i]);
                     if r.clicked {
@@ -1204,7 +1228,11 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
 
     if legend_shown {
         let (width, share) = if counted { (text::COL_SPACING, text::COL_COUNT) } else { (text::COL_WIDTH, text::COL_SHARE) };
-        ui.list_head("legend", column_word, width, share, false);
+        let head = ui.list_head("legend", column_word, width, share, false);
+        // Only the spacing column of the structures says what it is (line 1643).
+        if counted {
+            ui.title(head[0], text::COL_SPACING_HINT);
+        }
     }
 
     // The filter reads the id too, so the name of a mod finds its biomes. A chosen row stays in sight.
@@ -1219,6 +1247,10 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             let item = ListRow { swatch: rgb(l.colours[i]), name: &l.names[i], width: &width, share: &share };
             let opts = RowOpts { pressed: chosen.contains(&l.ids[i]), choosing, narrow: false, mark: counted, ..RowOpts::default() };
             let r = ui.list_row(&format!("row{i}"), &item, opts);
+            // The biomes and the structures are named by their id on hover (line 1660).
+            if view == View::Biomes || counted {
+                ui.title(r.id, &l.ids[i]);
+            }
             ids.list_rows.push(r.id);
             ids.list_keys.push(l.ids[i].clone());
             if r.clicked {
@@ -1236,12 +1268,14 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
                 let count = text::num(world.map_or(0, |w| w.absent.len()) as f64);
                 let opts = PartOpts { pressed: false, first: order.is_empty(), button: false };
                 let r = ui.list_part("absentHead", text::ABSENT, &count, opts);
+                ui.title(r.id, text::ABSENT_HINT);
                 ids.list_parts.push(r.id);
                 ids.list_part_words.push((text::ABSENT.to_string(), count));
                 for (k, id) in absent.iter().enumerate() {
                     let name = text::pretty(id);
                     let item = ListRow { swatch: rgb(biome_colour(id)), name: &name, width: "", share: "" };
                     let r = ui.list_row(&format!("absent{k}"), &item, RowOpts { absent: true, narrow: false, ..RowOpts::default() });
+                    ui.title(r.id, id);
                     ids.absent_rows.push(r.id);
                 }
             }
@@ -1266,6 +1300,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             let (name, count) = (text::PARTS[part as usize], text::num(sum));
             let pressed = chosen.len() == part_ids.len() && part_ids.iter().all(|id| chosen.contains(id));
             let r = ui.list_part(&format!("part{}", part as u8), name, &count, PartOpts { pressed, first, button: true });
+            ui.title(r.id, text::PART_HINT);
             ids.list_parts.push(r.id);
             ids.list_part_words.push((name.to_string(), count));
             if r.clicked {
@@ -1314,6 +1349,8 @@ fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
             };
             let cells = world.map_or(Vec::new(), |w| figure_cells(&w.measured.figures, s.before.as_ref()));
             ids.figures_text = cells.iter().map(|c| c.text.clone()).collect();
+            // Which figure the cells are at (a name starts one), and the last name's id, for the titles.
+            let (mut at, mut name_id) = (usize::MAX, Id::ROOT);
             ids.figures_grid = ui.node("grid", grid, |ui| {
                 for (n, cell) in cells.iter().enumerate() {
                     let key = format!("cell{n}");
@@ -1331,7 +1368,10 @@ fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
                         }
                         // Line 299: a name is read whole, so it may take a second line.
                         CellKind::Name => {
-                            ui.node(&key, Style { min_w: Dim::Px(0.0), ..Style::default() }, |ui| ui.paragraph(&cell.text, body));
+                            name_id = ui.node(&key, Style { min_w: Dim::Px(0.0), ..Style::default() }, |ui| ui.paragraph(&cell.text, body));
+                            at = at.wrapping_add(1);
+                            // The definition is shown on hover (line 1527).
+                            ui.title(name_id, text::FIGURE_DEFS[at]);
                         }
                         // Lines 301-303: the three figures of the goal are larger and semibold.
                         CellKind::Value { goal, muted: grey } => {
@@ -1341,11 +1381,22 @@ fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
                             if goal {
                                 ids.goal_values.push(v);
                             }
+                            // A figure the detail cannot give says why, on its name and its value (line 1533).
+                            if grey {
+                                ui.title(name_id, text::NEEDS_FULL);
+                                ui.title(v, text::NEEDS_FULL);
+                            }
                         }
                         // Lines 304-306: what moved reads as strongly as the value on the figures of the goal.
                         CellKind::Before { goal } => {
                             let look = TextLook { tone: if goal { Tone::Text } else { Tone::Muted }, ..body };
-                            ui.node(&key, Style { justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, look));
+                            let v = ui.node(&key, Style { justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, look));
+                            // What the figure was in the run before (line 1530).
+                            if let (false, Some(b)) = (cell.text.is_empty(), s.before.as_ref()) {
+                                let k = figures::KEYS[at];
+                                let was = if k == "count" { format!("{}", b.count) } else { b.get(k).map_or(String::new(), |v| figures::format_value(b, k, v)) };
+                                ui.title(v, &text::was(&was));
+                            }
                         }
                     }
                 }
@@ -1367,6 +1418,10 @@ fn history_body(ui: &mut Ui, history: &[Entry], ids: &mut ShellIds, t: &Theme, c
     let len = runs.len();
     ids.history_body = ui.hover_area("history", Style { column: true, gap: Vec2::new(0.0, 8.0), ..Style::default() }, |ui, at| {
         // The pointer picks the nearest run, across every line at once (line 1630).
+        // `#history { cursor: crosshair }` (line 310).
+        if at.is_some() {
+            ui.want_cursor(Cursor::Crosshair);
+        }
         let pointed = at.filter(|_| len >= 2).map(|a| (js_round(a as f64 * (len - 1) as f64).max(0.0) as usize).min(len - 1));
         let trend = trend(&runs, pointed, cols.right as f64);
         for (n, row) in trend.rows.iter().enumerate() {
