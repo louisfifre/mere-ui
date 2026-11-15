@@ -7,7 +7,8 @@ use std::collections::BTreeMap;
 use std::hash::{BuildHasher, Hasher, RandomState};
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use nui_base::Launcher;
@@ -86,39 +87,41 @@ pub fn random_seed() -> String {
     (a as u64 * (1 << 20) + (b as u64 % (1 << 20))).to_string()
 }
 
-fn quoted(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "''"))
-}
-
-/// The generator's command line, as serve.ps1 builds it (lines ~300-335): the script run by a PowerShell with the
-/// arguments preview.ps1 takes, the Tectonic values as a hashtable with the switches as booleans. `-ExecutionPolicy
-/// Bypass` is for this process only and changes no setting. Without `pack` there is no -Pack, and preview.ps1 reads
-/// WORLD_PREVIEW_PACK as serve.ps1's `Resolve-Pack` does.
-pub fn command(shell: &Path, generator: &Path, pack: Option<&Path>, dir: &Path, out: &Path, ask: &Ask) -> Command {
-    let table: Vec<String> = SETTINGS
+/// What the engine is asked for one run: the engine's repository, the folders, the form and the Tectonic values,
+/// the switches as booleans. Without `pack` the engine reads WORLD_PREVIEW_PACK, without `mods` WORLD_PREVIEW_MODS.
+/// The engine's points are 16 blocks apart and the area is counted in them, as the form counts it.
+pub fn options(engine: &Path, pack: Option<&Path>, dir: &Path, out: &Path, mods: &[PathBuf], ask: &Ask, stop: Arc<AtomicBool>) -> world_preview::Options {
+    let mut o = world_preview::Options::new(engine.to_path_buf());
+    o.pack = pack.map(Path::to_path_buf);
+    o.dir = Some(dir.to_path_buf());
+    o.out = Some(out.to_path_buf());
+    o.seed = ask.seed.clone();
+    o.samples = ask.samples;
+    o.step = 16;
+    o.detail = Some(ask.detail);
+    o.mods = mods.to_vec();
+    o.tectonic = SETTINGS
         .iter()
         .zip(ask.values)
-        .map(|(set, v)| match set.kind {
-            Kind::Switch => format!("'{}' = {}", set.key, if v != 0.0 { "$true" } else { "$false" }),
-            Kind::Number(_) => format!("'{}' = {}", set.key, v),
+        .map(|(set, v)| {
+            let value = match set.kind {
+                Kind::Switch => world_preview::Value::Bool(v != 0.0),
+                Kind::Number(_) => world_preview::Value::from(v),
+            };
+            (set.key.to_string(), value)
         })
         .collect();
-    let mut script = format!(
-        "& {} -Dir {} -Out {} -Seed {} -Samples {} -Detail {} -Tectonic @{{ {} }}",
-        quoted(&generator.display().to_string()),
-        quoted(&dir.display().to_string()),
-        quoted(&out.display().to_string()),
-        quoted(&ask.seed),
-        ask.samples,
-        ask.detail,
-        table.join("; ")
-    );
-    if let Some(p) = pack {
-        script.push_str(&format!(" -Pack {}", quoted(&p.display().to_string())));
-    }
-    let mut cmd = Command::new(shell);
-    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &script]);
-    cmd
+    o.stop = Some(stop);
+    o
+}
+
+/// One run of the engine: `world_preview::run`, or a stand-in for tests. It is called on a thread of its own and
+/// sends its progress lines to `log` as they come.
+pub type Engine = Arc<dyn Fn(&world_preview::Options, &mut dyn FnMut(&str)) -> Result<PathBuf, String> + Send + Sync>;
+
+/// The real engine.
+pub fn engine() -> Engine {
+    Arc::new(|o, log| world_preview::run(o, log).map_err(|e| e.to_string()))
 }
 
 /// `progress.json` (Progress.java): the pass under way, its step in blocks and how many tiles are done of the total.
@@ -159,13 +162,24 @@ pub struct Follow {
     pub seconds: u64,
     /// The wait this machine took last time at this detail; None on a first run (it is being measured).
     pub expected: Option<u64>,
-    /// The stop was pressed: the button greys until the process ends.
+    /// The stop was pressed: the button greys until the run ends.
     pub stopping: bool,
+    /// The engine's last line (a build, a download, the pack's sync): shown beside the first step, the long one
+    /// whose progress the mod cannot count yet.
+    pub said: String,
 }
 
 impl Follow {
     pub fn new(ask: Ask, expected: Option<u64>) -> Follow {
-        Follow { ask, done: Vec::new(), stage: text::STEP_START.to_string(), part: None, pass_key: String::new(), seconds: 0, expected, stopping: false }
+        Follow { ask, done: Vec::new(), stage: text::STEP_START.to_string(), part: None, pass_key: String::new(), seconds: 0, expected, stopping: false, said: String::new() }
+    }
+
+    /// A line of the engine, as it comes.
+    pub fn hear(&mut self, line: &str) {
+        let line = line.trim();
+        if !line.is_empty() {
+            self.said = line.to_string();
+        }
     }
 
     /// One look at the progress file: a new pass closes the step before it.
@@ -194,6 +208,7 @@ impl Follow {
     pub fn current(&self) -> String {
         match self.part {
             Some(p) => format!("{} \u{b7} {p} %", self.stage),
+            None if self.pass_key.is_empty() && !self.said.is_empty() => format!("{} \u{b7} {}", self.stage, self.said),
             None => self.stage.clone(),
         }
     }
@@ -285,16 +300,16 @@ pub fn folder_name(seed: Option<&str>, unix_seconds: u64) -> String {
     format!("{}_{stamp}", seed.unwrap_or("preview")).chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' }).collect()
 }
 
-/// Where and how runs happen: the shell that runs the generator, the generator, the pack, and the folder under which
-/// everything a run or an export writes goes.
+/// Where and how runs happen: the engine and its repository, the pack, and the folder under which everything a run
+/// or an export writes goes.
 pub struct Runs {
-    pub shell: PathBuf,
-    /// preview.ps1, or a stand-in for it. None: Generate says it failed.
-    pub generator: Option<PathBuf>,
+    /// The world-preview repository (its `mod/` is built and given to the server). None: Generate says it failed.
+    pub engine_dir: Option<PathBuf>,
+    pub engine: Engine,
     pub pack: Option<PathBuf>,
     pub root: PathBuf,
-    /// Environment for the generator, for tests (the stub's mode): it avoids `set_var` in a multi-threaded test binary.
-    pub env: Vec<(String, String)>,
+    /// Jars added to the server on top of the pack's mods.
+    pub mods: Vec<PathBuf>,
     pub launcher: Box<dyn Launcher>,
     /// Folders named one by one, for a host that already has them (the launcher gives serve.ps1 its own);
     /// None puts them under `root`. The pace, the log, the history and `before` always stay under `root`.
@@ -319,7 +334,7 @@ impl Runs {
     pub fn exports(&self) -> PathBuf {
         self.exports_dir.clone().unwrap_or_else(|| self.root.join("exports"))
     }
-    /// What the generator printed.
+    /// What the engine said.
     pub fn log(&self) -> PathBuf {
         self.root.join("run.log")
     }
@@ -337,30 +352,29 @@ impl Runs {
 mod tests {
     use super::*;
     use crate::settings::pack_values;
+    use std::process::Command;
 
     fn ask() -> Ask {
         Ask { seed: "cap 1".to_string(), samples: 256, detail: 16, values: pack_values() }
     }
 
-    fn args(c: &Command) -> Vec<String> {
-        c.get_args().map(|a| a.to_string_lossy().into_owned()).collect()
+    fn stop() -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(false))
     }
 
     #[test]
-    fn u1_the_command_follows_the_protocol() {
-        let c = command(Path::new("powershell.exe"), Path::new(r"C:\it's\gen.ps1"), None, Path::new(r"C:\w\server"), Path::new(r"C:\w\out"), &ask());
-        let a = args(&c);
-        assert_eq!(c.get_program(), "powershell.exe");
-        assert_eq!(a[..5], ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command"]);
-        assert_eq!(a.len(), 6);
-        let s = &a[5];
-        assert!(s.starts_with(r"& 'C:\it''s\gen.ps1' -Dir 'C:\w\server' -Out 'C:\w\out' -Seed 'cap 1' -Samples 256 -Detail 16 -Tectonic @{ "), "{s}");
-        assert!(s.contains("'rolling_hills' = $true") && s.contains("'ultrasmooth' = $false"));
-        assert!(s.contains("'vertical_scale' = 1.5") && s.contains("'min_y' = -64;"));
-        assert_eq!(s.matches(" = ").count(), 43);
-        assert!(!s.contains("-Pack") && s.ends_with(" }"));
-        let c = command(Path::new("powershell.exe"), Path::new("g.ps1"), Some(Path::new(r"D:\pack")), Path::new("d"), Path::new("o"), &ask());
-        assert!(args(&c)[5].ends_with(r" } -Pack 'D:\pack'"));
+    fn u1_the_options_carry_the_form() {
+        use world_preview::Value;
+        let o = options(Path::new(r"C:\wp"), None, Path::new(r"C:\w\server"), Path::new(r"C:\w\out"), &[], &ask(), stop());
+        assert_eq!((o.repo.as_path(), o.dir.as_deref(), o.out.as_deref()), (Path::new(r"C:\wp"), Some(Path::new(r"C:\w\server")), Some(Path::new(r"C:\w\out"))));
+        assert_eq!((o.seed.as_str(), o.samples, o.step, o.detail, o.pack.as_ref()), ("cap 1", 256, 16, Some(16), None));
+        assert_eq!(o.tectonic.len(), 43);
+        let get = |k: &str| o.tectonic.iter().find(|(key, _)| key == k).map(|(_, v)| v.clone()).unwrap();
+        assert_eq!((get("rolling_hills"), get("ultrasmooth")), (Value::Bool(true), Value::Bool(false)));
+        assert_eq!((get("vertical_scale").as_f64(), get("min_y").as_f64()), (Some(1.5), Some(-64.0)));
+        assert!(o.stop.is_some());
+        let o = options(Path::new("e"), Some(Path::new(r"D:\pack")), Path::new("d"), Path::new("o"), &[PathBuf::from("glue.jar")], &ask(), stop());
+        assert_eq!((o.pack.as_deref(), o.mods.as_slice()), (Some(Path::new(r"D:\pack")), [PathBuf::from("glue.jar")].as_slice()));
     }
 
     struct Nothing;
@@ -378,15 +392,27 @@ mod tests {
 
     #[test]
     fn u1b_named_folders_win_over_the_root() {
-        let mut r = Runs { shell: PathBuf::from("pwsh"), generator: Some(PathBuf::from("g.ps1")), pack: None, root: PathBuf::from(r"C:\r"), env: Vec::new(), launcher: Box::new(Nothing), server_dir: None, out_dir: None, exports_dir: None };
+        let mut r = Runs { engine_dir: Some(PathBuf::from("wp")), engine: engine(), pack: None, root: PathBuf::from(r"C:\r"), mods: Vec::new(), launcher: Box::new(Nothing), server_dir: None, out_dir: None, exports_dir: None };
         assert_eq!((r.server(), r.out(), r.exports()), (PathBuf::from(r"C:\r\server"), PathBuf::from(r"C:\r\out"), PathBuf::from(r"C:\r\exports")));
         r.server_dir = Some(PathBuf::from(r"D:\s"));
         r.out_dir = Some(PathBuf::from(r"D:\o"));
         r.exports_dir = Some(PathBuf::from(r"D:\e"));
         assert_eq!((r.server(), r.out(), r.exports(), r.pace()), (PathBuf::from(r"D:\s"), PathBuf::from(r"D:\o"), PathBuf::from(r"D:\e"), PathBuf::from(r"C:\r\pace.json")));
-        let c = command(&r.shell, r.generator.as_ref().unwrap(), None, &r.server(), &r.out(), &ask());
-        let s = &args(&c)[5];
-        assert!(s.contains(r"-Dir 'D:\s' -Out 'D:\o'"), "{s}");
+        let o = options(r.engine_dir.as_ref().unwrap(), None, &r.server(), &r.out(), &r.mods, &ask(), stop());
+        assert_eq!((o.dir.as_deref(), o.out.as_deref()), (Some(Path::new(r"D:\s")), Some(Path::new(r"D:\o"))));
+    }
+
+    #[test]
+    fn u5b_the_engine_speaks_beside_the_first_step() {
+        let mut f = Follow::new(ask(), None);
+        assert_eq!(f.current(), "Starting the game");
+        f.hear("Syncing the pack\r\n");
+        f.hear("  ");
+        assert_eq!(f.current(), "Starting the game \u{b7} Syncing the pack");
+        f.look(Some(&progress("map", 16, 1, 10)));
+        assert_eq!(f.current(), "Map, every 16 blocks \u{b7} 10 %");
+        f.look(Some(&progress("extras", 16, 0, 0)));
+        assert_eq!(f.current(), "Cuts, ores and structures", "once the game counts, its line is the step");
     }
 
     #[test]
