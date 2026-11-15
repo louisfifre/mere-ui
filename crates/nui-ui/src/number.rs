@@ -4,7 +4,7 @@
 use nui_layout::Dim;
 
 use crate::edit::Edit;
-use crate::field::{FieldResp, Shape, Target};
+use crate::field::{Extra, FieldResp, Shape, Target};
 use crate::ui::Ui;
 
 /// The `min`, `max` and `step` of the page's `known` table (line 655), or `ANY` for a field without one.
@@ -17,6 +17,23 @@ pub struct NumberSpec {
 
 impl NumberSpec {
     pub const ANY: NumberSpec = NumberSpec { min: f64::NEG_INFINITY, max: f64::INFINITY, step: 1.0 };
+}
+
+/// How a number field sits: `Default` is today's `number` (as wide as its text, right-aligned, 3 px padding).
+#[derive(Copy, Clone, Debug)]
+pub struct NumberOpts {
+    pub width: Dim,
+    /// The value hugs the right edge; false starts it at the left padding.
+    pub right: bool,
+    /// Vertical padding with the border (the launcher's 3px + 1px is 4.0).
+    pub pad_v: f32,
+    pub disabled: bool,
+}
+
+impl Default for NumberOpts {
+    fn default() -> Self {
+        NumberOpts { width: Dim::Auto, right: true, pad_v: 3.0, disabled: false }
+    }
 }
 
 /// Rust's shortest round-trip `Display` gives what JS `String(number)` gives for the page's values; -0 is
@@ -79,6 +96,13 @@ impl Ui {
     /// press elsewhere clamps it to the spec; Escape puts back what it was when the field got the keyboard;
     /// Up and Down move it a step. While the field has the keyboard it ignores an outside change to `v`.
     pub fn number(&mut self, key: &str, v: &mut f64, spec: NumberSpec) -> FieldResp {
-        self.field(key, Target::Number { v, spec }, Shape::Number, "", Dim::Auto, false)
+        self.number_with(key, v, spec, NumberOpts::default())
+    }
+
+    /// `number` with the box's own look: the launcher's `.memory input` is 8ch wide and right-aligned, its
+    /// pairs fill their column and start at the left, and all have a vertical padding of 3 px plus the border.
+    pub fn number_with(&mut self, key: &str, v: &mut f64, spec: NumberSpec, opts: NumberOpts) -> FieldResp {
+        let extra = Extra { pad_v: Some(opts.pad_v), right: Some(opts.right), disabled: opts.disabled, ..Extra::new(opts.width) };
+        self.field(key, Target::Number { v, spec }, Shape::Number, "", extra)
     }
 }

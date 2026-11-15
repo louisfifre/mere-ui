@@ -23,6 +23,26 @@ pub enum ButtonLook {
     /// `#pick button.none` (line 344): the same, underlined always. The later rule wins at equal specificity,
     /// so the hover strike does not apply to it.
     PickNone,
+    /// The launcher's `.folder button` (lines 211-212): the text colour, underlined, 2 px above and below,
+    /// --muted under the pointer.
+    Underlined,
+}
+
+/// The launcher's `.toggle button` (lines 204-205) and what it differs by from the preview's.
+#[derive(Copy, Clone, Debug)]
+pub struct ToggleOpts {
+    /// `min-width: 8ch`.
+    pub min_w: Dim,
+    /// Padding with the border.
+    pub pad: Edges,
+    /// `:disabled`: 0.4 opacity (`button:disabled` wins by specificity) and no click.
+    pub disabled: bool,
+}
+
+impl Default for ToggleOpts {
+    fn default() -> Self {
+        ToggleOpts { min_w: Dim::Auto, pad: Edges::vh(3.0, 7.0), disabled: false }
+    }
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -154,6 +174,17 @@ impl Ui {
                 };
                 (style, Paint::None, body, word, link, false)
             }
+            ButtonLook::Underlined => {
+                let style = Style { pad: Edges::vh(2.0, 0.0), grow: opts.grow, ..Style::default() };
+                let word = if opts.disabled {
+                    t.faded(t.text, 0.4)
+                } else if lit {
+                    t.muted
+                } else {
+                    t.text
+                };
+                (style, Paint::None, body, word, true, false)
+            }
             ButtonLook::Pick | ButtonLook::PickNone => {
                 let none = look == ButtonLook::PickNone;
                 let style = Style { grow: opts.grow, ..Style::default() };
@@ -200,23 +231,34 @@ impl Ui {
     /// `.setting button.field`: shows `on_word` or `off_word` (the app's catalog) and flips `on` on a click,
     /// before painting, so the frame already shows the new word. `Resp.clicked` means the value changed.
     pub fn toggle(&mut self, key: &str, on: &mut bool, on_word: &str, off_word: &str) -> Resp {
+        self.toggle_with(key, on, on_word, off_word, ToggleOpts::default())
+    }
+
+    /// `toggle` with the box's own measures and a disabled state.
+    pub fn toggle_with(&mut self, key: &str, on: &mut bool, on_word: &str, off_word: &str, opts: ToggleOpts) -> Resp {
         let id = self.key(key);
-        let resp = self.interact(id, false, Cursor::Hand);
+        let resp = self.interact(id, opts.disabled, Cursor::Hand);
         if resp.clicked {
             *on = !*on;
         }
         let t = *self.theme();
-        let frame = if resp.hovered || resp.held { t.text } else { t.edge };
+        let mut frame = if resp.hovered || resp.held { t.text } else { t.edge };
+        let mut word = t.text;
+        if opts.disabled {
+            frame = t.faded(frame, 0.4);
+            word = t.faded(word, 0.4);
+        }
         let style = Style {
             // padding 2px 6px plus the 1 px border; text-align: right, line 170.
-            pad: Edges::vh(3.0, 7.0),
+            pad: opts.pad,
+            min_w: opts.min_w,
             justify: Justify::End,
             align_items: Align::Start,
             ..Style::default()
         };
         self.open(key, id, style, Paint::Box { fill: None, frame: Some(frame) });
         let look = TextLook::body(Tone::Text);
-        self.add_text(if *on { on_word } else { off_word }, look, t.text, false, Style::default());
+        self.add_text(if *on { on_word } else { off_word }, look, word, false, Style::default());
         self.close();
         resp
     }

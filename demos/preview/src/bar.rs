@@ -154,7 +154,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
                 let (mode, icon) = if which == 0 { (Mode::Home, &icons.home) } else { (Mode::Preview, &icons.preview) };
                 let word = if which == 1 { marker.map(|m| text::PREVIEW_STATE[m]) } else { None };
                 let dot = word.map(|_| if marker == Some(2) { t.warn } else { t.text });
-                let r = ui.icon_button(&format!("tool{which}"), icon, IconLook::Tool, IconOpts { pressed: s.mode == mode, disabled: false, marker: dot });
+                let r = ui.icon_button(&format!("tool{which}"), icon, IconLook::Tool, IconOpts { pressed: s.mode == mode, disabled: false, joined: false, marker: dot });
                 ids.tools[which] = r.id;
                 ids.bar_buttons.push(r.id);
                 let name = text::MODES[which];

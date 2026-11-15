@@ -59,7 +59,7 @@ pub fn chrome_hit(ui: &Ui, pos: Vec2, size: Vec2, maximized: bool, bar: Id, butt
     }
 }
 
-/// The three icon buttons of a bar.
+/// The icon buttons of the bars and of the launcher's Home.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum IconLook {
     /// `.strip button` with an icon (lines 110-112, 122): 36 x 28, framed, drawn in reverse when pressed.
@@ -68,12 +68,21 @@ pub enum IconLook {
     Caption,
     /// `.ends #close`: red under the pointer.
     Close,
+    /// The launcher's `.icon` (index.html lines 160-165): 30 x 30, framed in --edge, a muted 16 px icon; under
+    /// the pointer the icon and the frame take --text; `pressed` (aria-expanded) is drawn in reverse.
+    Square,
+    /// `.icon.play` (lines 180-181): filled with --text, the icon in --ground; 0.85 opacity under the pointer.
+    Filled,
+    /// `.icon.back` (line 166): no frame, 24 wide, 30 tall, pulled 4 px left.
+    Bare,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct IconOpts {
     pub pressed: bool,
     pub disabled: bool,
+    /// `.icon + .icon` (line 162): pulled 1 px over the one before, so the two share a hairline.
+    pub joined: bool,
     /// A 5 x 5 square on the button's top right corner, 4 px in (the launcher's `.marker`, line 129), in this
     /// colour: where a run of the preview stands while it is not on screen.
     pub marker: Option<nui_base::Color>,
@@ -103,6 +112,33 @@ impl Ui {
                     (style, Some(t.text), Some(t.text), t.ground)
                 } else {
                     (style, None, Some(t.edge), if lit { t.text } else { t.muted })
+                }
+            }
+            IconLook::Square | IconLook::Filled | IconLook::Bare => {
+                let (w, left) = match look {
+                    IconLook::Bare => (24.0, -4.0),
+                    _ => (30.0, if opts.joined { -1.0 } else { 0.0 }),
+                };
+                let style = Style {
+                    w: Dim::Px(w),
+                    h: Dim::Px(30.0),
+                    shrink: 0.0,
+                    margin: Margin { left: Side::Px(left), ..Margin::default() },
+                    align_items: Align::Center,
+                    justify: Justify::Center,
+                    ..Style::default()
+                };
+                match look {
+                    IconLook::Bare => (style, None, None, if lit { t.text } else { t.muted }),
+                    IconLook::Filled if lit => {
+                        let c = mix(t.text, 0.85, t.ground);
+                        (style, Some(c), Some(c), t.ground)
+                    }
+                    IconLook::Filled => (style, Some(t.text), Some(t.text), t.ground),
+                    // aria-expanded keeps its reversed look on hover (line 165).
+                    _ if opts.pressed => (style, Some(t.text), Some(t.text), t.ground),
+                    _ if lit => (style, None, Some(t.text), t.text),
+                    _ => (style, None, Some(t.edge), t.muted),
                 }
             }
             IconLook::Caption | IconLook::Close => {

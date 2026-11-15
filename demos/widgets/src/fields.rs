@@ -49,7 +49,7 @@ fn filter_opts() -> FieldOpts<'static> {
 
 /// The profile name as the page creates it: compact, 24 chars, focused with all of it selected.
 fn name_opts() -> FieldOpts<'static> {
-    FieldOpts { look: FieldLook::Compact, placeholder: text::PROFILE_NAME, max_chars: 24, width: Dim::Px(130.0), focus: true }
+    FieldOpts { look: FieldLook::Compact, placeholder: text::PROFILE_NAME, max_chars: 24, width: Dim::Px(130.0), focus: true, ..FieldOpts::default() }
 }
 
 /// A `.setting` row: its label, an empty output, and a number field.

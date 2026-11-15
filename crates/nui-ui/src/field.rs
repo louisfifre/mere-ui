@@ -39,11 +39,16 @@ pub struct FieldOpts<'a> {
     /// a field that keeps asking takes the focus back whenever another field has it. The field that lost it
     /// is not told.
     pub focus: bool,
+    /// `:disabled` (launcher line 207): no focus, no I-beam, the frame and the text at half opacity.
+    pub disabled: bool,
+    /// The border-box height; `Auto` is one line. `Px(52)` is the launcher's textarea stand-in (line 195): one
+    /// line at the top of a taller box.
+    pub height: Dim,
 }
 
 impl Default for FieldOpts<'_> {
     fn default() -> Self {
-        FieldOpts { look: FieldLook::Text, placeholder: "", max_chars: 0, width: Dim::Auto, focus: false }
+        FieldOpts { look: FieldLook::Text, placeholder: "", max_chars: 0, width: Dim::Auto, focus: false, disabled: false, height: Dim::Auto }
     }
 }
 
@@ -114,6 +119,25 @@ pub(crate) struct FieldPaint {
     pub spot: Option<usize>,
 }
 
+/// What `field` needs besides its target: the box's size and how it behaves.
+#[derive(Copy, Clone)]
+pub(crate) struct Extra {
+    pub width: Dim,
+    pub height: Dim,
+    pub want_focus: bool,
+    pub disabled: bool,
+    /// The padding's vertical size (border included), where a field is not the shape's own.
+    pub pad_v: Option<f32>,
+    /// Text hugs the right edge; None is the shape's own.
+    pub right: Option<bool>,
+}
+
+impl Extra {
+    pub(crate) fn new(width: Dim) -> Extra {
+        Extra { width, height: Dim::Auto, want_focus: false, disabled: false, pad_v: None, right: None }
+    }
+}
+
 /// What a field edits.
 pub(crate) enum Target<'a> {
     Text { s: &'a mut String, max_chars: usize },
@@ -162,15 +186,24 @@ impl Ui {
     /// current text; `FieldResp::changed` says when it did.
     pub fn text_field(&mut self, key: &str, s: &mut String, opts: FieldOpts) -> FieldResp {
         let shape = if opts.look == FieldLook::Compact { Shape::Compact } else { Shape::Text };
-        self.field(key, Target::Text { s, max_chars: opts.max_chars }, shape, opts.placeholder, opts.width, opts.focus)
+        let extra = Extra { height: opts.height, want_focus: opts.focus, disabled: opts.disabled, ..Extra::new(opts.width) };
+        self.field(key, Target::Text { s, max_chars: opts.max_chars }, shape, opts.placeholder, extra)
     }
 
-    pub(crate) fn field(&mut self, key: &str, mut target: Target, shape: Shape, placeholder: &str, width: Dim, want_focus: bool) -> FieldResp {
+    pub(crate) fn field(&mut self, key: &str, mut target: Target, shape: Shape, placeholder: &str, extra: Extra) -> FieldResp {
+        let Extra { width, height, want_focus, disabled, pad_v, right } = extra;
         let id = self.key(key);
-        let resp = self.interact(id, false, Cursor::IBeam);
-        self.order.push(id);
+        let resp = self.interact(id, disabled, Cursor::IBeam);
+        // A disabled field is not in Tab's walk.
+        if !disabled {
+            self.order.push(id);
+        }
         let t = *self.theme();
-        let (pad, right) = (shape.pad(), shape.right());
+        let mut pad = shape.pad();
+        if let Some(v) = pad_v {
+            pad = Edges::vh(v, pad.left);
+        }
+        let right = right.unwrap_or(shape.right());
         let step = body().step();
         let rect = resp.rect;
         let (accept, max_chars) = match &target {
@@ -181,8 +214,8 @@ impl Ui {
 
         // ---- focus by pointer: judged on where the press went, so it does not depend on build order ----
         let press = self.input.press_pos;
-        let over = matches!((rect, press), (Some(r), Some(p)) if r.contains(p));
-        let mut mine = self.focus.as_ref().is_some_and(|f| f.id == id);
+        let over = !disabled && matches!((rect, press), (Some(r), Some(p)) if r.contains(p));
+        let mut mine = !disabled && self.focus.as_ref().is_some_and(|f| f.id == id);
         // The state of a focus that ended this frame, for a number to commit what was typed.
         let mut ended: Option<FieldState> = None;
         if mine && press.is_some() && !over {
@@ -204,7 +237,7 @@ impl Ui {
         if let (Some(st), Target::Number { v, spec }) = (&ended, &mut target) {
             changed |= number::commit(&st.edit.text, v, *spec, st.at_focus);
         }
-        if want_focus && !mine {
+        if want_focus && !mine && !disabled {
             self.focus = Some(Focus { id, state: None, select_all: true });
             mine = true;
             observe!(Debug, "focus {:x}: asked for", id.0);
@@ -345,9 +378,9 @@ impl Ui {
             placeholder: placeholder.to_string(),
             right,
             scroll,
-            frame: if focused { t.text } else { t.edge },
-            text_color: t.text,
-            muted: t.muted,
+            frame: if disabled { t.faded(t.edge, 0.5) } else if focused { t.text } else { t.edge },
+            text_color: if disabled { t.faded(t.text, 0.5) } else { t.text },
+            muted: if disabled { t.faded(t.muted, 0.5) } else { t.muted },
             select: t.select,
             select_text: t.select_text,
             caret,
@@ -358,7 +391,7 @@ impl Ui {
         // Number fields are as wide as their text; the grid cell they sit in stretches them.
         let content_w = if shape == Shape::Number { text_w } else { 20.0 * step };
         let measured = Measured { size: Vec2::new(content_w, body().line), baseline: baseline(body()) };
-        self.add_keyed_leaf("field", id, Style { w: width, pad, ..Style::default() }, Paint::Field(Box::new(paint)), measured);
+        self.add_keyed_leaf("field", id, Style { w: width, h: height, pad, ..Style::default() }, Paint::Field(Box::new(paint)), measured);
         FieldResp { resp, focused, changed, submitted, cancelled, blurred, composing: comp.is_some() }
     }
 

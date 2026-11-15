@@ -508,7 +508,7 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme)
     let r = ui.fold("world", text::WORLD, &mut s.world_open, |ui| {
         ui.node("seedRow", world_row(), |ui| {
             ui.text(text::SEED, muted);
-            let opts = FieldOpts { look: FieldLook::Text, placeholder: text::SEED_RANDOM, max_chars: 64, width: Dim::Pct(100.0), focus: false };
+            let opts = FieldOpts { look: FieldLook::Text, placeholder: text::SEED_RANDOM, max_chars: 64, width: Dim::Pct(100.0), focus: false, ..FieldOpts::default() };
             ids.seed = ui.text_field("seed", &mut s.seed, opts).resp.id;
         });
         ui.node("areaRow", world_row(), |ui| {
@@ -1179,7 +1179,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
         if filter_shown {
             // `#filter { margin: 4px 0 6px }` (line 339).
             ui.node("filterBox", Style { column: true, pad: Edges::new(4.0, 0.0, 6.0, 0.0), ..Style::default() }, |ui| {
-                let opts = FieldOpts { look: FieldLook::Text, placeholder: text::FILTER, max_chars: 200, width: Dim::Pct(100.0), focus: false };
+                let opts = FieldOpts { look: FieldLook::Text, placeholder: text::FILTER, max_chars: 200, width: Dim::Pct(100.0), focus: false, ..FieldOpts::default() };
                 ids.filter = ui.text_field("filter", &mut s.filter, opts).resp.id;
             });
         }

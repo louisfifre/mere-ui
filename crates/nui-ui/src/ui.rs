@@ -289,6 +289,24 @@ impl Ui {
         id
     }
 
+    /// A container painted `lit` while the pointer is over its visible rect of the last frame: the launcher's
+    /// `.profile:hover` (a row that lights and says nothing can be clicked). Unlike `hover_area` it stays lit
+    /// while a press is held, and like it takes no click: the widgets inside keep theirs.
+    pub fn hover_box(&mut self, key: &str, style: Style, lit: Color, body: impl FnOnce(&mut Ui)) -> Id {
+        let id = self.key(key);
+        let over = matches!((self.hits.get(&id), self.input.pos), (Some(seen), Some(p)) if seen.contains(p));
+        let paint = if over { Paint::Box { fill: Some(lit), frame: None } } else { Paint::None };
+        self.open(key, id, style, paint);
+        body(self);
+        self.close();
+        id
+    }
+
+    /// The application's time in seconds, as last given to `set_clock`.
+    pub fn clock(&self) -> f64 {
+        self.clock
+    }
+
     /// Where the pointer is, in window coordinates; None until it has been seen.
     pub fn pointer(&self) -> Option<Vec2> {
         self.input.pos
