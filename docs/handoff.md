@@ -374,6 +374,22 @@ occlusion callback (a covered window is not drawn but still follows its run), de
 wording: a preview folder that is missing shows `noPreview`, one that cannot be read says so in the status line and
 the window stays open (the CLI no longer exits 1 for it).
 
+- Evidence: `cargo test --offline --workspace` gives 380 passed, 0 failed, 1 ignored (the old clipboard test, which
+  touches the real clipboard). Pictures in `target/tmp`, kept in `docs/shots`: `preview-bar-1400*.png` (dark, light,
+  x1.5, x2), `preview-home.png`, `preview-error.png`, `responsive-1000.png`, `responsive-1920.png`,
+  `responsive-1400x600.png`, `icons-x1.png`, `icons-x1.5.png`, `icons-x2.png` (the 16 icons at 16 DIP, written by
+  `tests/polish.rs`), `tooltip.png` (the Relief tab's title under the pointer). The polish tests are in
+  `demos/preview/tests/polish.rs`: P1 (a lost device, then a new renderer: the same bytes as a fresh app), P2 (a move to
+  scale 1.5: the same bytes as a fresh 1.5 renderer), P3 (a run under way: `frame` asks for no other frame, `wake_in`
+  within 1 s, `tick` reads `progress.json` with no renderer).
+- PLACEHOLDER: `HOME_LATER` ("The launcher's home comes with step 21.") and the Home pane it fills, which is empty
+  otherwise; Home's own content and its one switch (two parts side by side or one above the other) belong to step 21.
+- New `windows` features, all inside `nui-win32`: `Win32_Graphics_Dwm` (`DwmExtendFrameIntoClientArea`, to keep the
+  window's shadow on the own frame) and `Win32_UI_Controls` (`TrackMouseEvent`, so that the pointer leaving the window
+  is known). `RegisterOcclusionStatusWindow` needed nothing new (`Win32_Graphics_Dxgi` was already on).
+- Report for the maintainer: in the pack's repository, `git status` shows ` M pack/pack.toml` with an empty content diff;
+  only its modification time (2026-11-15 00:11) differs. Nothing in this work touched it (that repository is read
+  only here); the cause is unknown. `git update-index --refresh` there would clear it, and was not run.
 - Choices where the brief was silent: `Cmd::Shape` (a path with the winding rule) was added to `nui-base` for the
   icons, drawn crisp with its vertices on device pixels; the icon grammar is the reduced SVG one (`M m L l H h V v Z z`);
   a hidden window's `tick()` looks at the run and leaves the end for the next frame, which holds the device;
@@ -382,7 +398,12 @@ the window stays open (the CLI no longer exits 1 for it).
 - UNVERIFIED: the bar's hairline at scale 1.5 spills one device row below the bar and was not compared with Chrome;
   no live check of the window (the cursor, the tooltip delay, the minimum size, occlusion, a DPI change between monitors,
   Aero snap on the own frame) was made, only the pure functions behind them and the offscreen pictures.
-- Not built: the 3D and structures pictures in the export; the window's dark title bar (the own frame has none); IME.
+- Also UNVERIFIED: the DWM margins of 1 px on a live window (a system-coloured line at the top would mean using 0),
+  the maximise inset, `WM_NCMOUSELEAVE`, OrbitControls' cursor, the tooltip's look (ours, in the page's tokens), and the
+  `ores.added` default.
+- Not built: glyph tabs and `condense`, the options transition, the marker blink, snap layouts on Maximise, the close
+  confirmation, `#account`, caret blink, focus rings, changed marks and their hints; the 3D and structures pictures in
+  the export; the window's dark title bar (the own frame has none); IME.
 
 Next: step 20 (IME in the text field, UNVERIFIED need) and step 21 (the launcher's own migration, in the pack's repository).
 

@@ -414,9 +414,9 @@ fn b3_the_cursor_follows_what_is_under_the_pointer() {
     assert_eq!(rig.app.hit(Vec2::new(1.0, 500.0)), Hit::Resize(Edge::W), "the frame's edge is the system's");
 }
 
-/// P1: a tooltip waits half a second under the pointer, asks the window to wake then, and is painted last.
+/// T1: a tooltip waits half a second under the pointer, asks the window to wake then, and is painted last.
 #[test]
-fn p1_a_tooltip_comes_after_its_delay_and_goes_with_the_pointer() {
+fn t1_a_tooltip_comes_after_its_delay_and_goes_with_the_pointer() {
     let Some(world) = load() else { return };
     let mut rig = Rig::standard(&world);
     rig.app.set_clock(Some(10.0));
@@ -429,14 +429,24 @@ fn p1_a_tooltip_comes_after_its_delay_and_goes_with_the_pointer() {
     rig.frame();
     assert!(says(&rig, preview::text::MINIMIZE), "after the delay");
     assert_eq!(rig.app.wake_in(), None, "nothing more to wait for");
-    rig.write("tooltip.png");
+    rig.write("tooltip_minimise.png");
     rig.hover(Vec2::new(5.0, 500.0));
     assert!(!says(&rig, preview::text::MINIMIZE), "gone with the pointer");
+
+    // A view tab carries its label as its title: the picture kept in docs/shots.
+    rig.app.set_clock(Some(20.0));
+    let tab = centre(rig.rect(rig.app.ids().tabs[2]));
+    rig.hover(tab);
+    rig.app.set_clock(Some(20.6));
+    rig.frame();
+    let tips = rig.app.list().cmds.iter().filter(|c| matches!(c, nui_base::Cmd::Text { text, .. } if text == "Relief")).count();
+    assert!(tips >= 2, "the tab's own label and the tip that repeats it: {tips}");
+    rig.write("tooltip.png");
 }
 
-/// P2: with no run under way the app asks for no frames and has nothing to look at while hidden.
+/// T2: with no run under way the app asks for no frames and has nothing to look at while hidden.
 #[test]
-fn p2_an_idle_app_asks_for_nothing() {
+fn t2_an_idle_app_asks_for_nothing() {
     let Some(world) = load() else { return };
     let mut rig = Rig::standard(&world);
     rig.hover(Vec2::new(5.0, 500.0));
@@ -445,10 +455,10 @@ fn p2_an_idle_app_asks_for_nothing() {
     assert!(!rig.app.frame(&mut rig.r, 0.0), "a settled page is not drawn again");
 }
 
-/// P3: a preview folder that is missing shows the page's note and nothing else; one that is there and cannot be
+/// T3: a preview folder that is missing shows the page's note and nothing else; one that is there and cannot be
 /// read says so in the status line, in the warning tone. Neither closes the window.
 #[test]
-fn p3_errors_are_the_pages_note_and_the_status_line() {
+fn t3_errors_are_the_pages_note_and_the_status_line() {
     let mut rig = Rig::new(None, PreviewState::for_world(None), 1400, 940, 1.0, true);
     assert!(says(&rig, preview::text::NO_PREVIEW));
     assert!(!says(&rig, preview::text::UNREADABLE));
