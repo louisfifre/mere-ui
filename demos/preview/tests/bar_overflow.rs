@@ -412,3 +412,28 @@ fn a_greyed_view_in_more_cannot_be_chosen() {
     assert_eq!(rig.app.state().view, before, "Flat did nothing");
     assert!(rig.words().iter().any(|t| t == "Flat"), "the list stays open: Flat is in it and in no tab");
 }
+
+/// Narrower still, 2D and 3D are rows of "More" after the views, and choosing one presses it like a tab does.
+#[test]
+fn shapes_in_more_are_chosen_like_views() {
+    let mut rig = Rig::new(640, state(None, 0), None);
+    let ids = rig.app.ids().clone();
+    assert!(ids.form.shapes_in_more && !ids.form.centred, "{:?}", ids.form);
+    assert_eq!(ids.tabs.len(), 1, "only the pressed view is a tab");
+    let at = rig.more();
+    rig.click(Vec2::new(at.x + 10.0, at.y + 10.0));
+    let words = rig.words();
+    for row in ["Flat", "Section", "2D", "3D"] {
+        assert!(words.iter().any(|t| t == row), "{row} is listed: {words:?}");
+    }
+    let n = ids.form.more.len();
+    let at = rig.row(n + 1);
+    rig.click(at);
+    assert!(rig.app.state().in3d, "3D is pressed");
+    assert_eq!(rig.app.state().view, 0, "and the view is the same");
+    let at = rig.more();
+    rig.click(Vec2::new(at.x + 10.0, at.y + 10.0));
+    let at = rig.row(n);
+    rig.click(at);
+    assert!(!rig.app.state().in3d, "2D is back");
+}
