@@ -99,7 +99,15 @@ fn p3_a_run_under_way_does_not_keep_the_window_drawing() {
     assert!(rig.app.running(), "still under way: tick reads, it does not end the run");
     let stop = rig.app.ids().stop;
     rig.click_on(stop);
-    rig.until(15, "the run to end", |r| !r.app.running());
+    // Hidden, no frame comes: tick alone must end the run and tell it, or a minimised window says running for good.
+    let ended_at = Instant::now();
+    while rig.app.running() {
+        rig.app.tick();
+        assert!(ended_at.elapsed() < Duration::from_secs(15), "tick never saw the end");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(rig.app.state().follow.is_none(), "the end cleared the follow without a frame");
+    assert!(!preview::bar::window_title(rig.app.state()).contains("running"), "the title still says running");
 }
 
 /// The sheet of the 16 icons (the pack's cube is the sixteenth) at 16 DIP, in --muted on the first row and --text on

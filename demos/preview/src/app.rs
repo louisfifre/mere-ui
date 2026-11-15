@@ -77,6 +77,8 @@ pub struct PreviewApp {
     clock: Option<f64>,
     /// The generator's end, seen while the window was hidden and not yet acted on (`look`).
     ended: Option<Option<ExitStatus>>,
+    /// A run ended while the window was hidden: its new meshes are uploaded by the next frame.
+    upload_pending: bool,
     /// The launcher's Home, when the host gave one.
     home: Option<Box<dyn Home>>,
 }
@@ -114,6 +116,7 @@ impl PreviewApp {
             born: Instant::now(),
             clock: None,
             ended: None,
+            upload_pending: false,
             home: None,
         };
         // Line 2815: the map that opens the page is kept like any other (in memory until there are runs).
@@ -336,13 +339,19 @@ impl PreviewApp {
     fn poll(&mut self, gfx: &mut dyn Gfx) {
         self.look();
         if let Some(status) = self.ended.take() {
-            self.finish(status, gfx);
+            self.finish(status, Some(&mut *gfx));
+        }
+        // A run that ended while hidden left its meshes for the first frame that has the device.
+        if std::mem::take(&mut self.upload_pending) {
+            if let Some(world) = self.world.as_ref() {
+                scene::upload(gfx, world);
+            }
         }
     }
 
     /// The part of `poll` that needs no drawing, so that it also runs while the window is hidden: a hidden window
-    /// is not drawn, but its run goes on and its end must be noticed. An end found here waits in `ended` for the
-    /// next frame, which has the device `finish` needs to upload the new meshes.
+    /// is not drawn, but its run goes on and its end must be noticed. An end found
+    /// here is taken by `tick` (hidden) or by the next `poll` (drawn).
     fn look(&mut self) {
         if self.ended.is_some() {
             return;
@@ -374,7 +383,8 @@ impl PreviewApp {
 
     /// The generator ended (`follow`'s end, lines 2664-2696): a stopped run leaves the map it found, a failed one
     /// says so, a finished one is read and shown, and the pace learns from it.
-    fn finish(&mut self, status: Option<ExitStatus>, gfx: &mut dyn Gfx) {
+    /// Without a device (`gfx` is `None`, a hidden window) all the rest is done and the meshes wait in `upload_pending`.
+    fn finish(&mut self, status: Option<ExitStatus>, gfx: Option<&mut dyn Gfx>) {
         let (Some(run), Some(mut follow)) = (self.running.take(), self.state.follow.take()) else { return };
         let Some(runs) = self.runs.as_ref() else { return };
         let (out, pace_file, before_file, log_file) = (runs.out(), runs.pace(), runs.before(), runs.log());
@@ -391,7 +401,10 @@ impl PreviewApp {
                     if self.world.as_ref().map(World::span) != Some(world.span()) {
                         self.state.orbit = None;
                     }
-                    scene::upload(gfx, &world);
+                    match gfx {
+                        Some(gfx) => scene::upload(gfx, &world),
+                        None => self.upload_pending = true,
+                    }
                     // The figures of the map being replaced are the run before (lines 2656-2658).
                     if let Some(old) = self.world.as_ref().map(|w| w.measured.figures) {
                         self.state.before = Some(old);
@@ -720,9 +733,17 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
 
     fn tick(&mut self) -> bool {
         self.look();
+        // The end is told at once, title included: no frame comes while the window is hidden. Only the meshes wait.
+        let ended = match self.ended.take() {
+            Some(status) => {
+                self.finish(status, None);
+                true
+            }
+            None => false,
+        };
         let clock = self.now();
         let home = self.home.as_mut().is_some_and(|h| h.poll(clock, false));
-        self.ended.is_some() || home
+        ended || home
     }
 
     fn hit(&self, pos: Vec2) -> Hit {
