@@ -525,8 +525,9 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   - disabled number fields show 0 when the server has no properties;
   - Home's first poll asks both endpoints whatever the tool;
   - `Rig` in `demos/preview/tests/bar.rs` sets `reduce_motion` true, so the older tests do not animate;
-  - `launcher/native` keeps its own `Cargo.lock` (copied from `launcher/app`); its toolkit paths name this worktree,
-    written in one place, to be repointed at `../../../rust-native-ui` after the merge;
+  - `launcher/native` keeps its own `Cargo.lock` (copied from `launcher/app`); its toolkit paths, written in one place,
+    name this repository's main checkout by an absolute path since the merge of 0.2.0, and become
+    `../../../rust-native-ui` once the pack's repository merges its branch;
   - `main.rs` opens 1280x880 raised to the least size; `--shot` defaults to the dark theme;
   - at 1400x600 the two parts never overflow with the preview's 10 px top (they end at 582 of 600), so the test and the
     picture of the overflow use a long server note (a 412 EULA error on start); a deviation from the brief;
