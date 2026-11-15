@@ -669,7 +669,7 @@ and the PNG has been looked at and compared with the web preview's look.
 4. **Review**: take `--shot` pictures at 1280x800 scale 1 and 2560x1600 scale 2, open them with Read, compare
    with the web preview's 3D view (served by the launcher, or reason from `refresh3d()`), fix what differs.
 
-Data for tests: `C:\Games\preview\out` (seed 94427382). Check it exists before relying on it.
+Data for tests: a world preview out folder named by `PREVIEW_DATA_DIR` (the one used here has seed 94427382). Without it, the tests that need it say "skipped".
 
 ## Workflow shape
 
