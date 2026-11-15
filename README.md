@@ -6,7 +6,7 @@ It grows piece by piece as its applications need it. Its applications are a worl
 
 | Dark | Light |
 |---|---|
-| ![The world preview built with the kit, dark](docs/shots/preview-1400.png) | ![The world preview built with the kit, light](docs/shots/preview-1400-light.png) |
+| ![The world preview built with the kit, dark](docs/shots/app-dark.png) | ![The world preview built with the kit, light](docs/shots/app-light.png) |
 
 ## Principles
 
