@@ -1,0 +1,170 @@
+//! The select's menu (launcher `select`, lines 187-192 and 556): the box shows the chosen option and a click
+//! opens a list under it. The list is painted by `end_frame` after the whole tree, outside every clip, so it
+//! lies over whatever scrolls beneath; while it is open it takes the presses (a press elsewhere closes it and
+//! reaches nothing else) and the widgets under it are not hovered.
+//!
+//! Subset: the pointer and Escape only. The browser's popup also answers Up, Down, Enter and typing; the
+//! launcher's selects are short, so those are left out.
+
+use nui_base::{Cursor, DrawList, Rect, Vec2};
+use nui_layout::{Align, Dim, Edges, Margin, Side, Style};
+
+use crate::id::Id;
+use crate::text::{TextLook, Tone, half_leading};
+use crate::ui::{Paint, Resp, Ui, draw_line};
+
+/// One row of the menu: 1 px, an 18 px line, 1 px (the browser's `option` padding).
+pub const MENU_ROW: f32 = 20.0;
+/// The box's height: 3px padding + 1px border above and below an 18 px line, less the border's 2 px of
+/// the measured 23 that Chrome gave the preview's select. UNVERIFIED against Chrome.
+const BOX_H: f32 = 25.0;
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct SelectOpts {
+    /// `:disabled`: half opacity and no menu.
+    pub disabled: bool,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct SelectResp {
+    pub resp: Resp,
+    /// A row was chosen this frame (the value may be the one it was).
+    pub changed: bool,
+    pub open: bool,
+}
+
+/// The one open menu.
+pub(crate) struct Menu {
+    pub id: Id,
+    pub options: Vec<String>,
+    pub hot: usize,
+    /// Where it was painted in the last frame, and the box it hangs from: what the pointer is judged against.
+    pub rect: Rect,
+    pub box_rect: Rect,
+}
+
+impl Menu {
+    fn row_at(&self, p: Vec2) -> usize {
+        let n = self.options.len().max(1);
+        (((p.y - (self.rect.y + 1.0)) / MENU_ROW).floor().max(0.0) as usize).min(n - 1)
+    }
+}
+
+impl Ui {
+    /// A select box with its menu. `chosen` is the index into `options`; a press on a row sets it.
+    pub fn select_menu(&mut self, key: &str, options: &[String], chosen: &mut usize, opts: SelectOpts) -> SelectResp {
+        let id = self.key(key);
+        let resp = self.interact(id, opts.disabled, Cursor::Hand);
+        let mut changed = false;
+        if let Some((pid, row)) = self.menu_pick {
+            if pid == id {
+                self.menu_pick = None;
+                *chosen = row.min(options.len().saturating_sub(1));
+                changed = true;
+            }
+        }
+        let is_open = self.menu.as_ref().is_some_and(|m| m.id == id);
+        if opts.disabled {
+            if is_open {
+                self.menu = None;
+            }
+        } else if resp.clicked {
+            self.menu = if is_open {
+                None
+            } else {
+                let rect = resp.rect.unwrap_or_default();
+                Some(Menu { id, options: options.to_vec(), hot: *chosen, rect: Rect::default(), box_rect: rect })
+            };
+        }
+        let open = self.menu.as_ref().is_some_and(|m| m.id == id);
+        let t = *self.theme();
+        let fade = |c| if opts.disabled { t.faded(c, 0.5) } else { c };
+        let style = Style {
+            w: Dim::Pct(100.0),
+            h: Dim::Px(BOX_H),
+            pad: Edges::new(4.0, 5.0, 4.0, 7.0),
+            align_items: Align::Center,
+            ..Style::default()
+        };
+        let node = self.open(key, id, style, Paint::Box { fill: None, frame: Some(fade(t.edge)) });
+        let shown = options.get(*chosen).map_or("", String::as_str);
+        // The text shrinks and ends in an ellipsis before the arrow, as the browser's does.
+        self.add_ellipsis(shown, TextLook::body(Tone::Text), fade(t.text), false);
+        let chevron = Style {
+            w: Dim::Px(8.0),
+            h: Dim::Px(5.0),
+            shrink: 0.0,
+            margin: Margin { left: Side::Auto, ..Margin::default() },
+            ..Style::default()
+        };
+        self.add("chevron", chevron, Paint::Chevron { color: fade(t.text) });
+        self.close();
+        if open {
+            self.menu_node = Some(node);
+            if let Some(m) = &mut self.menu {
+                m.options = options.to_vec();
+            }
+        }
+        SelectResp { resp, changed, open }
+    }
+
+    /// At the start of a frame, before any widget reads the pointer: moves the hot row, and takes the press
+    /// the menu owns (a row picks and closes; anywhere but the box closes). Taken presses are removed from the
+    /// input so no widget acts on them.
+    pub(crate) fn menu_begin_frame(&mut self) {
+        let Some(m) = &mut self.menu else { return };
+        if let Some(p) = self.input.pos {
+            if m.rect.contains(p) {
+                m.hot = m.row_at(p);
+            }
+        }
+        let Some(p) = self.input.press_pos.filter(|_| self.input.pressed) else { return };
+        if m.rect.contains(p) {
+            let row = m.row_at(p);
+            self.menu_pick = Some((m.id, row));
+            self.menu = None;
+        } else if !m.box_rect.contains(p) {
+            self.menu = None;
+        } else {
+            return;
+        }
+        self.input.pressed = false;
+        self.input.press_pos = None;
+    }
+
+    /// True when the pointer is over the open menu as it was last painted.
+    pub(crate) fn under_menu(&self) -> bool {
+        matches!((&self.menu, self.input.pos), (Some(m), Some(p)) if m.rect.contains(p))
+    }
+
+    /// Paints the menu over the finished frame: under its box, or above it when the window ends first.
+    pub(crate) fn paint_menu(&mut self, abs: &[Rect]) {
+        let Some(node) = self.menu_node.take() else {
+            // The box was not built this frame (the page changed): its menu goes with it.
+            self.menu = None;
+            return;
+        };
+        let t = *self.theme();
+        let Some(m) = &mut self.menu else { return };
+        let b = abs[node.0];
+        let h = m.options.len() as f32 * MENU_ROW + 2.0;
+        let below = b.y + b.h;
+        let y = if below + h <= self.size.y || b.y - h < 0.0 { below } else { b.y - h };
+        let r = Rect::new(b.x, y, b.w, h);
+        m.rect = r;
+        m.box_rect = b;
+        let look = TextLook::body(Tone::Text);
+        let list: &mut DrawList = &mut self.list;
+        list.fill(r, t.ground);
+        list.frame(r, 1.0, t.edge);
+        for (i, text) in m.options.iter().enumerate() {
+            let top = r.y + 1.0 + i as f32 * MENU_ROW;
+            let hot = i == m.hot;
+            if hot {
+                list.fill(Rect::new(r.x + 1.0, top, r.w - 2.0, MENU_ROW), t.select);
+            }
+            let color = if hot { t.select_text } else { t.text };
+            draw_line(list, text, look, color, r.x + 1.0 + 6.0, top + 1.0 + half_leading(look));
+        }
+    }
+}

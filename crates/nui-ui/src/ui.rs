@@ -2,13 +2,14 @@
 
 use std::collections::{HashMap, HashSet};
 
-use nui_base::{Clipboard, Cmd, Color, Cursor, DrawList, Event, Rect, Vec2, observe};
+use nui_base::{Clipboard, Cmd, Color, Cursor, DrawList, Event, Key, Rect, Vec2, observe};
 use nui_layout::{Avail, Dim, Measured, NodeId, Overflow, Position, Style, Tree};
 
 use crate::edit::MemoryClipboard;
 use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::id::Id;
 use crate::input::Input;
+use crate::menu::Menu;
 use crate::scroll::{ScrollMetrics, ScrollPaint, thumb_rect};
 use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
@@ -73,8 +74,8 @@ pub struct Ui {
     pub(crate) scrolls: HashMap<Id, ScrollMetrics>,
     /// The caret of the focused text field as painted this frame: where the input method may write.
     pub(crate) spot: Option<Rect>,
-    list: DrawList,
-    size: Vec2,
+    pub(crate) list: DrawList,
+    pub(crate) size: Vec2,
     /// Keys and characters since the last frame, in arrival order, for the focused field.
     pub(crate) typed: Vec<Typed>,
     /// The one field with the keyboard, if any. At most one, so no per-field state map.
@@ -98,6 +99,11 @@ pub struct Ui {
     tip_since: f64,
     /// A press hid the tip; it stays hidden until another widget becomes the candidate.
     tip_hidden: bool,
+    /// The open select menu, if any (menu.rs), the row a press just picked, and the box built this frame
+    /// that the menu hangs from.
+    pub(crate) menu: Option<Menu>,
+    pub(crate) menu_pick: Option<(Id, usize)>,
+    pub(crate) menu_node: Option<NodeId>,
 }
 
 /// How long the pointer rests on a titled widget before its tip shows (the browsers' own is about this).
@@ -139,6 +145,9 @@ impl Ui {
             tip_id: None,
             tip_since: 0.0,
             tip_hidden: false,
+            menu: None,
+            menu_pick: None,
+            menu_node: None,
         }
     }
 
@@ -154,6 +163,11 @@ impl Ui {
     /// field, which reads them when it is built.
     pub fn event(&mut self, e: &Event) -> bool {
         match *e {
+            // An open menu takes Escape before any field does.
+            Event::Key { key: Key::Escape, .. } if self.menu.is_some() => {
+                self.menu = None;
+                true
+            }
             Event::Key { key, mods } => {
                 self.typed.push(Typed::Key(key, mods));
                 true
@@ -210,6 +224,8 @@ impl Ui {
         self.tip_candidate = None;
         self.list = DrawList::default();
         self.size = size;
+        self.menu_node = None;
+        self.menu_begin_frame();
     }
 
     /// The application's time in seconds. Tooltips are timed by it, so tests set it by hand.
@@ -294,7 +310,7 @@ impl Ui {
     /// while a press is held, and like it takes no click: the widgets inside keep theirs.
     pub fn hover_box(&mut self, key: &str, style: Style, lit: Color, body: impl FnOnce(&mut Ui)) -> Id {
         let id = self.key(key);
-        let over = matches!((self.hits.get(&id), self.input.pos), (Some(seen), Some(p)) if seen.contains(p));
+        let over = !self.under_menu() && matches!((self.hits.get(&id), self.input.pos), (Some(seen), Some(p)) if seen.contains(p));
         let paint = if over { Paint::Box { fill: Some(lit), frame: None } } else { Paint::None };
         self.open(key, id, style, paint);
         body(self);
@@ -349,6 +365,7 @@ impl Ui {
             spot: &mut self.spot,
         };
         painter.node(self.root, Vec2::new(0.0, 0.0), window);
+        self.paint_menu(&abs);
         self.paint_tip();
         self.rects.clear();
         self.hits.clear();
@@ -588,7 +605,7 @@ impl Ui {
     pub(crate) fn interact(&mut self, id: Id, disabled: bool, cursor: Cursor) -> Resp {
         let rect = self.rects.get(&id).copied();
         let reach = self.hits.get(&id).copied();
-        let over = !disabled && matches!((reach, self.input.pos), (Some(r), Some(p)) if r.contains(p));
+        let over = !disabled && !self.under_menu() && matches!((reach, self.input.pos), (Some(r), Some(p)) if r.contains(p));
         let pressed = over && self.input.pressed && self.active.is_none();
         if pressed {
             self.active = Some(id);
@@ -610,7 +627,7 @@ impl Ui {
 }
 
 /// One line of text at `x`, `y` (the top of its content box).
-fn draw_line(list: &mut DrawList, s: &str, look: TextLook, color: Color, x: f32, y: f32) {
+pub(crate) fn draw_line(list: &mut DrawList, s: &str, look: TextLook, color: Color, x: f32, y: f32) {
     if look.tracking == 0.0 {
         list.text_weighted(Vec2::new(x, y), s, look.size, color, look.weight);
     } else {
