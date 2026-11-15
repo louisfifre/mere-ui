@@ -16,6 +16,7 @@ use nui_ui::{
     choice_style, details_style, scroll_style, wrap_lines,
 };
 
+use crate::home::Home;
 use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
 use crate::colour::biome_colour;
 use crate::figures::{self, CellKind, Figures, List, blocks, figure_cells, js_round, percent};
@@ -471,7 +472,7 @@ fn rgb(c: [u8; 3]) -> Color {
 /// Builds the shell into the frame the caller began (`begin_frame(size)` before, `end_frame` after). `size` is
 /// the window's: the map's side is arithmetic from it, because the square needs the column's height before
 /// layout. `world` is the preview on the map, if there is one.
-pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World>, shown: Option<&Shown>) -> ShellIds {
+pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World>, shown: Option<&Shown>, home: Option<&mut dyn Home>) -> ShellIds {
     let t = *ui.theme();
     let cols = PAGE;
     let mut ids = ShellIds::default();
@@ -492,6 +493,11 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
         crate::bar::build(ui, s, &mut ids, world);
         // Home: the page's columns are not built. The launcher's home is step 21, so its pane says so.
         if s.mode == Mode::Home {
+            // A host that gives a Home fills the whole pane (it pads inside its own scroll area).
+            if let Some(home) = home {
+                ids.home_pane = ui.node("home", fills(), |ui| home.build(ui, Vec2::new(size.x, size.y - BAR_H)));
+                return;
+            }
             let pane = Style { pad: cols.pad, ..fills() };
             let body = Style { align_items: Align::Center, justify: Justify::Center, ..fills() };
             let mut home_body = ids.home_body;
@@ -1478,6 +1484,26 @@ pub fn picture(theme: Theme, size: Vec2) -> (DrawList, Ui, ShellIds) {
     picture_with(theme, size, None, PreviewState::default())
 }
 
+/// A picture of the shell with a Home given by the host, not raised to the window's minimum: for pictures of Home
+/// below it, which no window shows. Builds until the gutter has settled, as `picture_with` does.
+pub fn picture_with_home(theme: Theme, size: Vec2, world: Option<&World>, state: PreviewState, home: &mut dyn Home) -> (DrawList, Ui, ShellIds) {
+    let mut ui = Ui::new(theme);
+    let mut s = state;
+    let mut last = None;
+    for _ in 0..4 {
+        ui.begin_frame(size);
+        let ids = build(&mut ui, &mut s, size, world, None, Some(&mut *home));
+        let list = ui.end_frame().clone();
+        let again = ui.want_redraw() || home.act();
+        last = Some((list, ids));
+        if !again {
+            break;
+        }
+    }
+    let (list, ids) = last.expect("the loop runs at least once");
+    (list, ui, ids)
+}
+
 /// The same with a preview on the map and a state of the caller's.
 pub fn picture_with(theme: Theme, size: Vec2, world: Option<&World>, state: PreviewState) -> (DrawList, Ui, ShellIds) {
     let mut ui = Ui::new(theme);
@@ -1485,7 +1511,7 @@ pub fn picture_with(theme: Theme, size: Vec2, world: Option<&World>, state: Prev
     let mut last = None;
     for _ in 0..3 {
         ui.begin_frame(size);
-        let ids = build(&mut ui, &mut s, size, world, None);
+        let ids = build(&mut ui, &mut s, size, world, None, None);
         let list = ui.end_frame().clone();
         last = Some((list, ids));
         if !ui.want_redraw() {

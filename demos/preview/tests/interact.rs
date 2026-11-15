@@ -47,7 +47,7 @@ impl Rig {
         for _ in 0..3 {
             let before = self.s.clone();
             self.ui.begin_frame(SIZE);
-            self.ids = build(&mut self.ui, &mut self.s, SIZE, Some(&self.world), None);
+            self.ids = build(&mut self.ui, &mut self.s, SIZE, Some(&self.world), None, None);
             self.ui.end_frame();
             if !self.ui.want_redraw() && self.s == before {
                 break;

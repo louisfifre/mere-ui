@@ -117,7 +117,7 @@ fn side_at(world: Option<&World>, w: f32) -> f32 {
     let mut s = PreviewState::default();
     let size = Vec2::new(w, H);
     ui.begin_frame(size);
-    let ids = build(&mut ui, &mut s, size, world, None);
+    let ids = build(&mut ui, &mut s, size, world, None, None);
     ui.end_frame();
     rect(&ui, ids.frame).w
 }

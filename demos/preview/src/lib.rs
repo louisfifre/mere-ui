@@ -9,6 +9,7 @@ pub mod cut;
 pub mod export_data;
 pub mod figures;
 pub mod history;
+pub mod home;
 pub mod json;
 pub mod map;
 pub mod paint;
@@ -21,4 +22,5 @@ pub mod text;
 pub mod world;
 
 pub use app::PreviewApp;
-pub use shell::{Mode, RunEnd, BAR_H, CONTENT_TOP, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px};
+pub use home::Home;
+pub use shell::{Mode, RunEnd, BAR_H, CONTENT_TOP, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px, picture_with_home};

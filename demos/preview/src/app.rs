@@ -15,6 +15,7 @@ use nui_ui::{Id, Theme, Ui, chrome_hit};
 use crate::cut::{self, CUT_IMAGE, NAV_H, NAV_IMAGE, CutLook};
 use crate::figures::Figures;
 use crate::history;
+use crate::home::Home;
 use crate::json::Json;
 use crate::map::MAP_IMAGE;
 use crate::paint::{View, paint};
@@ -76,6 +77,8 @@ pub struct PreviewApp {
     clock: Option<f64>,
     /// The generator's end, seen while the window was hidden and not yet acted on (`look`).
     ended: Option<Option<ExitStatus>>,
+    /// The launcher's Home, when the host gave one.
+    home: Option<Box<dyn Home>>,
 }
 
 type CutKey = (usize, usize, usize, usize, usize, bool, BTreeSet<String>, u32);
@@ -111,6 +114,7 @@ impl PreviewApp {
             born: Instant::now(),
             clock: None,
             ended: None,
+            home: None,
         };
         // Line 2815: the map that opens the page is kept like any other (in memory until there are runs).
         app.remember();
@@ -127,6 +131,22 @@ impl PreviewApp {
         self.runs = Some(runs);
         self.remember();
         self
+    }
+
+    /// Gives the app the Home of its host (the launcher's): the pane under the bar while that tool is on.
+    pub fn with_home(mut self, home: Box<dyn Home>) -> PreviewApp {
+        self.home = Some(home);
+        self
+    }
+
+    /// The host's Home, if there is one.
+    pub fn home(&self) -> Option<&dyn Home> {
+        self.home.as_deref()
+    }
+
+    /// The app's own time in seconds, or the one a test fixed.
+    fn now(&self) -> f64 {
+        self.clock.unwrap_or_else(|| self.born.elapsed().as_secs_f64())
     }
 
     /// `remember` (1546-1560): the map on screen is added to the history unless it is the one kept last, and the
@@ -611,7 +631,15 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
 
     fn frame(&mut self, gfx: &mut dyn Gfx, seconds: f32) -> bool {
         self.poll(gfx);
-        self.ui.set_clock(self.clock.unwrap_or_else(|| self.born.elapsed().as_secs_f64()));
+        let clock = self.now();
+        self.ui.set_clock(clock);
+        // What came back since the last frame, before the page is built from it.
+        let mut home_wants = false;
+        let at_home = self.state.mode == Mode::Home;
+        if let Some(h) = self.home.as_mut() {
+            home_wants = h.poll(clock, at_home);
+            self.state.account = h.account();
+        }
         // Before building, so the frame shows the settled pose.
         let moving = match (&mut self.state.orbit, &self.world) {
             (Some(orbit), Some(world)) => scene::settle(orbit, world, seconds),
@@ -626,12 +654,27 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
             let before = self.state.clone();
             self.sync_cut();
             self.ui.begin_frame(self.size);
-            self.ids = build(&mut self.ui, &mut self.state, self.size, self.world.as_ref(), self.shown.as_ref());
+            self.ids = build(&mut self.ui, &mut self.state, self.size, self.world.as_ref(), self.shown.as_ref(), self.home.as_mut().map(|h| &mut **h as &mut dyn Home));
             list = self.ui.end_frame().clone();
             if let Some(want) = self.state.want.take() {
                 self.act(want);
             }
-            if !self.ui.want_redraw() && self.state == before {
+            // What Home recorded in this build is acted on now, and the page built again to show it.
+            let mut acted = false;
+            if let Some(h) = self.home.as_mut() {
+                if h.act() {
+                    home_wants |= h.poll(clock, self.state.mode == Mode::Home);
+                    acted = true;
+                }
+                // Switching to Home asks for what it shows (the page's showMode).
+                if before.mode != Mode::Home && self.state.mode == Mode::Home {
+                    h.shown();
+                    home_wants |= h.poll(clock, true);
+                    acted = true;
+                }
+                self.state.account = h.account();
+            }
+            if !self.ui.want_redraw() && self.state == before && !acted {
                 break;
             }
         }
@@ -665,21 +708,21 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
         // A run under way no longer asks for frames at full speed: `wake_in` says when the clock next changes.
         // The tools' slide asks for frames only while it moves.
         let sliding = self.state.options.moving(self.ui.clock(), self.state.reduce_motion);
-        self.ui.want_redraw() || moving || sliding
+        self.ui.want_redraw() || moving || sliding || home_wants
     }
 
     fn wake_in(&self) -> Option<f32> {
         // The status shows whole seconds and the end of the run is looked for four times a second.
         let run = self.running.is_some().then_some(0.25);
-        match (self.ui.wake_in(), run) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        }
+        let home = self.home.as_ref().and_then(|h| h.wake_in(self.now()));
+        [self.ui.wake_in(), run, home].into_iter().flatten().reduce(f32::min)
     }
 
     fn tick(&mut self) -> bool {
         self.look();
-        self.ended.is_some()
+        let clock = self.now();
+        let home = self.home.as_mut().is_some_and(|h| h.poll(clock, false));
+        self.ended.is_some() || home
     }
 
     fn hit(&self, pos: Vec2) -> Hit {

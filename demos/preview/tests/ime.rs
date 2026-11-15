@@ -15,7 +15,7 @@ fn press(ui: &mut Ui, s: &mut PreviewState, p: Vec2) -> ShellIds {
     let mut ids = None;
     for _ in 0..2 {
         ui.begin_frame(SIZE);
-        ids = Some(build(ui, s, SIZE, None, None));
+        ids = Some(build(ui, s, SIZE, None, None, None));
         ui.end_frame();
     }
     ids.unwrap()
