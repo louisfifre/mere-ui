@@ -130,6 +130,21 @@ fn the_word_goes_before_the_other_views_when_it_buys_room() {
     assert_eq!(&seen[..4], &[form(true, true, &[]), form(false, true, &[]), form(false, false, &[]), form(false, false, &[5])]);
 }
 
+/// The widths at which the bar changes form, printed for the record (`cargo test -- --nocapture`).
+#[test]
+fn the_thresholds_are_printed() {
+    for (name, disabled) in [("greyed world", [false, true, false, false, true, true]), ("every view on", [false; 6])] {
+        let mut last: Option<Form> = None;
+        for w in (900..=2560).rev() {
+            let f = overflow::plan(&inputs(w as f32, Some("Louis"), 2, disabled));
+            if last.as_ref() != Some(&f) {
+                println!("{name}: from {w} px down: {f:?}");
+                last = Some(f);
+            }
+        }
+    }
+}
+
 /// A form is only taken once it fits: at every width the first form of the order that fits is the one chosen, so
 /// the bar never gives up more than it must.
 #[test]
