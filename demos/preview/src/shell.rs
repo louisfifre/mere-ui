@@ -973,7 +973,8 @@ fn note(ui: &mut Ui, words: &str) {
 /// What `#probe` says: the point or structure under the pointer when it is over the map, else the area
 /// (`restProbe`, 1761-1765, and the `mousemove` of 1828-1835). The pointer is judged against the last frame.
 fn probe_text(ui: &Ui, s: &PreviewState, ids: &ShellIds, side: f32, world: Option<&World>) -> String {
-    let Some(w) = world else { return text::area_probe("4,096", "512", false) };
+    // The page leaves the line empty until a map exists (restProbe returns at `!world`).
+    let Some(w) = world else { return String::new() };
     let map_shown = ids.map != Id::ROOT;
     let rest = || text::area_probe(&text::num(w.span()), &text::num(w.span() / 8.0), map_shown && tick_at(w, s.look, s.cut_at).is_some());
     let (Some(p), Some(rect), Some(view)) = (ui.pointer(), ui.rect(ids.map), View::from_index(s.view)) else { return rest() };

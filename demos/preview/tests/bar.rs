@@ -472,6 +472,7 @@ fn t3_errors_are_the_pages_note_and_the_status_line() {
     let mut rig = Rig::new(None, PreviewState::for_world(None), 1400, 940, 1.0, true);
     assert!(says(&rig, preview::text::NO_PREVIEW));
     assert!(!says(&rig, preview::text::UNREADABLE));
+    assert_eq!(rig.app.ids().probe_text, "", "no map, no probe line (the page's restProbe)");
     rig.write("error_missing.png");
 
     let mut state = PreviewState::for_world(None);

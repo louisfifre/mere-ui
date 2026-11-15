@@ -122,5 +122,5 @@ fn without_a_home_the_pane_keeps_its_placeholder() {
     app.event(Event::Resized { width_px: 1400, height_px: 940, scale: 1.0 });
     app.frame(&mut r, 0.0);
     assert!(app.home().is_none());
-    assert!(app.list().cmds.iter().any(|c| matches!(c, Cmd::Text { text, .. } if text.contains("home comes with step 21"))));
+    assert!(app.list().cmds.iter().any(|c| matches!(c, Cmd::Text { text, .. } if text.contains("Home belongs to the launcher"))));
 }

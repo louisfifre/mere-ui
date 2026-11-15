@@ -389,7 +389,7 @@ pub const CLOSE_WINDOW: &str = "Close";
 /// Line 466 of the preview page: the title of a view that needs the full detail, as the page sends it to the host.
 pub const NEEDS_FULL: &str = "Needs the 16-block detail: generate the map again at 16 blocks.";
 /// PLACEHOLDER: the launcher's Home is step 21; until then its pane says so. Not the launcher's wording.
-pub const HOME_LATER: &str = "The launcher's home comes with step 21.";
+pub const HOME_LATER: &str = "Home belongs to the launcher, not to this window.";
 
 // ---- the titles (the page's `title` attributes) ----
 
