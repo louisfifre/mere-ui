@@ -8,16 +8,23 @@ use crate::icon::{Icon, icon_shape};
 use crate::id::Id;
 use crate::text::{TextLook, Tone};
 use crate::theme::mix;
+use crate::tokens::palette::{GREY_0, RED_600};
+use crate::tokens::{CAPTION_W, CONTROL, FADE_DISABLED, FADE_LIT, FADE_TINT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
 use crate::ui::{Paint, Resp, Ui};
 
-/// A tool button with its name (`Ui::tool_button`): 10 px before the icon, 7 between the icon and the word, 12 after.
-pub const TOOL_PAD_L: f32 = 10.0;
-pub const TOOL_GAP: f32 = 7.0;
-pub const TOOL_PAD_R: f32 = 12.0;
+/// A tool button with its name (`Ui::tool_button`): `inset` inside the frame before the icon, `gap` between the
+/// icon and the word, `inset-wide` after; the paddings count the frame.
+pub const TOOL_PAD_L: f32 = FRAME + INSET;
+pub const TOOL_GAP: f32 = GAP;
+pub const TOOL_PAD_R: f32 = FRAME + INSET_WIDE;
+/// The marker: a 4 px square, 4 px in from the button's top right corner.
+const MARKER: f32 = 4.0;
+/// The icon-only tool button's width.
+const TOOL_W: f32 = 36.0;
 
 /// How wide a tool button with this name is: what the bar measures before it builds.
 pub fn tool_button_width(label: &str) -> f32 {
-    TOOL_PAD_L + 16.0 + TOOL_GAP + TextLook::body(Tone::Text).width(label) + TOOL_PAD_R
+    TOOL_PAD_L + ICON + TOOL_GAP + TextLook::body(Tone::Text).width(label) + TOOL_PAD_R
 }
 
 /// `.grip` bands along the sides are 5 px, and 8 x 8 boxes at the corners (launcher lines 94-103).
@@ -75,16 +82,16 @@ pub fn chrome_hit(ui: &Ui, pos: Vec2, size: Vec2, maximized: bool, bar: Id, butt
 pub enum IconLook {
     /// `.strip button` with an icon (lines 110-112, 122): 36 x 28, framed, drawn in reverse when pressed.
     Tool,
-    /// `.ends button` (lines 89-91): 46 wide and as tall as the bar, no frame.
+    /// A window button: `caption-w` wide and as tall as the bar, no frame.
     Caption,
     /// `.ends #close`: red under the pointer.
     Close,
-    /// The launcher's `.icon` (index.html lines 160-165): 30 x 30, framed in --edge, a muted 16 px icon; under
+    /// A square of `icon-square`, framed in --edge, a muted 16 px icon; under
     /// the pointer the icon and the frame take --text; `pressed` (aria-expanded) is drawn in reverse.
     Square,
-    /// `.icon.play` (lines 180-181): filled with --text, the icon in --ground; 0.85 opacity under the pointer.
+    /// `.icon.play` (lines 180-181): filled with --text, the icon in --ground; `FADE_LIT` under the pointer.
     Filled,
-    /// `.icon.back` (line 166): no frame, 24 wide, 30 tall, pulled 4 px left.
+    /// No frame, 24 wide, `icon-square` tall, pulled `inset-tight` left.
     Bare,
 }
 
@@ -94,7 +101,7 @@ pub struct IconOpts {
     pub disabled: bool,
     /// `.icon + .icon` (line 162): pulled 1 px over the one before, so the two share a hairline.
     pub joined: bool,
-    /// A 5 x 5 square on the button's top right corner, 4 px in (the launcher's `.marker`, line 129), in this
+    /// A 4 x 4 square on the button's top right corner, 4 px in (the launcher's `.marker`, line 129), in this
     /// colour: where a run of the preview stands while it is not on screen.
     pub marker: Option<nui_base::Color>,
 }
@@ -109,8 +116,8 @@ impl Ui {
         let (style, fill, frame, color) = match look {
             IconLook::Tool => {
                 let style = Style {
-                    w: Dim::Px(36.0),
-                    h: Dim::Px(28.0),
+                    w: Dim::Px(TOOL_W),
+                    h: Dim::Px(CONTROL),
                     shrink: 0.0,
                     margin: Margin { left: Side::Px(-1.0), ..Margin::default() },
                     align_items: Align::Center,
@@ -127,12 +134,12 @@ impl Ui {
             }
             IconLook::Square | IconLook::Filled | IconLook::Bare => {
                 let (w, left) = match look {
-                    IconLook::Bare => (24.0, -4.0),
-                    _ => (30.0, if opts.joined { -1.0 } else { 0.0 }),
+                    IconLook::Bare => (24.0, -INSET_TIGHT),
+                    _ => (ICON_SQUARE, if opts.joined { -FRAME } else { 0.0 }),
                 };
                 let style = Style {
                     w: Dim::Px(w),
-                    h: Dim::Px(30.0),
+                    h: Dim::Px(ICON_SQUARE),
                     shrink: 0.0,
                     margin: Margin { left: Side::Px(left), ..Margin::default() },
                     align_items: Align::Center,
@@ -142,7 +149,7 @@ impl Ui {
                 match look {
                     IconLook::Bare => (style, None, None, if lit { t.text } else { t.muted }),
                     IconLook::Filled if lit => {
-                        let c = mix(t.text, 0.85, t.ground);
+                        let c = mix(t.text, FADE_LIT, t.ground);
                         (style, Some(c), Some(c), t.ground)
                     }
                     IconLook::Filled => (style, Some(t.text), Some(t.text), t.ground),
@@ -154,31 +161,31 @@ impl Ui {
             }
             IconLook::Caption | IconLook::Close => {
                 let style = Style {
-                    w: Dim::Px(46.0),
+                    w: Dim::Px(CAPTION_W),
                     shrink: 0.0,
                     align_items: Align::Center,
                     justify: Justify::Center,
                     ..Style::default()
                 };
                 match (lit, look) {
-                    (true, IconLook::Close) => (style, Some(Color::hex(0xc42b1c)), None, Color::hex(0xffffff)),
-                    (true, _) => (style, Some(mix(t.text, 0.10, t.ground)), None, t.text),
+                    (true, IconLook::Close) => (style, Some(Color::hex(RED_600)), None, Color::hex(GREY_0)),
+                    (true, _) => (style, Some(mix(t.text, FADE_TINT, t.ground)), None, t.text),
                     (false, _) => (style, None, None, t.muted),
                 }
             }
         };
-        // The disabled look is the page's `button:disabled { opacity: 0.4 }`.
         let (fill, frame, color) = if opts.disabled {
-            (fill.map(|c| t.faded(c, 0.4)), frame.map(|c| t.faded(c, 0.4)), t.faded(color, 0.4))
+            (fill.map(|c| t.faded(c, FADE_DISABLED)), frame.map(|c| t.faded(c, FADE_DISABLED)), t.faded(color, FADE_DISABLED))
         } else {
             (fill, frame, color)
         };
         self.open(key, id, style, Paint::Box { fill, frame });
-        let slot = Style { w: Dim::Px(16.0), h: Dim::Px(16.0), shrink: 0.0, ..Style::default() };
-        let mut cmds = vec![icon_shape(icon, 16.0, color, icon.axis_aligned())];
+        let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
+        let mut cmds = vec![icon_shape(icon, ICON, color, icon.axis_aligned())];
         if let (Some(m), IconLook::Tool) = (opts.marker, look) {
-            // Positioned against the button: 4 px from its top and right edges. The icon sits at (10, 6) in it.
-            cmds.push(Cmd::Fill { rect: Rect::new(36.0 - 4.0 - 5.0 - 10.0, 4.0 - 6.0, 5.0, 5.0), color: m });
+            // Positioned against the button, in the icon's coordinates: the icon is centred in it.
+            let (ix, iy) = ((TOOL_W - ICON) / 2.0, (CONTROL - ICON) / 2.0);
+            cmds.push(Cmd::Fill { rect: Rect::new(TOOL_W - MARKER - MARKER - ix, MARKER - iy, MARKER, MARKER), color: m });
         }
         self.add("icon", slot, Paint::Cmds(cmds));
         self.close();
@@ -193,7 +200,7 @@ impl Ui {
         let t = *self.theme();
         let lit = resp.hovered || resp.held;
         let style = Style {
-            h: Dim::Px(28.0),
+            h: Dim::Px(CONTROL),
             pad: nui_layout::Edges::new(0.0, TOOL_PAD_R, 0.0, TOOL_PAD_L),
             gap: Vec2::new(TOOL_GAP, 0.0),
             shrink: 0.0,
@@ -204,10 +211,11 @@ impl Ui {
         };
         let (fill, frame, color) = if opts.pressed { (Some(t.text), Some(t.text), t.ground) } else { (None, Some(t.edge), if lit { t.text } else { t.muted }) };
         self.open(key, id, style, Paint::Box { fill, frame });
-        let slot = Style { w: Dim::Px(16.0), h: Dim::Px(16.0), shrink: 0.0, ..Style::default() };
-        let mut cmds = vec![icon_shape(icon, 16.0, color, icon.axis_aligned())];
+        let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
+        let mut cmds = vec![icon_shape(icon, ICON, color, icon.axis_aligned())];
         if let Some(m) = opts.marker {
-            cmds.push(Cmd::Fill { rect: Rect::new(16.0 + 1.0, -2.0, 5.0, 5.0), color: m });
+            // On the icon's top right corner, where the icon-only button has it.
+            cmds.push(Cmd::Fill { rect: Rect::new(ICON, -MARKER / 2.0, MARKER, MARKER), color: m });
         }
         self.add("icon", slot, Paint::Cmds(cmds));
         self.add_text(label, TextLook::body(Tone::Text), color, false, Style::default());

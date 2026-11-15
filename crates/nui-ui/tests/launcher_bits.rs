@@ -1,6 +1,8 @@
 //! The launcher's icon buttons, hover box, disabled fields and toggle look, read from the draw list (nui-ui has no
 //! renderer: the colours of the commands are the pixels' colours).
 
+#[allow(unused_imports)]
+use nui_ui::tokens::*;
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use nui_layout::{Dim, Edges, Style};
 use nui_ui::{ButtonLook, ButtonOpts, FieldOpts, Icon, IconLook, IconOpts, NumberOpts, NumberSpec, Theme, ToggleOpts, Ui, mix};
@@ -58,7 +60,7 @@ fn square_rest_hover_pressed_disabled() {
     assert_eq!(at_state(IconLook::Square, on, false), (Some(t.text), Some(t.text), t.ground));
     assert_eq!(at_state(IconLook::Square, on, true), (Some(t.text), Some(t.text), t.ground), "aria-expanded keeps its look on hover");
     let off = IconOpts { disabled: true, ..rest };
-    assert_eq!(at_state(IconLook::Square, off, true), (None, Some(t.faded(t.edge, 0.4)), t.faded(t.muted, 0.4)));
+    assert_eq!(at_state(IconLook::Square, off, true), (None, Some(t.faded(t.edge, FADE_DISABLED)), t.faded(t.muted, FADE_DISABLED)));
 }
 
 #[test]
@@ -66,10 +68,10 @@ fn filled_rest_hover_disabled() {
     let t = Theme::dark();
     let rest = IconOpts::default();
     assert_eq!(at_state(IconLook::Filled, rest, false), (Some(t.text), Some(t.text), t.ground));
-    let lit = mix(t.text, 0.85, t.ground);
+    let lit = mix(t.text, FADE_LIT, t.ground);
     assert_eq!(at_state(IconLook::Filled, rest, true), (Some(lit), Some(lit), t.ground));
     let off = IconOpts { disabled: true, ..rest };
-    assert_eq!(at_state(IconLook::Filled, off, true), (Some(t.faded(t.text, 0.4)), Some(t.faded(t.text, 0.4)), t.faded(t.ground, 0.4)));
+    assert_eq!(at_state(IconLook::Filled, off, true), (Some(t.faded(t.text, FADE_DISABLED)), Some(t.faded(t.text, FADE_DISABLED)), t.faded(t.ground, FADE_DISABLED)));
 }
 
 #[test]
@@ -104,7 +106,7 @@ fn a_joined_square_overlaps_the_one_before_by_a_pixel() {
 #[test]
 fn hover_box_is_lit_only_while_the_pointer_is_over_it() {
     let t = Theme::dark();
-    let lit = mix(t.text, 0.06, t.ground);
+    let lit = mix(t.text, FADE_TINT, t.ground);
     let build = |ui: &mut Ui| {
         frame(ui, |ui| {
             ui.hover_box("row", Style { w: Dim::Px(100.0), h: Dim::Px(40.0), ..Style::default() }, lit, |_| {});
@@ -145,7 +147,7 @@ fn a_disabled_field_takes_no_focus_and_paints_its_frame_at_half() {
     let (l, r) = build(&mut ui, &mut s);
     assert!(!r.focused && ui.focused().is_none());
     let frame_colour = l.cmds.iter().find_map(|c| if let Cmd::Frame { color, .. } = c { Some(*color) } else { None }).unwrap();
-    assert_eq!(frame_colour, t.faded(t.edge, 0.5));
+    assert_eq!(frame_colour, t.faded(t.edge, FADE_DISABLED));
 }
 
 #[test]

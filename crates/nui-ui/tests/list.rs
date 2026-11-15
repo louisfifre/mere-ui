@@ -1,6 +1,8 @@
 //! The scroll area, the ellipsis, the list rows and the trend row, without a GPU: the numbers come from the
 //! page's CSS (preview.html lines 133-137, 310-325, 337-363) and each is derived in its test's comment.
 
+#[allow(unused_imports)]
+use nui_ui::tokens::*;
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use nui_layout::{Dim, Display, Edges, Insets, Position, Style};
 use nui_ui::{ListRow, Resp, RowOpts, ScrollOpts, ScrollResp, TextLook, Theme, Tone, Ui, ellipsize, scroll_style};
@@ -330,12 +332,12 @@ fn opacity_states() {
     let choosing = RowOpts { choosing: true, ..RowOpts::default() };
     let mut ui = Ui::new(t);
     let (l, _) = scene(&mut ui, choosing, None);
-    same(text_at(&l, "Plains").1, t.faded(t.text, 0.5));
+    same(text_at(&l, "Plains").1, t.faded(t.text, FADE_DIM));
     // The row is 24 high at y 20: a pointer at y 32 is on it.
     scene(&mut ui, choosing, Some(Vec2::new(100.0, 32.0)));
     let (l, r) = scene(&mut ui, choosing, None);
     assert!(r.hovered);
-    same(text_at(&l, "Plains").1, t.faded(t.text, 0.85));
+    same(text_at(&l, "Plains").1, t.faded(t.text, FADE_LIT));
     let (l, _) = scene(&mut ui, RowOpts { pressed: true, ..choosing }, None);
     same(text_at(&l, "Plains").1, t.text);
 

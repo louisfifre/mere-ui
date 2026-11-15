@@ -2,6 +2,8 @@
 //! square. Read at the level of the draw list, as the other widget tests do. Numbers come from the page's CSS
 //! (preview.html lines 210-222).
 
+#[allow(unused_imports)]
+use nui_ui::tokens::*;
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use nui_layout::{Dim, Style};
 use nui_ui::{ButtonLook, ButtonOpts, Resp, Theme, Ui};
@@ -104,8 +106,8 @@ fn n3_stop_square_looks_and_clicks() {
 
     // Disabled: both faded to 0.4 over the ground, and a click does nothing.
     let (list, _) = stop(&mut ui, true);
-    assert_eq!(frames(&list), vec![(r, t.faded(t.edge, 0.4))]);
-    assert_eq!(fills(&list, t.faded(t.muted, 0.4)).len(), 1);
+    assert_eq!(frames(&list), vec![(r, t.faded(t.edge, FADE_DISABLED))]);
+    assert_eq!(fills(&list, t.faded(t.muted, FADE_DISABLED)).len(), 1);
     ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: 1 });
     stop(&mut ui, true);
     ui.event(&Event::PointerUp { pos: p, button: Button::Left });

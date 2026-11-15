@@ -1,5 +1,7 @@
 //! Fold, strip, choice, details and number field: sizes from the page's CSS, colours by state, paint order.
 
+#[allow(unused_imports)]
+use nui_ui::tokens::*;
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Position, Style, Track, Tracks};
 use nui_ui::{FoldOpts, Id, NumberSpec, TabLook, TabOpts, TextLook, Theme, Tone, Ui, choice_style, details_style, strip_style};
@@ -271,8 +273,8 @@ fn strip_colours() {
     let off = TabOpts { pressed: false, disabled: true };
     let mut ui = dark();
     let (id, l) = one_tab(&mut ui, off);
-    assert_eq!(frames_of(&l), vec![t.faded(t.edge, 0.35)]);
-    assert_eq!(word(&l, "Flat").2, t.faded(t.muted, 0.35));
+    assert_eq!(frames_of(&l), vec![t.faded(t.edge, FADE_DISABLED)]);
+    assert_eq!(word(&l, "Flat").2, t.faded(t.muted, FADE_DISABLED));
     let c = centre(&ui, id);
     mv(&mut ui, c);
     down(&mut ui, c);
@@ -360,7 +362,7 @@ fn choice_looks() {
     assert_eq!(f[0].1, t.text);
     assert_eq!(word(&l, "Pack").2, t.ground);
     assert_eq!(word(&l, "Try 2").2, t.muted);
-    assert_eq!(word(&l, "Try 4").2, t.faded(t.muted, 0.35));
+    assert_eq!(word(&l, "Try 4").2, t.faded(t.muted, FADE_DISABLED));
     let c = centre(&ui, ids[1]);
     mv(&mut ui, c);
     assert_eq!(word(&build(&mut ui).1, "Try 2").2, t.text);
@@ -393,7 +395,7 @@ fn details_geometry_and_colours() {
     assert_eq!(word(&list, "32 blocks").2, t.ground);
     assert_eq!(word(&list, "25 s").2, nui_ui::mix(t.ground, 0.7, t.text));
     assert!(fills(&list).iter().any(|(_, c)| *c == t.text));
-    assert!(frames_of(&list).contains(&t.faded(t.edge, 0.35)));
+    assert!(frames_of(&list).contains(&t.faded(t.edge, FADE_DISABLED)));
 }
 
 // ---- number ----

@@ -1,67 +1,67 @@
-//! The page's colours and sizes, dark and light, as plain values (preview.html's `:root` blocks).
+//! The two themes: each role of the design system points to a colour of the palette (`tokens::palette`).
 
 use nui_base::Color;
 
+use crate::tokens::palette::*;
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Theme {
-    /// `--ground`: the page's background.
+    /// `bg-ground`: the background everything sits on; faded colours are mixed over it.
     pub ground: Color,
-    /// `--line`: separators.
+    /// `border-line`: separators, the scrollbar's track, the running button's progress.
     pub line: Color,
-    /// `--text`: main text, and the filled button.
+    /// `text-primary`: words and values, and the fill of a pressed or primary control.
     pub text: Color,
-    /// `--muted`: secondary text.
+    /// `text-muted`: secondary words, resting tab words and icons.
     pub muted: Color,
-    /// `--warn`: the amber of failures.
+    /// `text-warn`: a failure.
     pub warn: Color,
-    /// `--grid`: grid lines over the map (translucent).
+    /// `border-grid`: lines laid over a picture such as the map (translucent).
     pub grid: Color,
-    /// `--track`: the slider's track.
+    /// A slider's track. No widget of the kit paints it; the design system has no role for it.
     pub track: Color,
-    /// `--edge`: the hairline of fields and disabled buttons.
+    /// `border-edge`: the frame of a resting control.
     pub edge: Color,
-    /// The background of selected text and its text colour. The page has no `::selection` rule, so the browser's
-    /// default applies; these are the desktop's usual blue and white. UNVERIFIED against Chrome.
+    /// `bg-selection` and `text-on-selection`: selected text in a field, the hot row of an open menu.
     pub select: Color,
     pub select_text: Color,
-    /// `font: 12px/1.5` of the body.
+    /// `body` and `small` text sizes.
     pub body: f32,
-    /// The 11 px of the status lines.
     pub small: f32,
 }
 
 impl Theme {
-    /// `:root`, lines 38-45.
     pub fn dark() -> Theme {
+        let text = Color::hex(GREY_100);
         Theme {
-            ground: Color::hex(0x000000),
-            line: Color::hex(0x2a2a2a),
-            text: Color::hex(0xececec),
-            muted: Color::hex(0x8a8a8a),
-            warn: Color::hex(0xe5a44e),
-            grid: Color::hex(0xffffff).with_alpha(0.16),
-            track: Color::hex(0x6a6a6a),
-            edge: Color::hex(0x4a4a4a),
-            select: Color::hex(0x0078d7),
-            select_text: Color::hex(0xffffff),
+            ground: Color::hex(GREY_1000),
+            line: Color::hex(GREY_800),
+            text,
+            muted: Color::hex(GREY_400),
+            warn: Color::hex(AMBER_300),
+            grid: Color::hex(GREY_0).with_alpha(0.16),
+            track: Color::hex(GREY_600),
+            edge: Color::hex(GREY_700),
+            select: Color::hex(GREY_700),
+            select_text: text,
             body: 12.0,
             small: 11.0,
         }
     }
 
-    /// The light variables, lines 50-57. Chosen by the application: no OS detection yet (step 18).
     pub fn light() -> Theme {
+        let text = Color::hex(GREY_950);
         Theme {
-            ground: Color::hex(0xfafaf8),
-            line: Color::hex(0xdeded9),
-            text: Color::hex(0x171717),
-            muted: Color::hex(0x707070),
-            warn: Color::hex(0xa85d00),
-            grid: Color::hex(0x000000).with_alpha(0.12),
-            track: Color::hex(0x9a9a96),
-            edge: Color::hex(0xb4b4ae),
-            select: Color::hex(0x0078d7),
-            select_text: Color::hex(0xffffff),
+            ground: Color::hex(GREY_50),
+            line: Color::hex(GREY_200),
+            text,
+            muted: Color::hex(GREY_600),
+            warn: Color::hex(AMBER_600),
+            grid: Color::hex(GREY_1000).with_alpha(0.12),
+            track: Color::hex(GREY_400),
+            edge: Color::hex(GREY_300),
+            select: Color::hex(GREY_300),
+            select_text: text,
             body: 12.0,
             small: 11.0,
         }

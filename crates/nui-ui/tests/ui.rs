@@ -1,5 +1,7 @@
 //! The core without a GPU: pointer rules, colours by state, and the sizes of the page's widgets.
 
+#[allow(unused_imports)]
+use nui_ui::tokens::*;
 use std::sync::Mutex;
 
 use nui_base::{Button, Cmd, Color, DrawList, Event, Vec2, Weight, log};
@@ -303,7 +305,7 @@ fn colours_follow_state() {
     let c = centre(&ui, &r);
     mv(&mut ui, c);
     let (_, hover) = primary(&mut ui, ButtonOpts::default());
-    assert_eq!(fills(&hover)[0], t.faded(t.text, 0.85));
+    assert_eq!(fills(&hover)[0], t.faded(t.text, FADE_LIT));
     down(&mut ui, c);
     let (r, held) = primary(&mut ui, ButtonOpts::default());
     assert!(r.held);

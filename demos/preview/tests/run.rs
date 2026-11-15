@@ -110,7 +110,7 @@ fn r1_a_run_under_way_and_its_stop() {
     let ids = rig.app.ids().clone();
     let (g, s) = (rig.rect(ids.generate), rig.rect(ids.stop));
     assert_eq!(rig.px(&rgba, g.x + g.w / 2.0, g.y), rgb(t.edge), "the running generate is disabled: its frame goes to --edge");
-    assert_eq!(rig.px(&rgba, s.x + 17.0, s.y), rgb(t.faded(t.edge, 0.4)), "the stop's frame is faded");
+    assert_eq!(rig.px(&rgba, s.x + 17.0, s.y), rgb(t.faded(t.edge, nui_ui::tokens::FADE_DISABLED)), "the stop's frame is faded");
 
     rig.until(15, "the run to end", |r| !r.app.running());
     rig.park();

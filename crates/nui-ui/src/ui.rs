@@ -109,7 +109,7 @@ pub struct Ui {
 /// How long the pointer rests on a titled widget before its tip shows (the browsers' own is about this).
 pub const TIP_DELAY: f64 = 0.5;
 /// A tip wraps at this width.
-const TIP_WRAP: f32 = 360.0;
+const TIP_WRAP: f32 = crate::tokens::TIP_WIDTH - 2.0 * (crate::tokens::FRAME + crate::tokens::INSET);
 
 impl Ui {
     pub fn new(theme: Theme) -> Ui {
@@ -420,8 +420,9 @@ impl Ui {
         let t = self.theme;
         let look = TextLook::small(Tone::Text);
         let lines = wrap_lines(&text, look, TIP_WRAP);
-        let w = lines.iter().map(|l| look.width(l)).fold(0.0, f32::max) + 14.0;
-        let h = lines.len() as f32 * look.line + 8.0;
+        use crate::tokens::{FRAME, INSET, INSET_TIGHT};
+        let w = lines.iter().map(|l| look.width(l)).fold(0.0, f32::max) + 2.0 * (FRAME + INSET);
+        let h = lines.len() as f32 * look.line + 2.0 * (FRAME + INSET_TIGHT);
         let x = at.x.min(self.size.x - w).max(0.0);
         let below = at.y + 20.0;
         let y = if below + h <= self.size.y { below } else { (at.y - h - 4.0).max(0.0) };
@@ -429,7 +430,7 @@ impl Ui {
         self.list.fill(r, t.ground);
         self.list.frame(r, 1.0, t.edge);
         for (i, line) in lines.iter().enumerate() {
-            draw_line(&mut self.list, line, look, t.text, x + 7.0, y + 4.0 + i as f32 * look.line + half_leading(look));
+            draw_line(&mut self.list, line, look, t.text, x + FRAME + INSET, y + FRAME + INSET_TIGHT + i as f32 * look.line + half_leading(look));
         }
     }
 

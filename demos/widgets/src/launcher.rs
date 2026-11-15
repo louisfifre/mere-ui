@@ -148,7 +148,7 @@ pub fn launcher_sheet(theme: Theme) -> DrawList {
         }));
     }
     add(cell(theme, at(300.0, 360.0), 320.0, Mode::Hover, |ui| {
-        let lit = mix(theme.text, 0.06, theme.ground);
+        let lit = mix(theme.text, nui_ui::tokens::FADE_TINT, theme.ground);
         ui.hover_box("row", Style { align_items: Align::Center, pad: Edges::vh(10.0, 8.0), ..Style::default() }, lit, |ui| {
             ui.text("Exploration", TextLook { size: 13.0, line: 19.5, ..TextLook::body(Tone::Text) });
         })
@@ -194,7 +194,7 @@ pub fn launcher_live(ui: &mut Ui, s: &mut LauncherState) {
         ui.number_with("view", &mut s.view, NumberSpec { min: 3.0, max: 32.0, step: 1.0 }, NumberOpts { width: Dim::Pct(100.0), right: false, pad_v: 4.0, disabled: false });
         ui.text_field("java", &mut s.java, FieldOpts { width: Dim::Pct(100.0), height: Dim::Px(52.0), ..FieldOpts::default() });
         ui.toggle_with("on", &mut s.on, "on", "off", ToggleOpts { min_w: Dim::Px(57.6), pad: Edges::vh(4.0, 7.0), disabled: false });
-        ui.hover_box("row", Style { pad: Edges::vh(10.0, 8.0), ..Style::default() }, mix(t.text, 0.06, t.ground), |ui| ui.text("Exploration", TextLook::body(Tone::Text)));
+        ui.hover_box("row", Style { pad: Edges::vh(10.0, 8.0), ..Style::default() }, mix(t.text, nui_ui::tokens::FADE_TINT, t.ground), |ui| ui.text("Exploration", TextLook::body(Tone::Text)));
         ui.button_with("open", "Open", ButtonLook::Underlined, ButtonOpts::default());
     });
 }

@@ -12,20 +12,19 @@ use nui_layout::{Align, Dim, Edges, Margin, Side, Style};
 use crate::id::Id;
 use crate::tab::{TabLook, TabOpts};
 use crate::text::{TextLook, Tone, half_leading};
+use crate::tokens::{CONTROL, FADE_DISABLED, FRAME, GAP, INSET, INSET_HAIR, INSET_TIGHT};
 use crate::ui::{Paint, Resp, Ui, draw_line};
 
-/// One row of the menu: 1 px, an 18 px line, 1 px (the browser's `option` padding).
-pub const MENU_ROW: f32 = 20.0;
-/// The box's height: 3px padding + 1px border above and below an 18 px line, less the border's 2 px of
-/// the measured 23 that Chrome gave the preview's select. UNVERIFIED against Chrome.
-const BOX_H: f32 = 25.0;
+/// One row of the menu, its line centred in it.
+pub const MENU_ROW: f32 = crate::tokens::MENU_ROW;
+/// The box's height: a control's.
+const BOX_H: f32 = CONTROL;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct SelectOpts {
-    /// `:disabled`: half opacity and no menu.
+    /// Disabled: faded and no menu.
     pub disabled: bool,
-    /// The box's height when it is not the launcher's 25 px: the preview's `select.field` measured 23 in
-    /// Chrome, with 3 px of padding above and below (the display-only `Ui::select`).
+    /// The box's height when it is not a control's: a compact one, with `inset-hair` above and below.
     pub height: Option<f32>,
 }
 
@@ -101,11 +100,14 @@ impl Ui {
         }
         let open = self.menu.as_ref().is_some_and(|m| m.id == id);
         let t = *self.theme();
-        let fade = |c| if opts.disabled { t.faded(c, 0.5) } else { c };
+        let fade = |c| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
         let style = Style {
             w: Dim::Pct(100.0),
             h: Dim::Px(opts.height.unwrap_or(BOX_H)),
-            pad: if opts.height.is_some() { Edges::new(3.0, 5.0, 3.0, 7.0) } else { Edges::new(4.0, 5.0, 4.0, 7.0) },
+            pad: {
+                let v = FRAME + if opts.height.is_some() { INSET_HAIR } else { INSET_TIGHT };
+                Edges::new(v, FRAME + INSET_TIGHT, v, FRAME + INSET)
+            },
             align_items: Align::Center,
             ..Style::default()
         };
@@ -145,7 +147,7 @@ impl Ui {
         }
         let was_open = self.menu.as_ref().is_some_and(|m| m.id == id);
         let (resp, node, word) = self.tab_open(key, label, TabLook::Strip, TabOpts { pressed: was_open, disabled: false });
-        let chevron = Style { w: Dim::Px(8.0), h: Dim::Px(5.0), shrink: 0.0, margin: Margin { left: Side::Px(7.0), ..Margin::default() }, ..Style::default() };
+        let chevron = Style { w: Dim::Px(8.0), h: Dim::Px(5.0), shrink: 0.0, margin: Margin { left: Side::Px(GAP), ..Margin::default() }, ..Style::default() };
         self.add("chevron", chevron, Paint::Chevron { color: word });
         self.close();
         if resp.clicked {
@@ -163,8 +165,8 @@ impl Ui {
             if let Some(m) = &mut self.menu {
                 m.options = rows.iter().map(|r| r.text.clone()).collect();
                 m.disabled = rows.iter().map(|r| r.disabled).collect();
-                // The text starts 7 px in from the frame and keeps 6 px after it.
-                m.wide = rows.iter().map(|r| look.width(&r.text)).fold(0.0, f32::max) + 7.0 + 6.0 + 2.0;
+                // The text keeps `inset` on both sides, inside the frame.
+                m.wide = rows.iter().map(|r| look.width(&r.text)).fold(0.0, f32::max) + 2.0 * (INSET + FRAME);
             }
         }
         MenuResp { resp, picked, open }
@@ -232,8 +234,8 @@ impl Ui {
             if hot {
                 list.fill(Rect::new(r.x + 1.0, top, r.w - 2.0, MENU_ROW), t.select);
             }
-            let color = if hot { t.select_text } else if off { t.faded(t.text, 0.35) } else { t.text };
-            draw_line(list, text, look, color, r.x + 1.0 + 6.0, top + 1.0 + half_leading(look));
+            let color = if hot { t.select_text } else if off { t.faded(t.text, FADE_DISABLED) } else { t.text };
+            draw_line(list, text, look, color, r.x + FRAME + INSET, top + (MENU_ROW - look.line) / 2.0 + half_leading(look));
         }
     }
 }

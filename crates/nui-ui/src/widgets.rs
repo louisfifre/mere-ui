@@ -4,6 +4,7 @@ use nui_base::{Cmd, Color, Cursor, Rect, Weight};
 use nui_layout::{Align, Dim, Edges, Justify, Margin, Side, Style};
 
 use crate::text::{TextLook, Tone};
+use crate::tokens::*;
 use crate::ui::{Paint, Resp, Ui};
 
 /// The page buttons. The strip, #details and pressed choices are in tab.rs; the stop square is `Ui::stop_button`.
@@ -35,13 +36,13 @@ pub struct ToggleOpts {
     pub min_w: Dim,
     /// Padding with the border.
     pub pad: Edges,
-    /// `:disabled`: 0.4 opacity (`button:disabled` wins by specificity) and no click.
+    /// Disabled: faded to `FADE_DISABLED`, and no click.
     pub disabled: bool,
 }
 
 impl Default for ToggleOpts {
     fn default() -> Self {
-        ToggleOpts { min_w: Dim::Auto, pad: Edges::vh(3.0, 7.0), disabled: false }
+        ToggleOpts { min_w: Dim::Auto, pad: Edges::vh(FRAME + INSET_HAIR, FRAME + INSET), disabled: false }
     }
 }
 
@@ -81,13 +82,13 @@ impl Ui {
     }
 
     /// `select.field` (lines 123 and 127), display only: it shows its value and an arrow and reports clicks.
-    /// Its menu comes with the step that needs it. UNVERIFIED: the value's place (7 px from the left, centred
-    /// vertically); the reference capture's select was empty. The height and the arrow were measured in Chrome.
+    /// Its menu is `select_menu`. The compact select: `control-compact` tall, the value `inset` from the frame.
     pub fn select(&mut self, key: &str, value: &str) -> Resp {
         let id = self.key(key);
         let resp = self.interact(id, false, Cursor::Hand);
         let t = *self.theme();
-        let style = Style { h: Dim::Px(23.0), pad: Edges::new(3.0, 5.0, 3.0, 7.0), align_items: Align::Center, ..Style::default() };
+        let pad = Edges::new(FRAME + INSET_HAIR, FRAME + INSET_TIGHT, FRAME + INSET_HAIR, FRAME + INSET);
+        let style = Style { h: Dim::Px(CONTROL_COMPACT), pad, align_items: Align::Center, ..Style::default() };
         self.open(key, id, style, Paint::Box { fill: None, frame: Some(t.edge) });
         self.add_text(value, TextLook::body(Tone::Text), t.text, false, Style::default());
         let chevron = Style {
@@ -125,8 +126,8 @@ impl Ui {
         let (style, paint, word_look, word, underline, strike) = match look {
             ButtonLook::Primary => {
                 let style = Style {
-                    h: Dim::Px(34.0),
-                    pad: Edges::new(1.0, 13.0, 1.0, 13.0),
+                    h: Dim::Px(CONTROL_LARGE),
+                    pad: Edges::vh(FRAME, FRAME + INSET_WIDE),
                     align_items: Align::Center,
                     justify: Justify::Start,
                     grow: opts.grow,
@@ -136,7 +137,7 @@ impl Ui {
                     (Paint::Box { fill: None, frame: Some(t.edge) }, t.muted)
                 } else if lit {
                     // opacity .85 over the ground leaves the ground-coloured word unchanged.
-                    let c = t.faded(t.text, 0.85);
+                    let c = t.faded(t.text, FADE_LIT);
                     (Paint::Box { fill: Some(c), frame: Some(c) }, t.ground)
                 } else {
                     (Paint::Box { fill: Some(t.text), frame: Some(t.text) }, t.ground)
@@ -145,8 +146,8 @@ impl Ui {
             }
             ButtonLook::Running { share } => {
                 let style = Style {
-                    h: Dim::Px(34.0),
-                    pad: Edges::new(1.0, 13.0, 1.0, 13.0),
+                    h: Dim::Px(CONTROL_LARGE),
+                    pad: Edges::vh(FRAME, FRAME + INSET_WIDE),
                     align_items: Align::Center,
                     justify: Justify::Start,
                     grow: opts.grow,
@@ -161,12 +162,12 @@ impl Ui {
             ButtonLook::Plain | ButtonLook::Link => {
                 let link = look == ButtonLook::Link;
                 let style = Style {
-                    pad: if link { Edges::vh(1.0, 0.0) } else { Edges::vh(1.0, 6.0) },
+                    pad: if link { Edges::vh(INSET_HAIR, 0.0) } else { Edges::vh(INSET_HAIR, INSET) },
                     grow: opts.grow,
                     ..Style::default()
                 };
                 let word = if opts.disabled {
-                    t.faded(t.muted, 0.35)
+                    t.faded(t.muted, FADE_DISABLED)
                 } else if lit {
                     t.text
                 } else {
@@ -175,9 +176,9 @@ impl Ui {
                 (style, Paint::None, body, word, link, false)
             }
             ButtonLook::Underlined => {
-                let style = Style { pad: Edges::vh(2.0, 0.0), grow: opts.grow, ..Style::default() };
+                let style = Style { pad: Edges::vh(INSET_HAIR, 0.0), grow: opts.grow, ..Style::default() };
                 let word = if opts.disabled {
-                    t.faded(t.text, 0.4)
+                    t.faded(t.text, FADE_DISABLED)
                 } else if lit {
                     t.muted
                 } else {
@@ -202,26 +203,25 @@ impl Ui {
         resp
     }
 
-    /// `#stopRun` (lines 219-222): a 34 px square that does not shrink, framed, with a filled square as its icon.
-    /// The icon is the svg's path `M5 5h14v14H5z` of a 24 unit box shown at 12 px: 7 px, 13.5 px from the corner
-    /// (1 border + 10 of centring + 2.5). UNVERIFIED: the half pixel's look (Chrome smooths it, Direct2D draws what
-    /// it draws).
+    /// A `control-large` square that does not shrink, framed, with an 8 px filled square centred in it.
     pub fn stop_button(&mut self, key: &str, disabled: bool) -> Resp {
         let id = self.key(key);
         let resp = self.interact(id, disabled, Cursor::Hand);
         let t = *self.theme();
         let lit = !disabled && (resp.hovered || resp.held);
         let (colour, frame) = if disabled {
-            (t.faded(t.muted, 0.4), t.faded(t.edge, 0.4))
+            (t.faded(t.muted, FADE_DISABLED), t.faded(t.edge, FADE_DISABLED))
         } else if lit {
             (t.text, t.text)
         } else {
             (t.muted, t.edge)
         };
-        let style = Style { w: Dim::Px(34.0), h: Dim::Px(34.0), shrink: 0.0, ..Style::default() };
+        const SQUARE: f32 = 8.0;
+        let at = (CONTROL_LARGE - SQUARE) / 2.0;
+        let style = Style { w: Dim::Px(CONTROL_LARGE), h: Dim::Px(CONTROL_LARGE), shrink: 0.0, ..Style::default() };
         let cmds = vec![
-            Cmd::Frame { rect: Rect::new(0.0, 0.0, 34.0, 34.0), width_px: 1.0, color: frame },
-            Cmd::Fill { rect: Rect::new(13.5, 13.5, 7.0, 7.0), color: colour },
+            Cmd::Frame { rect: Rect::new(0.0, 0.0, CONTROL_LARGE, CONTROL_LARGE), width_px: FRAME, color: frame },
+            Cmd::Fill { rect: Rect::new(at, at, SQUARE, SQUARE), color: colour },
         ];
         self.open(key, id, style, Paint::Cmds(cmds));
         self.close();
@@ -245,11 +245,11 @@ impl Ui {
         let mut frame = if resp.hovered || resp.held { t.text } else { t.edge };
         let mut word = t.text;
         if opts.disabled {
-            frame = t.faded(frame, 0.4);
-            word = t.faded(word, 0.4);
+            frame = t.faded(frame, FADE_DISABLED);
+            word = t.faded(word, FADE_DISABLED);
         }
         let style = Style {
-            // padding 2px 6px plus the 1 px border; text-align: right, line 170.
+            // The padding counts the frame; the word is right-aligned.
             pad: opts.pad,
             min_w: opts.min_w,
             justify: Justify::End,

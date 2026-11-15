@@ -8,6 +8,7 @@ use nui_base::Vec2;
 
 use crate::text::{TextLook, Tone};
 use crate::theme::mix;
+use crate::tokens::*;
 use crate::ui::{Paint, Resp, Ui};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -31,7 +32,7 @@ pub fn strip_style() -> Style {
 
 /// `.choice` (line 147).
 pub fn choice_style() -> Style {
-    Style { gap: Vec2::new(4.0, 0.0), align_items: Align::Baseline, ..Style::default() }
+    Style { gap: Vec2::new(GAP_TIGHT, 0.0), align_items: Align::Baseline, ..Style::default() }
 }
 
 /// `#details` (line 195) plus the `.choice` class it also carries (line 394, the step 8 observation).
@@ -40,7 +41,7 @@ pub fn details_style() -> Style {
         display: Display::Grid,
         cols: Tracks::new(&[Track::MinMaxFr0(1.0); 3]),
         pad: Edges::new(0.0, 0.0, 0.0, 1.0),
-        gap: Vec2::new(4.0, 4.0),
+        gap: Vec2::new(GAP_TIGHT, GAP_TIGHT),
         align_items: Align::Baseline,
         ..Style::default()
     }
@@ -66,8 +67,8 @@ impl Ui {
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
         let lit = resp.hovered || resp.held;
-        // CSS opacity .35 on the whole box (lines 99, 202): every colour fades, fill included.
-        let fade = |c: Color| if opts.disabled { t.faded(c, 0.35) } else { c };
+        // Disabled fades the whole box: every colour, fill included.
+        let fade = |c: Color| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
         // DELIBERATE DIFFERENCE: in the page's cascade `.strip button:hover:not(:disabled)` (0,3,1) beats
         // `[aria-pressed=true]` (0,2,1), so hovering the pressed strip tab paints its word in --text on a
         // --text ground and the word vanishes. We keep the pressed word on hover.
@@ -82,8 +83,8 @@ impl Ui {
         let (style, frame) = match look {
             TabLook::Strip => (
                 Style {
-                    h: Dim::Px(28.0),
-                    pad: Edges::vh(1.0, 13.0),
+                    h: Dim::Px(CONTROL),
+                    pad: Edges::vh(FRAME, FRAME + INSET_WIDE),
                     margin: overlap(),
                     align_items: Align::Center,
                     position: if opts.pressed { Position::Relative } else { Position::Static },
@@ -91,7 +92,7 @@ impl Ui {
                 },
                 Some(fade(if opts.pressed { t.text } else { t.edge })),
             ),
-            TabLook::Choice => (Style { pad: Edges::vh(1.0, 6.0), ..Style::default() }, None),
+            TabLook::Choice => (Style { pad: Edges::vh(INSET_HAIR, INSET), ..Style::default() }, None),
         };
         let node = self.open(key, id, style, Paint::Box { fill, frame });
         self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
@@ -104,10 +105,10 @@ impl Ui {
         let id = self.key(key);
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
-        let fade = |c: Color| if opts.disabled { t.faded(c, 0.35) } else { c };
+        let fade = |c: Color| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
         let style = Style {
             column: true,
-            pad: Edges::vh(4.0, 7.0),
+            pad: Edges::vh(FRAME + INSET_TIGHT, FRAME + INSET),
             margin: overlap(),
             align_items: Align::Start,
             position: if opts.pressed { Position::Relative } else { Position::Static },
@@ -129,8 +130,8 @@ impl Ui {
         resp
     }
 
-    /// `.strip .sep` (line 100): the 12 px between two groups of the strip. Not keyed.
+    /// The `gap-wide` between two groups of the strip. Not keyed.
     pub fn strip_gap(&mut self) {
-        self.add("sep", Style { w: Dim::Px(12.0), shrink: 0.0, ..Style::default() }, Paint::None);
+        self.add("sep", Style { w: Dim::Px(GAP_WIDE), shrink: 0.0, ..Style::default() }, Paint::None);
     }
 }
