@@ -2,13 +2,14 @@
 //! draws frames only when something asks for one.
 
 use std::collections::VecDeque;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicIsize, Ordering};
 use std::time::Instant;
 
 use nui_base::{App, Button, Cursor, Edge, Event, Hit, Ime, Key, Mods, Rect, Vec2, WindowRequest, observe};
 use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, POINT, RECT, WPARAM};
 use windows::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
-use windows::Win32::Graphics::Gdi::{InvalidateRect, ScreenToClient, ValidateRect};
+use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, InvalidateRect, MONITORINFO, ScreenToClient, ValidateRect};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Controls::{MARGINS, WM_MOUSELEAVE};
 use windows::Win32::UI::HiDpi::{
@@ -23,7 +24,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::{Error, PCWSTR, Result, w};
 
-use crate::Renderer;
+use crate::place::Placement;
+use crate::{Icon, Renderer};
 
 /// Size of the first window, in device-independent pixels.
 const START_W: f32 = 1280.0;
@@ -41,10 +43,21 @@ const MIN_WAKE_MS: u32 = 16;
 
 /// What the window is asked to be: `own` draws its own title bar and borders (the application answers
 /// `App::hit`), `min` is the smallest size in device-independent pixels, 0 for the system's.
-#[derive(Copy, Clone, Debug)]
+///
+/// The three optional fields are each off by default (`Frame { own: true, ..Frame::default() }`):
+/// - `icon`: the picture the taskbar and Alt+Tab show for the window.
+/// - `place`: a file where the window's place and size are kept. It is read at the start, and the window
+///   opens there if a screen still shows that place; it is written when the window closes. A missing or
+///   unreadable file is no error: the window opens where the system puts it.
+/// - `hwnd_file`: a file that holds the window's handle as a decimal number while the window exists, for
+///   a second launch of the program to find the first one and bring it forward.
+#[derive(Clone, Debug, Default)]
 pub struct Frame {
     pub own: bool,
     pub min: (f32, f32),
+    pub icon: Option<Icon>,
+    pub place: Option<PathBuf>,
+    pub hwnd_file: Option<PathBuf>,
 }
 
 /// What the loop does while no event is waiting.
@@ -166,6 +179,9 @@ struct State {
     ime_spot: Option<Rect>,
     /// A composition is open (between the start and end messages).
     composing: bool,
+    /// The placement was written: close sends `WM_CLOSE` and then `WM_DESTROY`, and the second finds the
+    /// window as the first left it, so one write is enough.
+    saved: bool,
 }
 
 impl State {
@@ -449,6 +465,11 @@ struct Guard {
     registered: bool,
     hwnd: Option<HWND>,
     state: *mut State,
+    /// The window's icon, made by `run_with`; the window does not own it.
+    icon: Option<HICON>,
+    /// Removed on every way out, so a program that stops badly after the window existed leaves no handle
+    /// behind for the next launch to try.
+    hwnd_file: Option<PathBuf>,
 }
 
 impl Drop for Guard {
@@ -457,6 +478,9 @@ impl Drop for Guard {
             if let Some(hwnd) = self.hwnd {
                 // First, so no message reaches the State while it is being freed.
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+            }
+            if let Some(file) = &self.hwnd_file {
+                let _ = std::fs::remove_file(file);
             }
             // The renderer goes before the window and the class: it holds the window's swap chain.
             if !self.state.is_null() {
@@ -467,6 +491,10 @@ impl Drop for Guard {
                     let _ = DestroyWindow(hwnd);
                 }
             }
+            // After the window: it uses the icon until it is gone.
+            if let Some(icon) = self.icon {
+                crate::icon::destroy(icon);
+            }
             if self.registered {
                 let _ = UnregisterClassW(w!("nui_window"), Some(self.instance));
             }
@@ -476,7 +504,68 @@ impl Drop for Guard {
 
 /// Opens a window with the system's own frame for `app` and runs until it closes.
 pub fn run(title: &str, app: &mut dyn App) -> Result<()> {
-    run_with(title, app, Frame { own: false, min: (0.0, 0.0) })
+    run_with(title, app, Frame::default())
+}
+
+/// The work areas of the screens now connected, in physical pixels. The placement the system keeps is in
+/// these coordinates (the screen less the taskbar), not in the whole screen's.
+fn screens() -> Vec<[i32; 4]> {
+    unsafe extern "system" fn each(monitor: HMONITOR, _: HDC, _: *mut RECT, out: LPARAM) -> windows::core::BOOL {
+        let list = unsafe { &mut *(out.0 as *mut Vec<[i32; 4]>) };
+        let mut info = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
+        if unsafe { GetMonitorInfoW(monitor, &mut info) }.as_bool() {
+            let w = info.rcWork;
+            list.push([w.left, w.top, w.right, w.bottom]);
+        }
+        true.into()
+    }
+    let mut list: Vec<[i32; 4]> = Vec::new();
+    unsafe {
+        let _ = EnumDisplayMonitors(None, None, Some(each), LPARAM(&mut list as *mut _ as isize));
+    }
+    list
+}
+
+/// The placement kept in `file`, if it reads back and a screen shows it, grown to the minimum size.
+fn saved_placement(file: &Path, min: Option<(i32, i32)>) -> Option<Placement> {
+    let text = std::fs::read_to_string(file).ok()?;
+    let Some(p) = Placement::parse(&text) else {
+        observe!(Warn, "window placement not read from {}: not a placement line", file.display());
+        return None;
+    };
+    if !p.is_seen_on(&screens()) {
+        observe!(Info, "window placement {p:?} is on no screen now: the system places the window");
+        return None;
+    }
+    Some(match min {
+        Some(min) => p.at_least(min),
+        None => p,
+    })
+}
+
+/// Writes where the window is now, once. The normal rectangle is the one the window returns to when it is
+/// restored, so a maximised or minimised window keeps the size it had before, and `maximized` brings it back
+/// maximised.
+unsafe fn save_placement(state: *mut State) {
+    unsafe {
+        if (*state).saved {
+            return;
+        }
+        (*state).saved = true;
+        let Some(file) = (*state).frame.place.clone() else { return };
+        let mut wp = WINDOWPLACEMENT { length: size_of::<WINDOWPLACEMENT>() as u32, ..Default::default() };
+        if GetWindowPlacement((*state).hwnd, &mut wp).is_err() {
+            observe!(Warn, "window placement not kept: the system gave none");
+            return;
+        }
+        let r = wp.rcNormalPosition;
+        // A minimised window that will come back maximised says so in its flags, not in its show command.
+        let maximized = wp.showCmd == SW_SHOWMAXIMIZED.0 as u32 || wp.flags.0 & WPF_RESTORETOMAXIMIZED.0 != 0;
+        let line = Placement { left: r.left, top: r.top, right: r.right, bottom: r.bottom, maximized }.to_line();
+        if let Err(e) = std::fs::write(&file, line) {
+            observe!(Warn, "window placement not written to {}: {e}", file.display());
+        }
+    }
 }
 
 /// Opens a window for `app` and runs until it closes. With `frame.own` the window keeps the system's
@@ -502,7 +591,7 @@ pub fn run_with(title: &str, app: &mut dyn App, frame: Frame) -> Result<()> {
         if RegisterClassExW(&class) == 0 {
             return Err(Error::from_thread());
         }
-        let mut guard = Guard { instance, registered: true, hwnd: None, state: std::ptr::null_mut() };
+        let mut guard = Guard { instance, registered: true, hwnd: None, state: std::ptr::null_mut(), icon: None, hwnd_file: None };
 
         let wide: Vec<u16> = title.encode_utf16().chain(Some(0)).collect();
         let hwnd = CreateWindowExW(
@@ -521,6 +610,25 @@ pub fn run_with(title: &str, app: &mut dyn App, frame: Frame) -> Result<()> {
         )?;
         guard.hwnd = Some(hwnd);
         WINDOW.store(hwnd.0 as isize, Ordering::Relaxed);
+        if let Some(icon) = frame.icon.as_ref() {
+            if !icon.is_valid() {
+                observe!(Warn, "window icon ignored: {} bytes are not a {side}x{side} RGBA square", icon.rgba.len(), side = icon.side);
+            } else {
+                match crate::icon::make(icon) {
+                    Ok(h) => {
+                        crate::icon::set(hwnd, h);
+                        guard.icon = Some(h);
+                    }
+                    Err(e) => observe!(Warn, "window icon not made: {e}"),
+                }
+            }
+        }
+        if let Some(file) = frame.hwnd_file.as_ref() {
+            match std::fs::write(file, (hwnd.0 as isize).to_string()) {
+                Ok(()) => guard.hwnd_file = Some(file.clone()),
+                Err(e) => observe!(Warn, "window handle not written to {}: {e}", file.display()),
+            }
+        }
 
         // The erasure is sound because the guard, which frees the state, drops before this function returns
         // and so before `app` can be used again by the caller.
@@ -554,6 +662,7 @@ pub fn run_with(title: &str, app: &mut dyn App, frame: Frame) -> Result<()> {
             ime_on: true,
             ime_spot: None,
             composing: false,
+            saved: false,
         }));
         guard.state = state;
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, state as isize);
@@ -566,7 +675,7 @@ pub fn run_with(title: &str, app: &mut dyn App, frame: Frame) -> Result<()> {
         let dpi = GetDpiForWindow(hwnd);
         let scale = dpi as f32 / 96.0;
         let mut rect = RECT { left: 0, top: 0, right: (START_W * scale) as i32, bottom: (START_H * scale) as i32 };
-        if frame.own {
+        if (*state).frame.own {
             // Without a frame of the system's the window rectangle is the client area.
             // WM_NCCALCSIZE must be asked again for the change of frame to count.
             SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER)?;
@@ -590,7 +699,26 @@ pub fn run_with(title: &str, app: &mut dyn App, frame: Frame) -> Result<()> {
         send(state, Event::Resized { width_px: width, height_px: height, scale });
         send(state, Event::Window { maximized: (*state).maximized });
         (*state).redraw = true;
-        let _ = ShowWindow(hwnd, SW_SHOW);
+        // The kept place is applied by the call that first shows the window, so it never appears at the
+        // default place and jumps. The renderer exists by now, so the size message this sends is followed.
+        let min = min_track(hwnd, &(*state).frame);
+        match (*state).frame.place.as_deref().and_then(|f| saved_placement(f, min)) {
+            Some(p) => {
+                let wp = WINDOWPLACEMENT {
+                    length: size_of::<WINDOWPLACEMENT>() as u32,
+                    showCmd: if p.maximized { SW_SHOWMAXIMIZED.0 as u32 } else { SW_SHOWNORMAL.0 as u32 },
+                    rcNormalPosition: RECT { left: p.left, top: p.top, right: p.right, bottom: p.bottom },
+                    ..Default::default()
+                };
+                if SetWindowPlacement(hwnd, &wp).is_err() {
+                    observe!(Warn, "window placement not applied: the window opens where the system puts it");
+                    let _ = ShowWindow(hwnd, SW_SHOW);
+                }
+            }
+            None => {
+                let _ = ShowWindow(hwnd, SW_SHOW);
+            }
+        }
 
         message_loop(state)
     }
@@ -629,7 +757,7 @@ unsafe fn message_loop(state: *mut State) -> Result<()> {
 }
 
 /// The smallest window the frame allows, in physical pixels of the window rectangle.
-fn min_track(hwnd: HWND, frame: Frame) -> Option<(i32, i32)> {
+fn min_track(hwnd: HWND, frame: &Frame) -> Option<(i32, i32)> {
     if frame.min == (0.0, 0.0) {
         return None;
     }
@@ -719,7 +847,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
             WM_GETMINMAXINFO => {
-                if let Some((w, h)) = min_track(hwnd, (*state).frame) {
+                if let Some((w, h)) = min_track(hwnd, &(*state).frame) {
                     let info = &mut *(lparam.0 as *mut MINMAXINFO);
                     info.ptMinTrackSize.x = w;
                     info.ptMinTrackSize.y = h;
@@ -869,6 +997,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             }
             WM_CLOSE => {
                 send(state, Event::CloseRequested);
+                // Before the destruction, while the window still has a place to ask for.
+                save_placement(state);
                 let _ = DestroyWindow(hwnd);
                 LRESULT(0)
             }
@@ -936,6 +1066,12 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                 DefWindowProcW(hwnd, msg, wparam, lparam)
             }
             WM_DESTROY => {
+                // A window destroyed without WM_CLOSE (by the system, or by the application) is kept too.
+                save_placement(state);
+                // The window is going: a second launch must not bring a handle that no longer exists forward.
+                if let Some(file) = (*state).frame.hwnd_file.as_ref() {
+                    let _ = std::fs::remove_file(file);
+                }
                 WINDOW.store(0, Ordering::Relaxed);
                 PostQuitMessage(0);
                 LRESULT(0)
