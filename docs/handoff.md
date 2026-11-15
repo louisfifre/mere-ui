@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 18 done (2026-11-14)
+## Status: steps 0 to 19 done (2026-11-15)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -362,7 +362,29 @@ that `C:\Games\preview\out` and `world-preview` were untouched, the one new `win
 inside `nui-win32`), and looked at `figures-1400`, `history`, `stage-3d-relief`, `section-1400` and `run-progress`.
 The step 15 and 17 shots still show step 13's placeholder figures in the right column: they are those steps' record.
 
-Next: step 19 (polish: cursor shapes, device loss, DPI change, occlusion, errors; plus export.json and tooltips).
+Step 19 (2026-11-15) answered the maintainer's remark that the page had too many breakpoints: the world preview's
+panels never move (left 320, right 330, gap 28, padding 18/28/22/28), the centre is one column that scales by one
+rule (the map's square side is `min(W - 762, H - 144)`; the brief's `W - 752` left ten pixels out: 320 + 330 + 2 x 28 +
+2 x 28 = 762), and the top bar has one form from 1000 px up. The window has a minimum of 1000x600, so no layout
+below it exists. The bar is the launcher's, on a frame of our own (`WM_NCCALCSIZE` returns 0, `WM_NCHITTEST` asks
+`App::hit`, the buttons are drawn by `nui-ui`'s `chrome.rs`), with the tool switch Home / preview. The same step
+added cursor shapes, tooltips (the page's titles, 0.5 s delay, painted last), a wake timer with no busy loop, the
+occlusion callback (a covered window is not drawn but still follows its run), device loss through
+`DXGI_STATUS_OCCLUDED` and a rebuild, a DPI change through `WM_DPICHANGED`, `export.json`, and errors in the page's
+wording: a preview folder that is missing shows `noPreview`, one that cannot be read says so in the status line and
+the window stays open (the CLI no longer exits 1 for it).
+
+- Choices where the brief was silent: `Cmd::Shape` (a path with the winding rule) was added to `nui-base` for the
+  icons, drawn crisp with its vertices on device pixels; the icon grammar is the reduced SVG one (`M m L l H h V v Z z`);
+  a hidden window's `tick()` looks at the run and leaves the end for the next frame, which holds the device;
+  `export.json` writes `ores.added` as null (no editor for the added rows natively) and `ores` as null outside the
+  section view; the Home pane is a placeholder text; `UNREADABLE` is our own sentence in the page's style.
+- UNVERIFIED: the bar's hairline at scale 1.5 spills one device row below the bar and was not compared with Chrome;
+  no live check of the window (the cursor, the tooltip delay, the minimum size, occlusion, a DPI change between monitors,
+  Aero snap on the own frame) was made, only the pure functions behind them and the offscreen pictures.
+- Not built: the 3D and structures pictures in the export; the window's dark title bar (the own frame has none); IME.
+
+Next: step 20 (IME in the text field, UNVERIFIED need) and step 21 (the launcher's own migration, in the pack's repository).
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
