@@ -10,6 +10,10 @@ pub const SEED: &str = "Seed";
 pub const SEED_RANDOM: &str = "random";
 /// Line 458.
 pub const SPAN: &str = "Scanned area";
+/// Line 459: one choice of the scanned area, in blocks.
+pub fn span_value(blocks: f64) -> String {
+    format!("{} blocks", num(blocks))
+}
 /// Line 581.
 pub const PROFILES: &str = "Settings";
 /// Line 582.

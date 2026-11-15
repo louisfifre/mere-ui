@@ -114,7 +114,7 @@ pub fn launcher_sheet(theme: Theme) -> DrawList {
         let chosen = Cell::new(1usize);
         add(cell(theme, at(x, 150.0), 240.0, mode, |ui| {
             let mut c = chosen.get();
-            let r = ui.select_menu("sel", &options(), &mut c, SelectOpts { disabled });
+            let r = ui.select_menu("sel", &options(), &mut c, SelectOpts { disabled, ..SelectOpts::default() });
             chosen.set(c);
             r.resp.id
         }));

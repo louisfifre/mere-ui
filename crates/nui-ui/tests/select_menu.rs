@@ -43,7 +43,7 @@ impl Page {
                     *clicks += 1;
                 }
             }
-            let sel = ui.select_menu("sel", &opts, chosen, SelectOpts { disabled });
+            let sel = ui.select_menu("sel", &opts, chosen, SelectOpts { disabled, ..SelectOpts::default() });
             *last = Some(sel);
         };
         let root = Style { w: Dim::Px(200.0), column: true, ..Style::default() };
