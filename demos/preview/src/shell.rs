@@ -29,9 +29,11 @@ use crate::world::World;
 use crate::settings::{Kind, SETTINGS, grouped, pack_values};
 use crate::text;
 
-/// Height of the top bar. The launcher's bar is 40 px with its hairline (launcher line 77); until the bar is drawn
-/// by the application (`bar.rs`), the strip of views is laid out in the same height.
+/// Height of the top bar. The launcher's bar is 40 px (launcher line 77); natively it has no hairline (step 19.5),
+/// the 40 still holds.
 pub const BAR_H: f32 = 40.0;
+/// The space between the bar and the content under it, for the world preview and for Home. The page has 18 (preview.html line 77, `padding: 18px 28px 22px`); the maintainer asked for less once the bar floats (step 19.5).
+pub const CONTENT_TOP: f32 = 10.0;
 /// `--under` (line 227): what the stage keeps free under the map for `#under`.
 const UNDER: f32 = 64.0;
 /// The smallest window, in device-independent pixels. With the panels fixed the middle column is what is left, and
@@ -56,8 +58,10 @@ pub fn raise_to_min(size: Vec2) -> Vec2 {
 
 /// The page's one layout. The media queries of the page (1250 and 1100 px) are not built: the maintainer's rule is
 /// that the side panels never move nor change width, whatever the window, and that the centre follows the window
-/// with one rule. These are the page's wide numbers (lines 75-81, 297, 303); they are the only widths where no
+/// with one rule. These are the page's wide numbers (lines 75-81, 297, 303), except the top padding, which is
+/// `CONTENT_TOP` (10) instead of the page's 18 (step 19.5); they are the only widths where no
 /// settings label is cut ("Lanterns over underground rivers" is 230.4 px in a label cell of 231.4).
+/// Derivation: column_h = H - 40 - 10 - 22 = H - 72; side = min(W - 762, H - 72 - 64) = min(W - 762, H - 136).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Columns {
     pub left: f32,
@@ -70,7 +74,7 @@ pub struct Columns {
     pub goal: f32,
 }
 
-pub const PAGE: Columns = Columns { left: 320.0, right: 330.0, gap: 28.0, pad: Edges::new(18.0, 28.0, 22.0, 28.0), fig_gap: 14.0, goal: 14.0 };
+pub const PAGE: Columns = Columns { left: 320.0, right: 330.0, gap: 28.0, pad: Edges::new(CONTENT_TOP, 28.0, 22.0, 28.0), fig_gap: 14.0, goal: 14.0 };
 /// A press the shell recorded and the application acts on after the build (a frame may build up to three times,
 /// so the shell never acts itself: recording is idempotent).
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -240,6 +244,8 @@ pub struct ShellIds {
     pub bar_buttons: Vec<Id>,
     /// The pane under the bar while Home is on.
     pub home_pane: Id,
+    /// The pane's content box under Home, inset like the preview's page.
+    pub home_body: Id,
     /// The tools' strip in the middle of the bar, and the preview's tabs in it.
     pub strip: Id,
     pub tabs: Vec<Id>,
@@ -338,6 +344,7 @@ impl Default for ShellIds {
             ends: [o; 3],
             bar_buttons: Vec::new(),
             home_pane: o,
+            home_body: o,
             strip: o,
             tabs: Vec::new(),
             world_head: o,
@@ -468,8 +475,13 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
         crate::bar::build(ui, s, &mut ids, world);
         // Home: the page's columns are not built. The launcher's home is step 21, so its pane says so.
         if s.mode == Mode::Home {
-            let pane = Style { align_items: Align::Center, justify: Justify::Center, ..fills() };
-            ids.home_pane = ui.node("home", pane, |ui| ui.text(text::HOME_LATER, TextLook::body(Tone::Muted)));
+            let pane = Style { pad: cols.pad, ..fills() };
+            let body = Style { align_items: Align::Center, justify: Justify::Center, ..fills() };
+            let mut home_body = ids.home_body;
+            ids.home_pane = ui.node("home", pane, |ui| {
+                home_body = ui.node("homeBody", body, |ui| ui.text(text::HOME_LATER, TextLook::body(Tone::Muted)));
+            });
+            ids.home_body = home_body;
             return;
         }
         let page = Style {

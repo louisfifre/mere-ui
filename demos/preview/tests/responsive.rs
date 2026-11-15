@@ -1,5 +1,5 @@
 //! Step 19's layout rule, checked over a sweep of windows: the side panels never move nor change width, and the
-//! middle column's square is one continuous function of the window (side = min(W - 762, H - 40 - 40 - 64)), with
+//! middle column's square is one continuous function of the window (side = min(W - 762, H - 40 - 10 - 22 - 64) = min(W - 762, H - 136)), with
 //! no breakpoint. 762 is the page's padding (28 + 28), the two panels (320 + 330) and the two gaps (28 + 28).
 //! The pictures go to target/tmp; the ones worth keeping are copied to docs/shots.
 
@@ -10,9 +10,11 @@ use nui_base::{App, Event, Rect, Vec2};
 use nui_ui::{Id, Theme, Ui};
 use nui_win32::Renderer;
 use preview::world::World;
-use preview::{BAR_H, MIN_SIZE, PreviewApp, PreviewState, ShellIds, build, picture_with};
+use preview::{BAR_H, CONTENT_TOP, MIN_SIZE, PreviewApp, PreviewState, ShellIds, build, picture_with};
 
 const H: f32 = 940.0;
+const TOP: f32 = BAR_H + CONTENT_TOP;
+const COL_H: f32 = H - BAR_H - CONTENT_TOP - 22.0;
 const SWEEP: [f32; 9] = [1000.0, 1100.0, 1200.0, 1250.0, 1251.0, 1400.0, 1480.0, 1481.0, 1920.0];
 
 fn load() -> Option<World> {
@@ -84,10 +86,10 @@ fn r1_the_panels_never_move_and_the_square_follows_one_rule() {
     let (l14, r14) = (rect(&ui14, ids14.left), rect(&ui14, ids14.right));
     for w in SWEEP {
         let (ui, ids) = laid_out(&world, 2, w, H);
-        same(rect(&ui, ids.left), Rect::new(28.0, 58.0, 320.0, 860.0), &format!("left at {w}"));
-        same(rect(&ui, ids.right), Rect::new(w - 358.0, 58.0, 330.0, 860.0), &format!("right at {w}"));
-        same(rect(&ui, ids.middle), Rect::new(376.0, 58.0, w - 762.0, 860.0), &format!("middle at {w}"));
-        let side = (w - 762.0).min(796.0);
+        same(rect(&ui, ids.left), Rect::new(28.0, TOP, 320.0, COL_H), &format!("left at {w}"));
+        same(rect(&ui, ids.right), Rect::new(w - 358.0, TOP, 330.0, COL_H), &format!("right at {w}"));
+        same(rect(&ui, ids.middle), Rect::new(376.0, TOP, w - 762.0, COL_H), &format!("middle at {w}"));
+        let side = (w - 762.0).min(COL_H - 64.0);
         let f = rect(&ui, ids.frame);
         assert!((f.w - side).abs() < 0.01 && (f.h - side).abs() < 0.01, "frame at {w}: {f:?}, side {side}");
         assert!((f.x + f.w / 2.0 - (376.0 + (w - 762.0) / 2.0)).abs() <= 0.5, "frame centred at {w}: {f:?}");
@@ -131,7 +133,7 @@ fn r2_the_centre_is_one_continuous_function_of_the_window() {
         let side = side_at(None, w);
         assert!(side >= last, "the square shrank from {last} to {side} at {w}");
         assert!(side - last <= 1.0 + 1e-4, "the square jumped from {last} to {side} at {w}");
-        assert!((side - (w - 762.0).min(796.0)).abs() < 0.01, "side {side} at {w}");
+        assert!((side - (w - 762.0).min(COL_H - 64.0)).abs() < 0.01, "side {side} at {w}");
         last = side;
     }
     println!("R2: 920 widths in {:?}", started.elapsed());
@@ -144,10 +146,10 @@ fn r3_short_windows_keep_the_panels_and_fit() {
     let Some(world) = load() else { return };
     for h in [600.0, 700.0, 940.0] {
         let (ui, ids) = laid_out(&world, 2, 1400.0, h);
-        let colh = h - 80.0;
-        same(rect(&ui, ids.left), Rect::new(28.0, 58.0, 320.0, colh), &format!("left at {h}"));
-        same(rect(&ui, ids.right), Rect::new(1042.0, 58.0, 330.0, colh), &format!("right at {h}"));
-        same(rect(&ui, ids.middle), Rect::new(376.0, 58.0, 638.0, colh), &format!("middle at {h}"));
+        let colh = h - BAR_H - CONTENT_TOP - 22.0;
+        same(rect(&ui, ids.left), Rect::new(28.0, TOP, 320.0, colh), &format!("left at {h}"));
+        same(rect(&ui, ids.right), Rect::new(1042.0, TOP, 330.0, colh), &format!("right at {h}"));
+        same(rect(&ui, ids.middle), Rect::new(376.0, TOP, 638.0, colh), &format!("middle at {h}"));
         let inside = |col: Id, parts: &[(&str, Id)]| {
             let c = rect(&ui, col);
             for (name, id) in parts {
@@ -162,7 +164,7 @@ fn r3_short_windows_keep_the_panels_and_fit() {
         assert!(rect(&ui, ids.settings_scroll).h >= 0.0 && rect(&ui, ids.list_scroll).h >= 0.0);
         let (left, run) = (rect(&ui, ids.left), rect(&ui, ids.run));
         assert!((run.y + run.h - (left.y + left.h)).abs() < 0.01, "the run block rests on the bottom of the left column at {h}");
-        let side = (1400.0 - 762.0f32).min(h - BAR_H - 40.0 - 64.0);
+        let side = (1400.0 - 762.0f32).min(h - BAR_H - CONTENT_TOP - 22.0 - 64.0);
         assert!((rect(&ui, ids.frame).w - side).abs() < 0.01, "frame at {h}");
         println!("R3: {h}: settings {:?}, list {:?}, frame {side}", rect(&ui, ids.settings_scroll), rect(&ui, ids.list_scroll));
     }
@@ -182,8 +184,8 @@ fn r4_sizes_below_the_minimum_are_raised() {
     app.event(Event::Resized { width_px: 800, height_px: 940, scale: 1.0 });
     app.frame(&mut r, 0.0);
     let ui = app.ui();
-    same(rect(ui, app.ids().middle), Rect::new(376.0, 58.0, 238.0, 860.0), "middle of 800 x 940");
-    same(rect(ui, app.ids().right), Rect::new(642.0, 58.0, 330.0, 860.0), "right of 800 x 940");
+    same(rect(ui, app.ids().middle), Rect::new(376.0, TOP, 238.0, COL_H), "middle of 800 x 940");
+    same(rect(ui, app.ids().right), Rect::new(642.0, TOP, 330.0, COL_H), "right of 800 x 940");
 }
 
 /// R5: the section at 1000 and 1920: the frame is the middle column's whole width and its height less `--under`,
@@ -195,7 +197,7 @@ fn r5_the_section_takes_the_middle_column_and_leaves_the_panels_alone() {
         let (ui, ids) = laid_out(&world, 5, w, H);
         let (relief, rids) = laid_out(&world, 2, w, H);
         let f = rect(&ui, ids.frame);
-        same(f, Rect::new(376.0, 58.0, w - 762.0, 796.0), &format!("section frame at {w}"));
+        same(f, Rect::new(376.0, TOP, w - 762.0, COL_H - 64.0), &format!("section frame at {w}"));
         for (name, a, b) in [("left", ids.left, rids.left), ("middle", ids.middle, rids.middle), ("right", ids.right, rids.right)] {
             same(rect(&ui, a), rect(&relief, b), &format!("{name} column at {w}"));
         }

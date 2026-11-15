@@ -10,7 +10,7 @@ use nui_base::{App, Button, Event, Hit, Rect, Vec2, WindowRequest, Edge};
 use nui_ui::{Id, Theme, Ui};
 use nui_win32::Renderer;
 use preview::world::World;
-use preview::{Mode, PreviewApp, PreviewState, ShellIds, picture};
+use preview::{BAR_H, CONTENT_TOP, Mode, PreviewApp, PreviewState, ShellIds, picture};
 
 fn load() -> Option<World> {
     let dir = Path::new(r"C:\Games\preview\out");
@@ -290,6 +290,8 @@ fn b5_the_tool_switch_keeps_the_previews_state() {
     assert_eq!(rig.app.state().mode, Mode::Home);
     let ids = rig.app.ids().clone();
     assert_ne!(ids.home_pane, Id::ROOT);
+    assert_eq!(rig.rect(ids.home_pane), Rect::new(0.0, BAR_H, 1400.0, 940.0 - BAR_H));
+    assert_eq!(rig.rect(ids.home_body), Rect::new(28.0, BAR_H + CONTENT_TOP, 1400.0 - 56.0, 940.0 - BAR_H - CONTENT_TOP - 22.0));
     assert!(ids.tabs.is_empty(), "the preview's tabs are not built when its tool is closed");
     assert_eq!((ids.left, ids.middle, ids.right), (Id::ROOT, Id::ROOT, Id::ROOT), "the page's columns are not built");
     // Home again does nothing.
@@ -303,8 +305,8 @@ fn b5_the_tool_switch_keeps_the_previews_state() {
     assert!(after.preview_seen);
 }
 
-/// B6: the bar's pixels at 1, 1.5 and 2: the hairline is whole device rows, the crisp icons are exactly the ground
-/// or their colour, and the tabs' frames are whole device pixels.
+/// B6: the bar floats: no line under it, the gap under it is the page's ground; the crisp icons are exactly the
+/// ground or their colour; the tabs' frames are whole device pixels. At 1, 1.5 and 2.
 #[test]
 fn b6_the_bar_is_whole_device_pixels_at_every_scale() {
     let Some(world) = load() else { return };
@@ -315,12 +317,17 @@ fn b6_the_bar_is_whole_device_pixels_at_every_scale() {
         let (pw, ph) = ((1400.0 * scale) as u32, (940.0 * scale) as u32);
         let ids = rig.app.ids().clone();
 
-        // The hairline: round(scale) rows of --line across the whole width, near the bar's bottom.
-        let rows = (0..ph.min((60.0 * scale) as u32))
+        // The bar floats. (a) No row of the top 60 DIP is one full-width line.
+        let rows = (0..ph.min((60.0 * scale).ceil() as u32))
             .filter(|&y| (0..pw).all(|x| rig.px(&rgba, x, y) == rgb(t.line)))
             .collect::<Vec<_>>();
-        assert_eq!(rows.len(), scale.round() as usize, "scale {scale}: rows {rows:?}");
-        assert!(rows.iter().all(|&y| y as f32 >= 38.0 * scale && (y as f32) < 41.0 * scale), "scale {scale}: the hairline is at the bar's foot: {rows:?}");
+        assert!(rows.is_empty(), "scale {scale}: a full-width line at rows {rows:?}");
+        // (b) The bar's foot and the gap under it (39 to 50 DIP) are the page's ground over the whole width.
+        for y in (39.0 * scale).ceil() as u32..(50.0 * scale).floor() as u32 {
+            for x in 0..pw {
+                assert_eq!(rig.px(&rgba, x, y), rgb(t.ground), "scale {scale}: not the ground at ({x}, {y})");
+            }
+        }
 
         // The icons: each is its colour or the ground, nothing between.
         for (what, id, side) in [("home", ids.tools[0], 36.0), ("minimise", ids.ends[0], 46.0), ("maximise", ids.ends[1], 46.0), ("close", ids.ends[2], 46.0)] {

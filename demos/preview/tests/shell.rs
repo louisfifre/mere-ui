@@ -87,12 +87,12 @@ fn l4_frame_and_under() {
         let e = r(&ui, ids.export);
         near(e.x + e.w, m.x + m.w, "export right edge");
     }
-    // A short window: the map gives way to the strip, side = 600 - 40 - 40 - 64.
+    // A short window: the map gives way to the strip, side = 600 - 40 - 10 - 22 - 64 (was 456 before step 19.5: 600 - 40 - 40 - 64).
     let (ui, ids, _) = shell(1400.0, 600.0);
     let f = r(&ui, ids.frame);
-    near(f.w, 456.0, "short side");
-    near(f.x, 376.0 + 91.0, "short frame x");
-    near(r(&ui, ids.under).y, f.y + 456.0 + 10.0, "short under y");
+    near(f.w, 464.0, "short side");
+    near(f.x, 376.0 + 87.0, "short frame x");
+    near(r(&ui, ids.under).y, f.y + 464.0 + 10.0, "short under y");
     near(r(&ui, ids.export).x + r(&ui, ids.export).w, f.x + f.w, "export right edge on the frame");
 }
 

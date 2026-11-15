@@ -105,7 +105,7 @@ fn tab_pixel(a: &[u8], app: &PreviewApp, index: usize) -> [u8; 3] {
 fn s1_stage_3d_relief_is_drawn_inside_the_frame_only() {
     let Some(world) = load() else { return };
     let (a, b, app, rect, _r) = take(&world, false, state_3d(2), "relief3d_1400.png");
-    assert_eq!(rect, Rect::new(376.0, 58.0, 638.0, 638.0));
+    assert_eq!(rect, Rect::new(376.0, 50.0, 638.0, 638.0));
     assert_eq!(app.ui().rect(app.ids().frame), Some(rect));
     assert_eq!(leaks(&a, &b, rect), 0, "the scene stays inside the square");
     let share = share_not(&a, rect, DARK_GROUND);

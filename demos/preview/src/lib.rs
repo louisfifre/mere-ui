@@ -21,4 +21,4 @@ pub mod text;
 pub mod world;
 
 pub use app::PreviewApp;
-pub use shell::{Mode, RunEnd, BAR_H, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px};
+pub use shell::{Mode, RunEnd, BAR_H, CONTENT_TOP, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px};
