@@ -2,6 +2,7 @@
 
 use nui_base::{Color, Gfx};
 use nui_ui::Theme;
+use nui_ui::tokens::FADE_DISABLED;
 use nui_win32::Renderer;
 use widgets::{CONTROLS, controls_sheet};
 
@@ -32,7 +33,7 @@ fn same(got: [u8; 3], want: Color, what: &str) {
 fn check(theme: Theme, name: &str) {
     let rgba = draw(theme, name);
     let at = |x, y| px(&rgba, x, y);
-    let off = |c: Color| theme.faded(c, 0.35);
+    let off = |c: Color| theme.faded(c, FADE_DISABLED);
     same(at(5, 5), theme.ground, "ground");
     same(at(92, 40), theme.text, "pressed Flat interior");
     same(at(25, 40), theme.ground, "normal Biomes interior");

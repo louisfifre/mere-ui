@@ -20,21 +20,21 @@ It grows piece by piece as its applications need it. Its applications are a worl
 
 ### Colour
 
-Two themes, `Theme::dark()` and `Theme::light()`. An application can follow the system's setting and its changes.
+Two layers, as in Figma variables. The palette (`tokens::palette`) holds raw colours: a grey scale from `GREY_0` (white) to `GREY_1000` (black) whose steps are even in perceived lightness, and an amber and a red scale on the same steps. The two themes, `Theme::dark()` and `Theme::light()`, give each role a colour of the palette. An application can follow the system's setting and its changes.
 
-| Token | Role | Dark | Light |
+| Role | Used for | Dark | Light |
 |---|---|---|---|
-| `ground` | the background | `#000000` | `#fafaf8` |
-| `line` | separators | `#2a2a2a` | `#deded9` |
-| `text` | main text, the filled button | `#ececec` | `#171717` |
-| `muted` | secondary text, labels | `#8a8a8a` | `#707070` |
-| `edge` | the hairline of fields and disabled buttons | `#4a4a4a` | `#b4b4ae` |
-| `track` | a slider's track | `#6a6a6a` | `#9a9a96` |
-| `warn` | failures | `#e5a44e` | `#a85d00` |
+| `ground` | the background | grey 1000 | grey 50 |
+| `line` | separators and tracks | grey 800 | grey 200 |
+| `text` | words and values, the fill of a pressed control | grey 100 | grey 950 |
+| `muted` | secondary words, resting icons | grey 400 | grey 600 |
+| `edge` | the frame of a resting control | grey 700 | grey 300 |
+| `warn` | failures | amber 300 | amber 600 |
 | `grid` | lines over a map | white at 16 % | black at 12 % |
-| `select` / `select_text` | selected text | `#0078d7` / `#ffffff` | `#0078d7` / `#ffffff` |
+| `select` / `select_text` | selected text, the hot row of a menu | grey 700 / `text` | grey 300 / `text` |
+| `track` | a slider's track (no widget paints it) | grey 600 | grey 400 |
 
-Faded states are not new colours: `Theme::faded` mixes a token over the ground, as CSS `opacity` would.
+The window's Close button turns red 600 under the pointer, in both themes. Faded states are not new colours: `Theme::faded` mixes a token over the ground, as CSS `opacity` would, at one of four fades: 0.85 for a filled control under the pointer, 0.5 for rows set back, 0.4 for anything disabled, 0.08 for a light fill under the pointer.
 
 ### Type
 
@@ -48,9 +48,11 @@ One family, IBM Plex Mono (Regular and SemiBold, shipped in `fonts/` under the S
 | `small` | 11 / 16.5 px | Regular | 0 |
 | `status` | 11 / 16 px | Regular | 0 |
 
-### Size and line
+### Space and size
 
-Lines are 1 logical pixel at every display scale. The scroll area keeps an 11 px gutter with a 1 px track, a 3 px thumb (at least 18 px long) and a 10 px arrow at each end that has content beyond it; the wheel moves 100 px. A menu row is 20 px; a list row's swatch is 12 px with 8 px gaps. Window grips are 5 px, 8 px at the corners.
+Every space comes from one scale: 2, 4, 8, 12, 18, 24, 32, 48, 64, 96, 128, 192, 256, used through roles (`INSET_HAIR` 2, `INSET_TIGHT` 4, `INSET` 8, `INSET_WIDE` 12 inside a control; `GAP_TIGHT` 4, `GAP` 8, `GAP_WIDE` 12 between elements; `SECTION` 24, `REGION` 48). Sizes sit on a 4 px grid: icons 16, compact controls and menu rows 24, controls 28, square icon buttons 32, the main button 36, the bar 40, window buttons 48 wide. All of them are in `crates/nui-ui/src/tokens.rs`, the same values as the design system's tokens.
+
+Lines are 1 logical pixel at every display scale, drawn inside their box. The scroll area keeps a 12 px gutter with a 1 px track, a 4 px thumb (at least 16 px long) and a 12 px arrow at each end that has content beyond it; the wheel moves 100 px. Window grips are 5 px, 8 px at the corners.
 
 ### Motion
 

@@ -75,14 +75,14 @@ fn filled_rest_hover_disabled() {
 }
 
 #[test]
-fn bare_has_no_frame_and_is_24_by_30() {
+fn bare_has_no_frame_and_is_24_by_32() {
     let t = Theme::dark();
     assert_eq!(at_state(IconLook::Bare, IconOpts::default(), false), (None, None, t.muted));
     assert_eq!(at_state(IconLook::Bare, IconOpts::default(), true), (None, None, t.text));
     let mut ui = Ui::new(Theme::dark());
     let (_, r) = button(&mut ui, IconLook::Bare, IconOpts::default());
     let rect = ui.rect(r.id).unwrap();
-    assert_eq!((rect.w, rect.h, rect.x), (24.0, 30.0, -4.0));
+    assert_eq!((rect.w, rect.h, rect.x), (24.0, 32.0, -4.0));
 }
 
 #[test]
@@ -99,7 +99,7 @@ fn a_joined_square_overlaps_the_one_before_by_a_pixel() {
         });
     }
     let (a, b) = (ui.rect(ids[0]).unwrap(), ui.rect(ids[1]).unwrap());
-    assert_eq!((a.w, a.h), (30.0, 30.0));
+    assert_eq!((a.w, a.h), (ICON_SQUARE, ICON_SQUARE));
     assert_eq!(b.x, a.x + a.w - 1.0);
 }
 
@@ -181,13 +181,13 @@ fn number_with_left_aligned_starts_at_the_left_padding() {
         let x = l.cmds.iter().find_map(|c| if let Cmd::Text { at, .. } = c { Some(at.x) } else { None }).unwrap();
         if right {
             // "12" is two cells of 7.2, hugging the right padding.
-            assert!((x - (200.0 - 7.0 - 14.4)).abs() < 0.01, "{x}");
+            assert!((x - (200.0 - (FRAME + INSET) - 14.4)).abs() < 0.01, "{x}");
         } else {
             left_x = x;
         }
     }
     let _ = l;
-    assert!((left_x - 7.0).abs() < 0.01, "{left_x}");
+    assert!((left_x - (FRAME + INSET)).abs() < 0.01, "{left_x}");
 }
 
 #[test]

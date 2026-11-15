@@ -2,8 +2,8 @@
 //! the commit, cancel, the number field refusing it, and the spot the backend reads. No system: the messages
 //! of the input method are `Event::Ime` values.
 //!
-//! The field sits at (20, 20), 214 wide, as in `field.rs`: content box x 27, y 24; the glyph box (15.6 tall)
-//! starts at y 25.2; a cell is 7.2 wide; the underline row is the content top + 15 = 39.
+//! The field sits at (20, 20), 214 wide, as in `field.rs`: content box x 29, y 25; the glyph box (15.6 tall)
+//! starts at y 26.2; a cell is 7.2 wide; the underline row is the content top + 15 = 40.
 
 use nui_base::{Button, Cmd, Color, DrawList, Event, Ime, Key, Mods, Rect, Vec2};
 use nui_layout::{Dim, Insets, Position, Style};
@@ -13,8 +13,8 @@ const SIZE: Vec2 = Vec2::new(860.0, 440.0);
 const NONE: Mods = Mods { ctrl: false, shift: false };
 const CTRL: Mods = Mods { ctrl: true, shift: false };
 const SHIFT: Mods = Mods { ctrl: false, shift: true };
-const X0: f32 = 27.0;
-const INNER_Y: f32 = 24.0;
+const X0: f32 = 29.0;
+const INNER_Y: f32 = 25.0;
 const MID_Y: f32 = 37.0;
 
 fn frame(ui: &mut Ui, build: impl FnOnce(&mut Ui)) -> DrawList {

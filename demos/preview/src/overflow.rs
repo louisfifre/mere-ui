@@ -19,12 +19,13 @@
 //!
 //! The two tools keep their names, always.
 
+use nui_ui::tokens::{CAPTION_W, GAP};
 use nui_ui::{ADVANCE_EM, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, TextLook, Tone, tool_button_width};
 
 use crate::text;
 
-/// The window's three buttons, 46 px each: what the right cell holds at least.
-pub const ENDS_W: f32 = 138.0;
+/// The window's three buttons, `CAPTION_W` each: what the right cell holds at least.
+pub const ENDS_W: f32 = 3.0 * CAPTION_W;
 /// A panel's button (`IconLook::Tool`): 36 wide, pulled 1 px over what is before it.
 pub const TOGGLE_W: f32 = 36.0;
 /// Before the settings button, so that it starts where the brand's cube does (12 px in).
@@ -49,7 +50,7 @@ const TAB_PAD: f32 = 13.0;
 const SEP: f32 = 12.0;
 /// The chevron of the "More" tab, and the space before it.
 const CHEVRON: f32 = 8.0;
-const CHEVRON_GAP: f32 = 7.0;
+const CHEVRON_GAP: f32 = GAP;
 /// An account cut shorter than this many letters (and the ellipsis) is not worth showing: it goes whole.
 pub const ACCOUNT_STUB: usize = 3;
 

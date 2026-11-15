@@ -89,7 +89,7 @@ fn fold_closed_is_a_rule_a_title_and_a_sign() {
     let (mut open, mut ran) = (false, false);
     let mut head = None;
     let list = frame(&mut ui, |ui| head = Some(world_fold(ui, &mut open, &mut ran)));
-    rect_is(ui.rect(head.unwrap()).unwrap(), 20.0, 235.0, 320.0, 33.0);
+    rect_is(ui.rect(head.unwrap()).unwrap(), 20.0, 235.0, 320.0, 31.0);
     let f = fills(&list);
     assert_eq!(f.len(), 1);
     rect_is(f[0].0, 20.0, 234.0, 320.0, 1.0);
@@ -100,14 +100,14 @@ fn fold_closed_is_a_rule_a_title_and_a_sign() {
         let g = &tx[i];
         assert_eq!(g.1, c.to_string());
         near(g.0.x, 20.0 + i as f32 * 7.92);
-        near(g.0.y, 244.0 - 0.3);
+        near(g.0.y, 243.0 - 0.3);
         assert_eq!(g.3, Weight::SemiBold);
         assert_eq!(g.2, t.text);
     }
     let sign = &tx[5];
     assert_eq!(sign.1, "+");
     near(sign.0.x, 332.08);
-    near(sign.0.y, 243.7);
+    near(sign.0.y, 242.7);
     assert_eq!(sign.3, Weight::Regular);
     assert_eq!(sign.2, t.muted);
     assert!(!ran, "a closed fold does not build its body");
@@ -153,10 +153,10 @@ fn fold_open_sizes() {
             after = Some(ui.node("after", Style { h: Dim::Px(10.0), shrink: 0.0, ..Style::default() }, |_| {}));
         });
     });
-    rect_is(ui.rect(head.unwrap()).unwrap(), 20.0, 235.0, 320.0, 33.0);
+    rect_is(ui.rect(head.unwrap()).unwrap(), 20.0, 235.0, 320.0, 31.0);
     // A line top is the text's y less its half leading (1.2 for 12/18).
-    near(word(&list, "Land").0.y - 1.2, 234.0 + 34.0 + 2.0 + 18.0 + 8.0);
-    near(ui.rect(after.unwrap()).unwrap().y, 234.0 + 94.0);
+    near(word(&list, "Land").0.y - 1.2, 234.0 + 32.0 + 2.0 + 18.0 + 8.0);
+    near(ui.rect(after.unwrap()).unwrap().y, 234.0 + 90.0);
 }
 
 #[test]
@@ -178,7 +178,7 @@ fn fold_hover_lights_the_sign_only() {
 
 #[test]
 fn fold_grow_takes_the_free_height() {
-    for (start, want) in [(true, 280.0), (false, 34.0)] {
+    for (start, want) in [(true, 280.0), (false, 32.0)] {
         let mut ui = dark();
         let mut open = start;
         let mut after = None;
@@ -352,11 +352,11 @@ fn choice_looks() {
     };
     let mut ui = dark();
     let (ids, l) = build(&mut ui);
-    rect_is(ui.rect(ids[0]).unwrap(), 20.0, 156.0, 40.8, 20.0);
+    rect_is(ui.rect(ids[0]).unwrap(), 20.0, 156.0, 44.8, 22.0);
     let t2 = ui.rect(ids[1]).unwrap();
-    near(t2.x, 64.8);
-    near(t2.w, 48.0);
-    near(ui.rect(ids[2]).unwrap().x, 168.8 - 52.0);
+    near(t2.x, 68.8);
+    near(t2.w, 52.0);
+    near(ui.rect(ids[2]).unwrap().x, 124.8);
     let f = fills(&l);
     assert_eq!(f.len(), 1);
     assert_eq!(f[0].1, t.text);
@@ -384,13 +384,13 @@ fn details_geometry_and_colours() {
         });
     });
     for (id, x) in ids.iter().zip([460.0, 561.0, 662.0]) {
-        rect_is(ui.rect(*id).unwrap(), x, 156.0, 98.0, 42.5);
+        rect_is(ui.rect(*id).unwrap(), x, 156.0, 98.0, 44.5);
     }
     let w = word(&list, "64 blocks");
-    near(w.0.x, 467.0);
-    near(w.0.y - 1.2, 160.0);
+    near(w.0.x, 469.0);
+    near(w.0.y - 1.2, 161.0);
     let s = word(&list, "10 s");
-    near(s.0.y - 1.1, 178.0);
+    near(s.0.y - 1.1, 179.0);
     assert_eq!(s.2, t.muted);
     assert_eq!(word(&list, "32 blocks").2, t.ground);
     assert_eq!(word(&list, "25 s").2, nui_ui::mix(t.ground, 0.7, t.text));
@@ -432,7 +432,7 @@ fn number_field_right_aligned() {
     rect_is(ui.rect(id.unwrap()).unwrap(), 732.4, 300.0, 57.6, 24.0);
     assert_eq!(frames_of(&list), vec![t.edge]);
     let g = word(&list, "-0.45");
-    near(g.0.x, 747.0);
+    near(g.0.x, 745.0);
     near(g.0.y - 1.2, 303.0);
     for (v, s) in [(1.0, "1"), (-64.0, "-64"), (0.025, "0.025"), (-0.0, "0")] {
         let l = frame(&mut ui, |ui| {

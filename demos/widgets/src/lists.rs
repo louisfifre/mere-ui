@@ -29,7 +29,8 @@ pub const B_H: f32 = 160.0;
 pub const A_LIST_TOP: f32 = 20.0 + 16.5 + 6.0;
 /// The rows of A: how many, how tall, which are pressed and which one the pointer ends on.
 pub const A_ROWS: usize = 20;
-pub const ROW_H: f32 = 24.0;
+/// A list row: 4 of padding (the kit's `ListRow` pad), 18 of line, 4.
+pub const ROW_H: f32 = 26.0;
 /// Rows 5 and 8 rather than the brief's 2 and 5: at 30 % the first three rows are scrolled out of sight.
 pub const PRESSED: [usize; 2] = [5, 8];
 pub const HOVER_ROW: usize = 6;
@@ -154,7 +155,7 @@ pub fn lists_live(ui: &mut Ui, s: &mut ListsState) {
     });
 }
 
-/// A hairline round each plot slot, so that the sheet shows where the 30 px slots are. Drawn over the Ui's list.
+/// A hairline round each plot slot, so that the sheet shows where the 32 px slots are. Drawn over the Ui's list.
 pub fn lists_marks(ui: &Ui, s: &ListsState, theme: Theme) -> DrawList {
     let mut list = DrawList::default();
     for id in &s.plots {

@@ -47,14 +47,14 @@ fn n1_running_fills_from_the_left_with_the_share() {
     let mut ui = Ui::new(t);
     let (list, r) = running(&mut ui, 0.4, false);
     near(r.w, 300.0);
-    near(r.h, 34.0);
+    near(r.h, CONTROL_LARGE);
     assert_eq!(frames(&list), vec![(r, t.text)]);
     let bars = fills(&list, t.line);
     assert_eq!(bars.len(), 1);
     near(bars[0].x, r.x + 1.0);
     near(bars[0].y, r.y + 1.0);
     near(bars[0].w, 0.4 * 298.0);
-    near(bars[0].h, 32.0);
+    near(bars[0].h, CONTROL_LARGE - 2.0 * FRAME);
     // No fill of the text colour: the button is not the primary one.
     assert!(fills(&list, t.text).is_empty());
     // A share past 1 stops at the padding box's width.
@@ -90,15 +90,15 @@ fn n3_stop_square_looks_and_clicks() {
     let mut ui = Ui::new(t);
     let (list, resp) = stop(&mut ui, false);
     let r = ui.rect(resp.id).unwrap();
-    near(r.w, 34.0);
-    near(r.h, 34.0);
+    near(r.w, CONTROL_LARGE);
+    near(r.h, CONTROL_LARGE);
     assert_eq!(frames(&list), vec![(r, t.edge)]);
     let icon = fills(&list, t.muted);
     assert_eq!(icon.len(), 1);
-    assert_eq!((icon[0].x - r.x, icon[0].y - r.y, icon[0].w, icon[0].h), (13.5, 13.5, 7.0, 7.0));
+    assert_eq!((icon[0].x - r.x, icon[0].y - r.y, icon[0].w, icon[0].h), (14.0, 14.0, 8.0, 8.0));
 
     // Hovered: both the text colour.
-    let p = Vec2::new(r.x + 17.0, r.y + 17.0);
+    let p = Vec2::new(r.x + 18.0, r.y + 18.0);
     ui.event(&Event::PointerMoved { pos: p });
     let (list, _) = stop(&mut ui, false);
     assert_eq!(frames(&list), vec![(r, t.text)]);

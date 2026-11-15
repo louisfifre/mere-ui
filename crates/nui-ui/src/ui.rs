@@ -712,11 +712,13 @@ impl Painter<'_> {
                 self.list.cmds.extend(cmds.iter().map(|c| c.translated(d)));
             }
             Paint::Chevron { color } => {
-                // [from, to) of each 1 px row, relative to the leaf's top-left.
+                // [from, to) of each 1 px row, relative to the leaf's top-left. Five rows centred in an even box
+                // land on a half pixel and blur: the top is kept on a whole pixel.
                 const ROWS: [&[(f32, f32)]; 5] = [&[(0.0, 2.0), (6.0, 8.0)], &[(0.0, 3.0), (5.0, 8.0)], &[(1.0, 7.0)], &[(2.0, 6.0)], &[(3.0, 5.0)]];
+                let top = r.y.floor();
                 for (i, row) in ROWS.iter().enumerate() {
                     for &(a, b) in *row {
-                        self.list.fill(Rect::new(r.x + a, r.y + i as f32, b - a, 1.0), *color);
+                        self.list.fill(Rect::new(r.x + a, top + i as f32, b - a, 1.0), *color);
                     }
                 }
             }

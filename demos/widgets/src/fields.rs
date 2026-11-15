@@ -117,9 +117,9 @@ pub(crate) fn drive(theme: Theme, st: &mut FieldsState, build: &Build, steps: &[
             match ev {
                 Ev::Click(col, clicks) => {
                     let r = ui.rect(id).expect("frame 0 laid the field out");
-                    // The content box starts 7 in (padding 6 and the border); the extra 1 puts the pointer inside
+                    // The content box starts FRAME + INSET in (the field's horizontal padding counts the border); the extra 1 puts the pointer inside
                     // the char rather than on the gap between two, so a word click means the char at `col`.
-                    let p = Vec2::new(r.x + 7.0 + 7.2 * *col + 1.0, r.y + r.h / 2.0);
+                    let p = Vec2::new(r.x + nui_ui::tokens::FRAME + nui_ui::tokens::INSET + 7.2 * *col + 1.0, r.y + r.h / 2.0);
                     ui.event(&Event::PointerMoved { pos: p });
                     ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: *clicks });
                     ui.event(&Event::PointerUp { pos: p, button: Button::Left });

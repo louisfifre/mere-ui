@@ -2,6 +2,7 @@
 
 use nui_base::{Button, Cmd, DrawList, Event, Key, Mods, Rect, Vec2};
 use nui_layout::{Dim, Style};
+use nui_ui::tokens::CONTROL;
 use nui_ui::{ButtonLook, ButtonOpts, MENU_ROW, ScrollOpts, SelectOpts, SelectResp, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(400.0, 300.0);
@@ -95,7 +96,7 @@ fn a_click_on_the_box_opens_and_a_second_closes() {
     p.open();
     assert!(p.last.unwrap().open);
     let b = p.box_rect();
-    assert_eq!(b.h, 25.0);
+    assert_eq!(b.h, CONTROL);
     p.click(Vec2::new(b.x + 20.0, b.y + 10.0));
     assert!(!p.last.unwrap().open);
 }

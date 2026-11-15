@@ -4,7 +4,7 @@
 
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use nui_layout::{Dim, Insets, Position, Style};
-use nui_ui::{ButtonLook, ListRow, PartOpts, Resp, RowOpts, Theme, Ui};
+use nui_ui::{ButtonLook, ListRow, PLOT_H, PartOpts, Resp, RowOpts, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(500.0, 400.0);
 
@@ -137,8 +137,8 @@ fn a_mark_swatch_is_a_disc_in_a_ring() {
         });
         list = ui.end_frame().clone();
     }
-    // Row padding 3, the 12 px swatch centred in the 18 px line: its centre is 12 px down and 6 across.
-    let centre = Vec2::new(26.0, 32.0);
+    // Row padding 4, the 12 px swatch centred in the 18 px line: its centre is 13 px down and 6 across.
+    let centre = Vec2::new(26.0, 33.0);
     let disc = list.cmds.iter().find_map(|c| match c {
         Cmd::Disc { center, radius, .. } => Some((*center, *radius)),
         _ => None,
@@ -204,7 +204,7 @@ fn a_trend_row_draws_its_plot_at_the_slot() {
         list = ui.end_frame().clone();
     }
     let origin = ui.rect(slot.unwrap()).expect("the slot has a rect");
-    near(origin.h, 30.0);
+    near(origin.h, PLOT_H);
     let got = list.cmds.iter().find_map(|c| if let Cmd::Polyline { points, width, .. } = c { Some((points.clone(), *width)) } else { None });
     let (points, width) = got.expect("a polyline");
     assert_eq!(width, 1.5);

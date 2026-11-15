@@ -1,10 +1,10 @@
 //! The text field and the number field: focus, caret, selection, scrolling, the keys, the clipboard, Tab.
 //! No GPU: the draw list is read as data. Every number is derived in a comment from the geometry below.
 //!
-//! The field sits at (20, 20), border-box 214 wide and 26 tall (Text look: padding 3 + border 1 on top and
-//! bottom, 6 + 1 left and right). So the content box is x 27, y 24, w 200, h 18. A char is 7.2 wide (0.6 em
+//! The field sits at (20, 20), border-box 214 wide and 28 tall (Text look: padding 4 + border 1 on top and
+//! bottom, 8 + 1 left and right). So the content box is x 29, y 25, w 196, h 18. A char is 7.2 wide (0.6 em
 //! of 12 px), and the glyph box (ascent + descent, 1.3 em = 15.6) sits 1.2 below the content top, so the
-//! caret and the selection are 15.6 tall at y 25.2.
+//! caret and the selection are 15.6 tall at y 26.2.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -74,9 +74,9 @@ fn rect_is(r: Rect, x: f32, y: f32, w: f32, h: f32) {
     near(r.h, h);
 }
 
-/// The pointer's x for a caret at char column `col` of a field at x 20: 27 + 7.2 col.
+/// The pointer's x for a caret at char column `col` of a field at x 20: 29 + 7.2 col.
 fn col_x(col: f32) -> f32 {
-    27.0 + 7.2 * col
+    29.0 + 7.2 * col
 }
 const MID_Y: f32 = 37.0;
 
@@ -142,8 +142,8 @@ fn a_click_focuses_and_shows_a_caret() {
     let (list, r) = plain(&mut ui, &mut s);
     assert!(!r.focused);
     assert_eq!(frames_of(&list), vec![t.edge]);
-    rect_is(ui.rect(r.resp.id).unwrap(), 20.0, 20.0, 214.0, 26.0);
-    // Column 3: x = 27 + 21.6 = 48.6, which the caret rounds to 49.
+    rect_is(ui.rect(r.resp.id).unwrap(), 20.0, 20.0, 214.0, 28.0);
+    // Column 3: x = 29 + 21.6 = 50.6, which the caret rounds to 51.
     let p = Vec2::new(col_x(3.0), MID_Y);
     mv(&mut ui, p);
     down(&mut ui, p, 1);
@@ -154,7 +154,7 @@ fn a_click_focuses_and_shows_a_caret() {
     assert_eq!(frames_of(&list), vec![t.text]);
     let f = fills(&list);
     assert_eq!(f.len(), 1);
-    rect_is(f[0].0, 49.0, 25.2, 1.0, 15.6);
+    rect_is(f[0].0, 51.0, 26.2, 1.0, 15.6);
     assert_eq!(f[0].1, t.text);
 }
 
@@ -166,8 +166,8 @@ fn typing_edits_the_string_and_moves_the_caret() {
     let (list, r) = plain(&mut ui, &mut s);
     assert_eq!(s, "1234567890");
     assert!(r.changed);
-    // 10 chars: 27 + 72 = 99, and the text is 72 wide, inside the 200.
-    rect_is(caret(&list, &t).unwrap(), 99.0, 25.2, 1.0, 15.6);
+    // 10 chars: 29 + 72 = 101, and the text is 72 wide, inside the 200.
+    rect_is(caret(&list, &t).unwrap(), 101.0, 26.2, 1.0, 15.6);
     let (_, r) = plain(&mut ui, &mut s);
     assert!(!r.changed, "a quiet frame changes nothing");
 }
@@ -179,8 +179,8 @@ fn home_and_right_move_the_caret() {
     key(&mut ui, Key::Home, NONE);
     keys(&mut ui, Key::Right, NONE, 4);
     let (list, _) = plain(&mut ui, &mut s);
-    // 27 + 4 x 7.2 = 55.8, rounded to 56.
-    rect_is(caret(&list, &t).unwrap(), 56.0, 25.2, 1.0, 15.6);
+    // 29 + 4 x 7.2 = 57.8, rounded to 58.
+    rect_is(caret(&list, &t).unwrap(), 58.0, 26.2, 1.0, 15.6);
 }
 
 #[test]
@@ -191,13 +191,16 @@ fn shift_right_selects_and_the_caret_hides() {
     keys(&mut ui, Key::Right, NONE, 2);
     keys(&mut ui, Key::Right, SHIFT, 4);
     let (list, _) = plain(&mut ui, &mut s);
-    // Columns 2..6: from 27 + 14.4 = 41.4, 4 x 7.2 = 28.8 wide.
-    rect_is(selection(&list, &t).unwrap(), 41.4, 25.2, 28.8, 15.6);
+    // Columns 2..6: from 29 + 14.4 = 43.4, 4 x 7.2 = 28.8 wide.
+    rect_is(selection(&list, &t).unwrap(), 43.4, 26.2, 28.8, 15.6);
     assert_eq!(fills(&list).len(), 1, "no caret over a selection");
     // The text is drawn again in the selection's colour, cut to the selection.
-    let at = list.cmds.iter().position(|c| matches!(c, Cmd::Text { color, .. } if *color == t.select_text)).expect("select text");
+    // select_text is now the text colour itself, so the selected copy is found as the text that follows a clip.
+    let at = (1..list.cmds.len())
+        .find(|&i| matches!(list.cmds[i], Cmd::Text { color, .. } if color == t.select_text) && matches!(list.cmds[i - 1], Cmd::PushClip { .. }))
+        .expect("select text");
     match &list.cmds[at - 1] {
-        Cmd::PushClip { rect } => rect_is(*rect, 41.4, 25.2, 28.8, 15.6),
+        Cmd::PushClip { rect } => rect_is(*rect, 43.4, 26.2, 28.8, 15.6),
         c => panic!("expected a clip before the selected text, got {c:?}"),
     }
     assert!(matches!(list.cmds[at + 1], Cmd::PopClip));
@@ -213,14 +216,14 @@ fn left_and_right_collapse_a_selection_to_its_ends() {
     plain(&mut ui, &mut s);
     key(&mut ui, Key::Left, NONE);
     let (list, _) = plain(&mut ui, &mut s);
-    // To the near end, column 2: 27 + 14.4 = 41.4 -> 41.
-    rect_is(caret(&list, &t).unwrap(), 41.0, 25.2, 1.0, 15.6);
+    // To the near end, column 2: 29 + 14.4 = 43.4 -> 43.
+    rect_is(caret(&list, &t).unwrap(), 43.0, 26.2, 1.0, 15.6);
     keys(&mut ui, Key::Right, SHIFT, 4);
     plain(&mut ui, &mut s);
     key(&mut ui, Key::Right, NONE);
     let (list, _) = plain(&mut ui, &mut s);
-    // To the far end, column 6: 27 + 43.2 = 70.2 -> 70.
-    rect_is(caret(&list, &t).unwrap(), 70.0, 25.2, 1.0, 15.6);
+    // To the far end, column 6: 29 + 43.2 = 72.2 -> 72.
+    rect_is(caret(&list, &t).unwrap(), 72.0, 26.2, 1.0, 15.6);
 }
 
 // ---- 6-8: words, deleting, limits ----
@@ -229,8 +232,8 @@ fn left_and_right_collapse_a_selection_to_its_ends() {
 fn ctrl_arrows_jump_by_word() {
     let t = Theme::dark();
     let (mut ui, mut s) = focused_end("deep ocean_2 x");
-    // Word starts at columns 0, 5 and 13; the end is 14. x = 27 + 7.2 col: 27, 63, 120.6 -> 121, 127.8 -> 128.
-    for (k, col_px) in [(Key::Left, 121.0), (Key::Left, 63.0), (Key::Left, 27.0), (Key::Right, 63.0), (Key::Right, 121.0), (Key::Right, 128.0)] {
+    // Word starts at columns 0, 5 and 13; the end is 14. x = 29 + 7.2 col: 29, 65, 122.6 -> 123, 129.8 -> 130.
+    for (k, col_px) in [(Key::Left, 123.0), (Key::Left, 65.0), (Key::Left, 29.0), (Key::Right, 65.0), (Key::Right, 123.0), (Key::Right, 130.0)] {
         key(&mut ui, k, CTRL);
         let (list, _) = plain(&mut ui, &mut s);
         near(caret(&list, &t).unwrap().x, col_px);
@@ -336,15 +339,15 @@ fn a_long_text_scrolls_to_keep_the_caret_in_view() {
     let (mut ui, mut s) = focused_at("", 0.0);
     typ(&mut ui, &"0123456789".repeat(3));
     let (list, _) = plain(&mut ui, &mut s);
-    // 30 chars = 216 wide in 200: the caret at 216 pushes the text 16 left.
+    // 30 chars = 216 wide in 196: the caret at 216 pushes the text 20 left.
     let text = texts(&list).into_iter().find(|x| x.1 == s).unwrap();
-    near(text.0.x, 27.0 - 16.0);
-    // The caret: 27 + 216 - 16 = 227, the very right edge of the content box plus its one extra pixel.
-    rect_is(caret(&list, &t).unwrap(), 227.0, 25.2, 1.0, 15.6);
+    near(text.0.x, 29.0 - 20.0);
+    // The caret: 29 + 216 - 20 = 225, the very right edge of the content box plus its one extra pixel.
+    rect_is(caret(&list, &t).unwrap(), 225.0, 26.2, 1.0, 15.6);
     key(&mut ui, Key::Home, NONE);
     let (list, _) = plain(&mut ui, &mut s);
-    near(texts(&list).into_iter().find(|x| x.1 == s).unwrap().0.x, 27.0);
-    near(caret(&list, &t).unwrap().x, 27.0);
+    near(texts(&list).into_iter().find(|x| x.1 == s).unwrap().0.x, 29.0);
+    near(caret(&list, &t).unwrap().x, 29.0);
 }
 
 #[test]
@@ -353,7 +356,7 @@ fn double_triple_click_and_drag_select() {
     let mut ui = Ui::new(t);
     let mut s = "deep ocean".to_string();
     plain(&mut ui, &mut s);
-    // 27 + 7.2 x 7.5 = 81: in the middle of the char at column 7, an "e" of "ocean" (columns 5..10).
+    // 29 + 7.2 x 7.5 = 83: in the middle of the char at column 7, an "e" of "ocean" (columns 5..10).
     let p = Vec2::new(col_x(7.5), MID_Y);
     mv(&mut ui, p);
     for clicks in [1, 2] {
@@ -361,13 +364,13 @@ fn double_triple_click_and_drag_select() {
         up(&mut ui, p);
         plain(&mut ui, &mut s);
     }
-    // Columns 5..10: from 27 + 36 = 63, 36 wide.
+    // Columns 5..10: from 29 + 36 = 65, 36 wide.
     let (list, _) = plain(&mut ui, &mut s);
-    rect_is(selection(&list, &t).unwrap(), 63.0, 25.2, 36.0, 15.6);
+    rect_is(selection(&list, &t).unwrap(), 65.0, 26.2, 36.0, 15.6);
     down(&mut ui, p, 3);
     up(&mut ui, p);
     let (list, _) = plain(&mut ui, &mut s);
-    rect_is(selection(&list, &t).unwrap(), 27.0, 25.2, 72.0, 15.6);
+    rect_is(selection(&list, &t).unwrap(), 29.0, 26.2, 72.0, 15.6);
     // A drag: press at column 1, move to column 4 with the button down, release.
     let (a, b) = (Vec2::new(col_x(1.0), MID_Y), Vec2::new(col_x(4.0), MID_Y));
     mv(&mut ui, a);
@@ -377,8 +380,8 @@ fn double_triple_click_and_drag_select() {
     plain(&mut ui, &mut s);
     up(&mut ui, b);
     let (list, _) = plain(&mut ui, &mut s);
-    // Columns 1..4: from 27 + 7.2 = 34.2, 21.6 wide.
-    rect_is(selection(&list, &t).unwrap(), 34.2, 25.2, 21.6, 15.6);
+    // Columns 1..4: from 29 + 7.2 = 36.2, 21.6 wide.
+    rect_is(selection(&list, &t).unwrap(), 36.2, 26.2, 21.6, 15.6);
 }
 
 // ---- 13-16: leaving, Tab, pressing elsewhere, outside changes ----
@@ -442,15 +445,15 @@ fn tab_moves_to_the_next_field_built_with_its_text_selected() {
     let (list, ra, rb) = two(&mut ui, &mut a, &mut b, false);
     assert!(!ra.focused && rb.focused);
     assert!(!ui.want_redraw());
-    // "beta" in the second field (content y 84): all four chars, 27 .. 27 + 28.8, at y 85.2.
-    rect_is(selection(&list, &t).unwrap(), 27.0, 85.2, 28.8, 15.6);
+    // "beta" in the second field (content y 85): all four chars, 29 .. 29 + 28.8, at y 86.2.
+    rect_is(selection(&list, &t).unwrap(), 29.0, 86.2, 28.8, 15.6);
     // Shift+Tab goes back, and the first field selects all of "alpha" (36 wide).
     key(&mut ui, Key::Tab, SHIFT);
     two(&mut ui, &mut a, &mut b, false);
     assert!(ui.want_redraw());
     let (list, ra, _) = two(&mut ui, &mut a, &mut b, false);
     assert!(ra.focused);
-    rect_is(selection(&list, &t).unwrap(), 27.0, 25.2, 36.0, 15.6);
+    rect_is(selection(&list, &t).unwrap(), 29.0, 26.2, 36.0, 15.6);
     // Tab from the last wraps to the first: the second is focused again, Tab again comes back here.
     key(&mut ui, Key::Tab, NONE);
     two(&mut ui, &mut a, &mut b, false);
@@ -482,7 +485,7 @@ fn a_press_outside_blurs_and_a_press_on_another_field_moves_the_focus_at_once() 
         click(&mut ui, Vec2::new(col_x(0.0), MID_Y));
         let (_, ra, _) = two(&mut ui, &mut a, &mut b, second_first);
         assert!(ra.focused);
-        // The press lands on the second field (content y 84..102).
+        // The press lands on the second field (content y 85..103).
         click(&mut ui, Vec2::new(col_x(0.0), 93.0));
         let (list, ra, rb) = two(&mut ui, &mut a, &mut b, second_first);
         assert!(ra.blurred && !ra.focused, "first field told, second_first = {second_first}");
@@ -500,8 +503,8 @@ fn an_outside_change_of_the_text_shows_with_the_caret_at_the_end() {
     s = "xyz".to_string();
     let (list, _) = plain(&mut ui, &mut s);
     assert!(texts(&list).iter().any(|x| x.1 == "xyz"));
-    // 3 chars: 27 + 21.6 = 48.6 -> 49.
-    rect_is(caret(&list, &t).unwrap(), 49.0, 25.2, 1.0, 15.6);
+    // 3 chars: 29 + 21.6 = 50.6 -> 51.
+    rect_is(caret(&list, &t).unwrap(), 51.0, 26.2, 1.0, 15.6);
 }
 
 // ---- 17-19: numbers ----
@@ -617,8 +620,8 @@ fn the_placeholder_shows_while_empty() {
     let (list, _) = one(&mut ui, &mut s, opts);
     let p = texts(&list).into_iter().find(|x| x.1 == "random").expect("the placeholder");
     assert_eq!(p.2, t.muted);
-    near(p.0.x, 27.0);
-    near(p.0.y, 25.2);
+    near(p.0.x, 29.0);
+    near(p.0.y, 26.2);
     let mut s = "x".to_string();
     let (list, _) = one(&mut ui, &mut s, opts);
     assert!(texts(&list).iter().all(|x| x.1 != "random"));
@@ -632,12 +635,12 @@ fn the_focus_option_selects_all_once() {
     let mut s = "hello".to_string();
     let (list, r) = one(&mut ui, &mut s, opts);
     assert!(r.focused);
-    rect_is(selection(&list, &t).unwrap(), 27.0, 25.2, 36.0, 15.6);
+    rect_is(selection(&list, &t).unwrap(), 29.0, 26.2, 36.0, 15.6);
     key(&mut ui, Key::Right, NONE);
     let (list, _) = one(&mut ui, &mut s, opts);
     assert!(selection(&list, &t).is_none(), "not selected again");
-    // The caret is at the end, column 5: 27 + 36 = 63.
-    rect_is(caret(&list, &t).unwrap(), 63.0, 25.2, 1.0, 15.6);
+    // The caret is at the end, column 5: 29 + 36 = 65.
+    rect_is(caret(&list, &t).unwrap(), 65.0, 26.2, 1.0, 15.6);
 }
 
 #[test]
@@ -645,10 +648,10 @@ fn a_blurred_field_shows_the_start_of_its_text() {
     let (mut ui, mut s) = focused_at("", 0.0);
     typ(&mut ui, &"0123456789".repeat(3));
     let (list, _) = plain(&mut ui, &mut s);
-    near(texts(&list).into_iter().find(|x| x.1 == s).unwrap().0.x, 11.0);
+    near(texts(&list).into_iter().find(|x| x.1 == s).unwrap().0.x, 9.0);
     key(&mut ui, Key::Enter, NONE);
     let (list, _) = plain(&mut ui, &mut s);
-    near(texts(&list).into_iter().find(|x| x.1 == s).unwrap().0.x, 27.0);
+    near(texts(&list).into_iter().find(|x| x.1 == s).unwrap().0.x, 29.0);
 }
 
 #[test]
@@ -663,7 +666,7 @@ fn a_focused_field_that_is_not_built_any_more_drops_the_focus() {
 }
 
 #[test]
-fn compact_look_is_22_tall_and_the_pad_is_the_look() {
+fn compact_look_is_24_tall_and_the_pad_is_the_look() {
     let t = Theme::dark();
     let mut ui = Ui::new(t);
     let mut s = String::new();
@@ -672,7 +675,7 @@ fn compact_look_is_22_tall_and_the_pad_is_the_look() {
     frame(&mut ui, |ui| {
         ui.node("cell", at(20.0, 20.0, Style::default()), |ui| id = Some(ui.text_field("f", &mut s, opts).resp.id));
     });
-    rect_is(ui.rect(id.unwrap()).unwrap(), 20.0, 20.0, 130.0, 22.0);
+    rect_is(ui.rect(id.unwrap()).unwrap(), 20.0, 20.0, 130.0, 24.0);
 }
 
 #[test]
@@ -688,26 +691,26 @@ fn cells_count_wide_chars_as_two() {
 #[test]
 fn a_wide_char_takes_two_cells_in_the_caret_and_the_text() {
     let t = Theme::dark();
-    // x0 is the content's left edge, 27. "ab日本" is 6 cells, so the caret at the end sits at 27 + 43.2.
+    // x0 is the content's left edge, 29. "ab日本" is 6 cells, so the caret at the end sits at 29 + 43.2.
     let (mut ui, mut s) = focused_at("ab日本", 10.0);
     let (l, _) = plain(&mut ui, &mut s);
-    near(caret(&l, &t).unwrap().x, (27.0f32 + 43.2).round());
+    near(caret(&l, &t).unwrap().x, (29.0f32 + 43.2).round());
     // Cells: "ab" at 0, 日 at 2 (14.4), 本 at 4 (28.8), each centred by (2 * 7.2 - 12) / 2 = 1.2.
     let tx = texts(&l);
     assert_eq!(tx.len(), 3);
     assert_eq!(tx[0].1, "ab");
-    near(tx[0].0.x, 27.0);
+    near(tx[0].0.x, 29.0);
     assert_eq!(tx[1].1, "日");
-    near(tx[1].0.x, 27.0 + 14.4 + 1.2);
+    near(tx[1].0.x, 29.0 + 14.4 + 1.2);
     assert_eq!(tx[2].1, "本");
-    near(tx[2].0.x, 27.0 + 28.8 + 1.2);
+    near(tx[2].0.x, 29.0 + 28.8 + 1.2);
 }
 
 #[test]
 fn a_click_lands_on_the_nearest_gap_of_cells() {
     // x0 + 20 is cell 2.78: the gaps are at cells 0, 1, 2, 4, 6, so the nearest is 2, before 日 (byte 2).
     let (mut ui, mut s) = focused_at("ab日本", 10.0);
-    let p = Vec2::new(27.0 + 20.0, MID_Y);
+    let p = Vec2::new(29.0 + 20.0, MID_Y);
     mv(&mut ui, p);
     down(&mut ui, p, 1);
     up(&mut ui, p);
