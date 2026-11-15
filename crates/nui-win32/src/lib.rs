@@ -14,7 +14,7 @@ mod window;
 pub use clipboard::SystemClipboard;
 pub use process::SystemLauncher;
 pub use renderer::Renderer;
-pub use scheme::system_dark;
+pub use scheme::{reduced_motion, system_dark};
 pub use window::{Frame, run, run_with};
 
 /// Draws one frame of `app` offscreen, at `width` x `height` physical pixels and `scale` physical pixels

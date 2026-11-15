@@ -1,5 +1,7 @@
 //! The system's light or dark setting, which the page reads as `prefers-color-scheme`.
 
+use windows::core::BOOL;
+use windows::Win32::UI::WindowsAndMessaging::{SPI_GETCLIENTAREAANIMATION, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW};
 use windows::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
 use windows::core::w;
 
@@ -20,6 +22,17 @@ pub fn system_dark() -> bool {
         )
     };
     status.is_ok() && data == 0
+}
+
+/// True when Windows' "Animation effects" is off, the setting Chromium reads as prefers-reduced-motion
+/// (an INTERPRETATION, not checked here against Chrome). An error reads as false: animate. Read once by the
+/// caller; there is no live change.
+pub fn reduced_motion() -> bool {
+    let mut on = BOOL(1);
+    let read = unsafe {
+        SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, Some(&mut on as *mut BOOL as *mut std::ffi::c_void), SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0))
+    };
+    read.is_ok() && !on.as_bool()
 }
 
 /// WM_SETTINGCHANGE carries the name of what changed; the light/dark switch arrives as "ImmersiveColorSet".
