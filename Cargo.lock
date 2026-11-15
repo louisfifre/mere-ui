@@ -4,22 +4,22 @@ version = 4
 
 [[package]]
 name = "nui-base"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "nui-layout"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "nui-base",
 ]
 
 [[package]]
 name = "nui-png"
-version = "0.5.0"
+version = "0.5.1"
 
 [[package]]
 name = "nui-ui"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "nui-base",
  "nui-layout",
@@ -29,7 +29,7 @@ dependencies = [
 
 [[package]]
 name = "nui-win32"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "nui-base",
  "nui-png",
@@ -39,7 +39,7 @@ dependencies = [
 
 [[package]]
 name = "preview"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "nui-base",
  "nui-layout",
@@ -68,7 +68,7 @@ dependencies = [
 
 [[package]]
 name = "relief"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "nui-base",
  "nui-png",
@@ -78,7 +78,7 @@ dependencies = [
 
 [[package]]
 name = "shell-boxes"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "nui-base",
  "nui-layout",
@@ -105,7 +105,7 @@ checksum = "a2c754d6c33795a1c324727428e5a7dedb5b06195f9890bdbcba760d3e246563"
 
 [[package]]
 name = "widgets"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "nui-base",
  "nui-layout",
