@@ -375,9 +375,10 @@ wording: a preview folder that is missing shows `noPreview`, one that cannot be 
 the window stays open (the CLI no longer exits 1 for it).
 
 - Evidence: `cargo test --offline --workspace` gives 380 passed, 0 failed, 1 ignored (the old clipboard test, which
-  touches the real clipboard). Pictures in `target/tmp`, kept in `docs/shots`: `preview-bar-1400*.png` (dark, light,
-  x1.5, x2), `preview-home.png`, `preview-error.png`, `responsive-1000.png`, `responsive-1920.png`,
-  `responsive-1400x600.png`, `icons-x1.png`, `icons-x1.5.png`, `icons-x2.png` (the 16 icons at 16 DIP, written by
+  touches the real clipboard). Pictures in `target/tmp`, kept in `docs/shots`: `bar-1400.png`, `bar-1400-light.png`,
+  `bar-x2.png` (no x1.5 bar picture is kept; `bar_1400_x15.png` stays in `target/tmp`), `bar-home.png`,
+  `bar-maximized.png`, `bar-hover-close.png`, `error-missing.png`, `error-unreadable.png`, `responsive-1920.png`,
+  `responsive-1400x600.png`, `responsive-section-1000.png`, `icons-x1.png`, `icons-x1.5.png`, `icons-x2.png` (the 16 icons at 16 DIP, written by
   `tests/polish.rs`), `tooltip.png` (the Relief tab's title under the pointer). The polish tests are in
   `demos/preview/tests/polish.rs`: P1 (a lost device, then a new renderer: the same bytes as a fresh app), P2 (a move to
   scale 1.5: the same bytes as a fresh 1.5 renderer), P3 (a run under way: `frame` asks for no other frame, `wake_in`
@@ -389,7 +390,9 @@ the window stays open (the CLI no longer exits 1 for it).
   is known). `RegisterOcclusionStatusWindow` needed nothing new (`Win32_Graphics_Dxgi` was already on).
 - Report for the maintainer: in the pack's repository, `git status` shows ` M pack/pack.toml` with an empty content diff;
   only its modification time (2026-11-15 00:11) differs. Nothing in this work touched it (that repository is read
-  only here); the cause is unknown. `git update-index --refresh` there would clear it, and was not run.
+  only here); the likely cause is a launcher (webview) run in that checkout, since ignored files under `run/app/webview/EBWebView`
+  were also written between 00:11 and 00:18. The maintainer should confirm; `git update-index --refresh` there would
+  clear it, and was not run.
 - Choices where the brief was silent: `Cmd::Shape` (a path with the winding rule) was added to `nui-base` for the
   icons, drawn crisp with its vertices on device pixels; the icon grammar is the reduced SVG one (`M m L l H h V v Z z`);
   a hidden window's `tick()` looks at the run and leaves the end for the next frame, which holds the device;
