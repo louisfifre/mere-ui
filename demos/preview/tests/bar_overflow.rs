@@ -130,8 +130,10 @@ fn the_word_goes_before_the_other_views_when_it_buys_room() {
     assert_eq!(&seen[..4], &[form(true, true, &[]), form(false, true, &[]), form(false, false, &[]), form(false, false, &[5])]);
 }
 
-/// The widths at which the bar changes form, printed for the record (`cargo test -- --nocapture`).
+/// The widths at which the bar changes form, printed for the record (`cargo test -- --ignored --nocapture`).
+/// A measure, not a check: it asserts nothing, so it does not run with the suite.
 #[test]
+#[ignore = "prints the thresholds; run on demand"]
 fn the_thresholds_are_printed() {
     for (name, disabled) in [("greyed world", [false, true, false, false, true, true]), ("every view on", [false; 6])] {
         let mut last: Option<Form> = None;

@@ -609,6 +609,7 @@ gone, "More" holds Flat, Structures and Section, Biomes, Relief and Temperature 
 "More" holds Structures and Section (the account gone as well). With the current widths and an account such as "Louis", nothing is given up from 1035 px up; the account goes from 1034 down,
 the greyed views move into "More" from 1014 down, and with every view on Section moves from 1014 down, then Structures from 1008 (the
 words in the tables are measured, so another account name or catalog word moves these numbers by itself).
+
 ## Goal of this run
 
 Replace the world preview's three.js view (`..\world-preview\page\preview.html`, `refresh3d()` near
