@@ -1,12 +1,12 @@
 //! preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..]
 //!         [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y]
-//!         [--runs DIR] [--generator PATH] [--pack DIR]
+//!         [--runs DIR] [--engine DIR] [--pack DIR]
 //!
 //! Without --shot, opens the world preview's window. With it, draws one frame offscreen and writes the PNG: the
 //! same frame the window would show. The out folder of --data (by default the folder PREVIEW_DATA_DIR names, and without a
 //! preview.json there the page shows no preview) fills the stage (step 14).
-//! A run (step 17): Generate starts --generator, the script the page's server runs (scripts\preview.ps1; no default,
-//! and without it Generate says the run failed), with --pack if given. Everything a run or an export writes (its out
+//! A run (step 17): Generate runs the engine (world_preview::run) on the world-preview repository --engine names (by
+//! default WORLD_PREVIEW_DIR; without either, Generate says the run failed), with --pack if given. Everything a run or an export writes (its out
 //! folder, its log, the learned pace, the exports) goes under --runs, which must lie inside this repository's
 //! target\tmp for now: the rule is lifted once a real run has been exercised. The data of --data is never written.
 //! The colours (step 18): the window follows the system's light or dark setting and switches live, as the page does
@@ -33,7 +33,7 @@ use preview::{MIN_SIZE, PreviewApp, PreviewState, text};
 
 fn usage() -> ! {
     eprintln!(
-        "usage: preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--generator PATH] [--pack DIR]"
+        "usage: preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--engine DIR] [--pack DIR]"
     );
     std::process::exit(2);
 }
@@ -146,7 +146,7 @@ fn main() {
     let (mut scheme, mut shot, mut size) = (None::<Scheme>, None, (1400u32, 940u32));
     let (mut data, mut views, mut biomes, mut structures, mut look) = (None::<PathBuf>, Vec::new(), String::new(), String::new(), None);
     let (mut camera, mut cut, mut ores, mut cut_look) = (None, None, String::new(), None);
-    let (mut runs, mut generator, mut pack) = (None::<PathBuf>, None::<PathBuf>, None::<PathBuf>);
+    let (mut runs, mut engine_dir, mut pack) = (None::<PathBuf>, std::env::var_os("WORLD_PREVIEW_DIR").map(PathBuf::from), None::<PathBuf>);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut value = || args.next().unwrap_or_else(|| usage());
@@ -172,7 +172,7 @@ fn main() {
             "--ore" => ores = value(),
             "--cut-look" => cut_look = Some(parse_cut_look(&value()).unwrap_or_else(|| usage())),
             "--runs" => runs = Some(PathBuf::from(value())),
-            "--generator" => generator = Some(PathBuf::from(value())),
+            "--engine" => engine_dir = Some(PathBuf::from(value())),
             "--pack" => pack = Some(PathBuf::from(value())),
             _ => usage(),
         }
@@ -254,7 +254,7 @@ fn main() {
     let theme = if dark { Theme::dark() } else { Theme::light() };
     // The window holds its minimum itself; a picture is raised to it too, so that it shows the layout the app has.
     let (w, h) = preview::min_size_px(size);
-    let runs = Runs { shell: PathBuf::from("powershell.exe"), generator, pack, root: runs_root(runs), env: Vec::new(), launcher: Box::new(nui_win32::SystemLauncher), server_dir: None, out_dir: None, exports_dir: None };
+    let runs = Runs { engine_dir, engine: preview::run::engine(), pack, root: runs_root(runs), mods: Vec::new(), launcher: Box::new(nui_win32::SystemLauncher), server_dir: None, out_dir: None, exports_dir: None };
     let mut state = state;
     state.reduce_motion = nui_win32::reduced_motion();
     let mut app = PreviewApp::new(theme, dark, Vec2::new(w as f32, h as f32), state, world).follow_scheme(follows).with_runs(runs);

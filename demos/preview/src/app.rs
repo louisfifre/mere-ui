@@ -3,8 +3,12 @@
 
 use std::collections::BTreeSet;
 use std::fs::File;
+use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Child, ExitStatus, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{self, Receiver};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use std::collections::VecDeque;
@@ -26,9 +30,15 @@ use crate::shell::{Mode, PreviewState, RunEnd, ShellIds, Want, build, raise_to_m
 use crate::text;
 use crate::world::World;
 
-/// A generator process being followed.
+/// A run of the engine being followed: the engine works on a thread of its own and sends its lines here.
 struct Running {
-    child: Child,
+    thread: Option<JoinHandle<Result<PathBuf, String>>>,
+    stop: Arc<AtomicBool>,
+    lines: Receiver<String>,
+    /// Where the lines are kept, as the generator's output was.
+    log: Option<File>,
+    /// This run's number in the process: tells two runs apart, as a process id did.
+    id: u64,
     started: Instant,
     /// When the progress file was last read: it is read once a second, the first time one second after the start
     /// (line 2649).
@@ -75,8 +85,8 @@ pub struct PreviewApp {
     /// The app's own time, for the tooltips' delay; a test fixes it with `set_clock`.
     born: Instant,
     clock: Option<f64>,
-    /// The generator's end, seen while the window was hidden and not yet acted on (`look`).
-    ended: Option<Option<ExitStatus>>,
+    /// The engine's end, seen and not yet acted on (`look`): the out folder, or what went wrong.
+    ended: Option<Result<PathBuf, String>>,
     /// A run ended while the window was hidden: its new meshes are uploaded by the next frame.
     upload_pending: bool,
     /// The launcher's Home, when the host gave one.
@@ -192,9 +202,9 @@ impl PreviewApp {
         self.running.is_some()
     }
 
-    /// The generator's process id while it is under way.
-    pub fn run_pid(&self) -> Option<u32> {
-        self.running.as_ref().map(|r| r.child.id())
+    /// The number of the run under way, unique in this process.
+    pub fn run_id(&self) -> Option<u64> {
+        self.running.as_ref().map(|r| r.id)
     }
 
     /// Makes the run `seconds` old, as the page's `already` does for a run it found under way: the clock, the
@@ -357,17 +367,22 @@ impl PreviewApp {
             return;
         }
         let Some(run) = self.running.as_mut() else { return };
-        match run.child.try_wait() {
-            Ok(Some(status)) => {
-                self.ended = Some(Some(status));
-                return;
+        // The lines first, so that the last ones are kept before the end is taken.
+        while let Ok(line) = run.lines.try_recv() {
+            if let Some(log) = run.log.as_mut() {
+                let _ = writeln!(log, "{line}");
             }
-            Ok(None) => {}
-            Err(e) => {
-                observe!(Warn, "the generator could not be looked at: {e}");
-                self.ended = Some(None);
-                return;
+            if let Some(follow) = self.state.follow.as_mut() {
+                follow.hear(&line);
             }
+        }
+        if run.thread.as_ref().is_none_or(|t| t.is_finished()) {
+            self.ended = Some(match run.thread.take().map(JoinHandle::join) {
+                Some(Ok(result)) => result,
+                Some(Err(_)) => Err("the engine panicked".to_string()),
+                None => Err("the engine's thread was lost".to_string()),
+            });
+            return;
         }
         let (Some(follow), Some(runs)) = (self.state.follow.as_mut(), self.runs.as_ref()) else { return };
         follow.seconds = run.started.elapsed().as_secs();
@@ -384,7 +399,7 @@ impl PreviewApp {
     /// The generator ended (`follow`'s end, lines 2664-2696): a stopped run leaves the map it found, a failed one
     /// says so, a finished one is read and shown, and the pace learns from it.
     /// Without a device (`gfx` is `None`, a hidden window) all the rest is done and the meshes wait in `upload_pending`.
-    fn finish(&mut self, status: Option<ExitStatus>, gfx: Option<&mut dyn Gfx>) {
+    fn finish(&mut self, status: Result<PathBuf, String>, gfx: Option<&mut dyn Gfx>) {
         let (Some(run), Some(mut follow)) = (self.running.take(), self.state.follow.take()) else { return };
         let Some(runs) = self.runs.as_ref() else { return };
         let (out, pace_file, before_file, log_file) = (runs.out(), runs.pace(), runs.before(), runs.log());
@@ -394,7 +409,7 @@ impl PreviewApp {
         if follow.stopping {
             self.state.trouble.clear();
             self.state.said = text::STOPPED.to_string();
-        } else if status.is_some_and(|s| s.success()) && out.join("preview.json").exists() {
+        } else if status.is_ok() && out.join("preview.json").exists() {
             match World::load(&out) {
                 Ok(world) => {
                     // The camera starts again when the area's width changed (line 1873).
@@ -444,7 +459,7 @@ impl PreviewApp {
                 }
             }
         } else {
-            observe!(Warn, "the run failed: {} (see {})", status.map_or("no status".to_string(), |s| s.to_string()), log_file.display());
+            observe!(Warn, "the run failed: {} (see {})", status.err().unwrap_or_else(|| "no result".to_string()), log_file.display());
             self.state.trouble = text::FAILED.to_string();
             self.state.said.clear();
         }
@@ -499,12 +514,12 @@ impl PreviewApp {
     /// `generate()` (lines 2699-2710): an empty seed is one drawn here, a seed the server would refuse is refused here,
     /// then the generator starts with its output in the runs' folder.
     fn start(&mut self) {
-        let Some(generator) = self.runs.as_ref().and_then(|r| r.generator.clone()) else {
-            observe!(Warn, "no --generator given: a run cannot start");
+        let Some(engine_dir) = self.runs.as_ref().and_then(|r| r.engine_dir.clone()) else {
+            observe!(Warn, "no world-preview repository given (--engine): a run cannot start");
             self.state.trouble = text::FAILED.to_string();
             return;
         };
-        let runs = self.runs.as_ref().expect("a generator comes from the runs");
+        let runs = self.runs.as_ref().expect("an engine comes from the runs");
         if self.state.seed.trim().is_empty() {
             self.state.seed = run::random_seed();
         }
@@ -520,27 +535,40 @@ impl PreviewApp {
         for name in ["coarse.json", "progress.json", "partial.json"] {
             let _ = std::fs::remove_file(out.join(name));
         }
-        let started = (|| -> std::io::Result<Child> {
+        static RUNS: AtomicU64 = AtomicU64::new(1);
+        let stop = Arc::new(AtomicBool::new(false));
+        let options = run::options(&engine_dir, runs.pack.as_deref(), &server, &out, &runs.mods, &ask, stop.clone());
+        let engine = runs.engine.clone();
+        let (tx, lines) = mpsc::channel::<String>();
+        let started = (|| -> std::io::Result<(File, JoinHandle<Result<PathBuf, String>>)> {
             std::fs::create_dir_all(&out)?;
             std::fs::create_dir_all(&server)?;
             let log = File::create(runs.log())?;
-            let mut cmd = run::command(&runs.shell, &generator, runs.pack.as_deref(), &server, &out, &ask);
-            cmd.stdin(Stdio::null()).stdout(log.try_clone()?).stderr(log).envs(runs.env.iter().map(|(k, v)| (k, v)));
-            runs.launcher.spawn(&mut cmd)
+            let thread = std::thread::Builder::new().name("world-preview run".into()).spawn(move || {
+                let result = engine(&options, &mut |line| {
+                    let _ = tx.send(line.to_string());
+                });
+                if let Err(e) = &result {
+                    let _ = tx.send(e.clone());
+                }
+                result
+            })?;
+            Ok((log, thread))
         })();
         match started {
-            Ok(child) => {
-                observe!(Info, "run started: pid {}, seed {}, samples {}, detail {}, out {}", child.id(), ask.seed, ask.samples, ask.detail, out.display());
+            Ok((log, thread)) => {
+                let id = RUNS.fetch_add(1, Ordering::Relaxed);
+                observe!(Info, "run {id} started: seed {}, samples {}, detail {}, out {}", ask.seed, ask.samples, ask.detail, out.display());
                 let expected = self.pace.about(ask.samples, ask.detail);
                 self.state.trouble.clear();
                 self.state.said.clear();
                 self.state.follow = Some(Follow::new(ask, expected));
                 self.state.steps = Steps::Run { done: Vec::new(), now: text::STEP_START.to_string(), share: 0.0 };
                 let now = Instant::now();
-                self.running = Some(Running { child, started: now, looked: now });
+                self.running = Some(Running { thread: Some(thread), stop, lines, log: Some(log), id, started: now, looked: now });
             }
             Err(e) => {
-                observe!(Warn, "the generator could not be started: {e}");
+                observe!(Warn, "the engine could not be started: {e}");
                 self.state.trouble = text::FAILED.to_string();
             }
         }
@@ -548,11 +576,9 @@ impl PreviewApp {
 
     /// The square beside the button (lines 2712-2715): the run ends a moment later and the wait for it says so.
     fn stop(&mut self) {
-        let (Some(run), Some(runs), Some(follow)) = (self.running.as_mut(), self.runs.as_ref(), self.state.follow.as_mut()) else { return };
+        let (Some(run), Some(follow)) = (self.running.as_ref(), self.state.follow.as_mut()) else { return };
         follow.stopping = true;
-        if let Err(e) = runs.launcher.stop(&mut run.child) {
-            observe!(Warn, "the run could not be stopped: {e}");
-        }
+        run.stop.store(true, Ordering::Relaxed);
     }
 
     /// Export (lines 2736-2796), the 2D pictures only: the whole map of each view whatever is chosen, then the cut as
@@ -770,13 +796,14 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
 }
 
 impl Drop for PreviewApp {
-    /// Quitting stops the run under way (serve.ps1's `finally`): the generator would leave a game server behind.
+    /// Quitting stops the run under way and waits for its end, which kills the game server: the engine's job object
+    /// would end it with the process anyway, but a host that keeps running (a test) must not keep one behind.
     fn drop(&mut self) {
-        if let (Some(mut run), Some(runs)) = (self.running.take(), self.runs.as_ref()) {
-            if let Err(e) = runs.launcher.stop(&mut run.child) {
-                observe!(Warn, "the run could not be stopped on quitting: {e}");
+        if let Some(mut run) = self.running.take() {
+            run.stop.store(true, Ordering::Relaxed);
+            if let Some(thread) = run.thread.take() {
+                let _ = thread.join();
             }
-            let _ = run.child.wait();
         }
     }
 }

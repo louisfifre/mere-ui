@@ -1,14 +1,13 @@
-//! Runs against the stub generator (tools/stub_run.ps1), which follows the real script's protocol without the game:
-//! the button's running look, the progress read once a second, the stop that takes the process tree, the finished
-//! run's world, a failed or refused run, a run asked for while another is under way, and quitting. The real
-//! preview.ps1 is never run (it downloads, needs a pack, the EULA and Java). Everything is written under target\tmp.
-//! A test says "skipped" without the out folder PREVIEW_DATA_DIR names, or without powershell.exe.
+//! Runs against the stub engine (tests/common), which follows the real engine's protocol without the game: the
+//! button's running look, the progress read once a second, the stop that ends the server, the finished run's world,
+//! a failed or refused run, a run asked for while another is under way, and quitting. The real engine is never run
+//! here (it downloads, needs a pack, the EULA and Java). Everything is written under target\tmp.
+//! A test says "skipped" without the out folder PREVIEW_DATA_DIR names.
 
 mod common;
 
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::process::Command;
 
 use common::*;
 use preview::paint::{View, paint};
@@ -206,7 +205,7 @@ fn r4_a_refused_seed_starts_nothing() {
     rig.park();
     assert_eq!(rig.app.state().trouble, text::REFUSED);
     assert_eq!(rig.app.ids().status_text, text::REFUSED);
-    assert!(!rig.app.running() && rig.app.run_pid().is_none());
+    assert!(!rig.app.running() && rig.app.run_id().is_none());
     assert!(!root.join("out/progress.json").exists(), "no process ran");
     assert!(!root.join("run.log").exists());
 }
@@ -219,7 +218,7 @@ fn r5_a_moved_setting_queues_the_next_run() {
     let g = rig.app.ids().generate;
     rig.click_on(g);
     assert!(rig.app.running());
-    let (first_pid, first_ask) = (rig.app.run_pid().unwrap(), rig.app.state().follow.as_ref().unwrap().ask.clone());
+    let (first_run, first_ask) = (rig.app.run_id().unwrap(), rig.app.state().follow.as_ref().unwrap().ask.clone());
 
     // A setting moved: the button offers the new run in the place of the one under way.
     rig.app.state_mut().values[0] += 0.01;
@@ -228,7 +227,7 @@ fn r5_a_moved_setting_queues_the_next_run() {
     let g = rig.app.ids().generate;
     rig.click_on(g);
     rig.until(30, "the next run to start by itself", |r| {
-        r.app.running() && r.app.run_pid() != Some(first_pid) && r.app.state().follow.as_ref().is_some_and(|f| f.ask.values[0] != first_ask.values[0])
+        r.app.running() && r.app.run_id() != Some(first_run) && r.app.state().follow.as_ref().is_some_and(|f| f.ask.values[0] != first_ask.values[0])
     });
     assert!(rig.app.state().said.is_empty());
 
@@ -256,14 +255,9 @@ fn r7_the_stub_writes_nowhere_but_target_tmp() {
     let Some(_) = world() else { return };
     let outside = plain(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target").as_path()).join("guard-outside");
     let _ = std::fs::remove_dir_all(&outside);
-    let out = Command::new("powershell.exe")
-        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
-        .arg(stub())
-        .arg("-Out")
-        .arg(&outside)
-        .args(["-Seed", "x"])
-        .output()
-        .expect("powershell runs");
-    assert!(!out.status.success(), "the stub accepted an Out outside target\\tmp");
+    let mut options = world_preview::Options::new(outside.clone());
+    options.out = Some(outside.clone());
+    let result = stub(&[])(&options, &mut |_| {});
+    assert!(result.is_err_and(|e| e.starts_with("stub: refusing")), "the stub accepted an out folder outside target\\tmp");
     assert!(!outside.exists(), "the stub created {}", outside.display());
 }

@@ -12,3 +12,6 @@ nui-layout.workspace = true
 nui-ui.workspace = true
 nui-win32.workspace = true
 nui-png.workspace = true
+# The engine, as a library, from the world-preview repository beside this one. Cargo takes no variable in a path
+# dependency: a checkout of this repository that sits elsewhere must point this at world-preview's driver folder.
+world-preview = { path = "../../../world-preview/driver" }

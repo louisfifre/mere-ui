@@ -1,31 +1,28 @@
-//! What the run and export tests share: the real data and PowerShell they need (a test says "skipped" without
-//! them), a root folder of their own under the repository's target\tmp, and the application driven offscreen by
-//! events and frames as the window would.
+//! What the run and export tests share: the real data they need (a test says "skipped" without it), a stand-in for
+//! the engine, a root folder of their own under the repository's target\tmp, and the application driven offscreen
+//! by events and frames as the window would.
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
 use nui_base::{App, Button, Color, Event, Rect, Vec2};
 use nui_ui::{Id, Theme};
 use nui_win32::{Renderer, SystemLauncher};
-use preview::run::Runs;
+use preview::run::{Engine, Runs};
 use preview::world::World;
 use preview::{PreviewApp, PreviewState};
 
 pub const W: u32 = 1400;
 pub const H: u32 = 940;
 
-/// The world of the real out folder, or None (with the reason printed) when the data or PowerShell is missing.
+/// The world of the real out folder, or None (with the reason printed) when the data is missing.
 pub fn world() -> Option<World> {
     if !&preview::world::data_dir().join("preview.json").exists() {
         println!("skipped: PREVIEW_DATA_DIR names no out folder");
-        return None;
-    }
-    let ps = Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", "exit 0"]).stdin(Stdio::null()).output();
-    if ps.is_err() {
-        println!("skipped: no powershell.exe");
         return None;
     }
     Some(World::load(&preview::world::data_dir()).expect("the data loads"))
@@ -53,18 +50,123 @@ pub fn root(name: &str) -> PathBuf {
     dir
 }
 
-pub fn stub() -> PathBuf {
-    plain(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/stub_run.ps1"))
+/// A stand-in for the engine, so that the app's run code is tested without the game. It follows the engine's
+/// protocol: the files it deletes first, the progress.json the mod writes (atomically, by a rename), the files a
+/// finished run leaves, timing.json, run.json, an error when the run fails, and the end of the server when the stop
+/// flag is set. It downloads nothing, starts no game and writes only under target\tmp (it refuses any other out or
+/// work folder before it creates anything).
+///
+/// `NUI_STUB` is the mode: "finish" (default) copies the finished out folder `NUI_STUB_FROM` names, "hold" stays in
+/// the map pass with a child process of its own, as the game server is, until it is stopped, and "fail" fails after
+/// its first progress.
+pub fn stub(env: &[(&str, &str)]) -> Engine {
+    let get = |k: &str| env.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string());
+    let mode = get("NUI_STUB").unwrap_or_else(|| "finish".to_string());
+    let from = get("NUI_STUB_FROM").map(PathBuf::from);
+    Arc::new(move |o: &world_preview::Options, log: &mut dyn FnMut(&str)| stub_run(o, &mode, from.as_deref(), log))
 }
 
-/// The runs a test gives the application: the stub generator, with its mode in `env`.
+fn stub_run(o: &world_preview::Options, mode: &str, from: Option<&Path>, log: &mut dyn FnMut(&str)) -> Result<PathBuf, String> {
+    let tmp = tmp();
+    let out = o.out.clone().ok_or("stub: an out folder is required")?;
+    for path in [Some(&out), o.dir.as_ref()].into_iter().flatten() {
+        let full = std::path::absolute(path).map_err(|e| e.to_string())?;
+        if !full.starts_with(&tmp) {
+            return Err(format!("stub: refusing {}, it is not under {}", path.display(), tmp.display()));
+        }
+    }
+    let step = o.step;
+    let detail = o.detail.unwrap_or(step);
+    if ![step, 2 * step, 4 * step].contains(&detail) {
+        return Err(format!("Detail must be {step}, {} or {} blocks.", 2 * step, 4 * step));
+    }
+    if let Some(dir) = &o.dir {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+    for name in ["preview.json", "coarse.json", "section.json", "ores.json", "structures.json", "timing.json", "progress.json", "partial.json"] {
+        let _ = std::fs::remove_file(out.join(name));
+    }
+    let stopped = || o.stop.as_ref().is_some_and(|s| s.load(Ordering::Relaxed));
+    let pause = |ms: u64| -> Result<(), String> {
+        std::thread::sleep(Duration::from_millis(ms));
+        if stopped() { Err(world_preview::STOPPED.to_string()) } else { Ok(()) }
+    };
+    let mut written = 0;
+    let mut progress = |pass: &str, at: u32, done: u32, total: u32| -> Result<(), String> {
+        let part = out.join("progress.json.tmp");
+        std::fs::write(&part, format!(r#"{{"pass":"{pass}","step":{at},"done":{done},"total":{total}}}"#)).map_err(|e| e.to_string())?;
+        let _ = std::fs::rename(&part, out.join("progress.json"));
+        written += 1;
+        if mode == "fail" && written == 1 {
+            return Err("stub: the run failed on purpose.".to_string());
+        }
+        Ok(())
+    };
+
+    // The game starts: no progress file yet, only the engine's lines.
+    log("Starting the server");
+    pause(1200)?;
+    for at in [4 * step, 2 * step, step].into_iter().filter(|at| *at >= detail) {
+        if at > detail {
+            for done in 0..=4 {
+                progress("sketch", at, done, 4)?;
+                pause(200)?;
+            }
+            continue;
+        }
+        for done in 0..=10 {
+            progress("map", at, done, 10)?;
+            if mode == "hold" && done == 4 {
+                // Stands for the game server: a process of its own, which only the stop ends.
+                let mut server = Command::new("ping.exe").args(["-n", "600", "127.0.0.1"]).stdin(Stdio::null()).stdout(Stdio::null()).spawn().map_err(|e| e.to_string())?;
+                std::fs::write(out.join("stub-child.pid"), server.id().to_string()).map_err(|e| e.to_string())?;
+                while !stopped() {
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+                let _ = server.kill();
+                let _ = server.wait();
+                return Err(world_preview::STOPPED.to_string());
+            }
+            pause(200)?;
+        }
+    }
+    progress("extras", detail, 0, 0)?;
+    pause(300)?;
+
+    if mode != "finish" {
+        return Err(format!("stub: unknown mode {mode}"));
+    }
+    let from = from.filter(|f| f.join("preview.json").exists()).ok_or("stub: NUI_STUB_FROM must name a folder with a preview.json.")?;
+    for entry in std::fs::read_dir(from).map_err(|e| e.to_string())?.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let kept = ["preview.json", "heights.bin", "biomes.bin", "section.json", "ores.json", "structures.json"].contains(&name.as_str())
+            || (name.starts_with("section-") && name.ends_with(".bin"));
+        if kept {
+            std::fs::copy(entry.path(), out.join(&name)).map_err(|e| e.to_string())?;
+        }
+    }
+    std::fs::write(out.join("timing.json"), r#"{"workMillis":1500}"#).map_err(|e| e.to_string())?;
+    // As the engine's run record: a switch is kept as 1 or 0.
+    let tectonic: Vec<String> = o
+        .tectonic
+        .iter()
+        .map(|(k, v)| format!("\"{k}\":{}", match v { world_preview::Value::Bool(b) => (*b as i32).to_string(), other => other.to_string() }))
+        .collect();
+    let seed = o.seed.replace('\\', "\\\\").replace('"', "\\\"");
+    std::fs::write(out.join("run.json"), format!(r#"{{"seed":"{seed}","tectonic":{{{}}}}}"#, tectonic.join(","))).map_err(|e| e.to_string())?;
+    log(&format!("Preview ready in {}", out.display()));
+    Ok(out)
+}
+
+/// The runs a test gives the application: the stub engine, with its mode in `env`.
 pub fn runs(root: &Path, env: &[(&str, &str)]) -> Runs {
     Runs {
-        shell: PathBuf::from("powershell.exe"),
-        generator: Some(stub()),
+        engine_dir: Some(root.to_path_buf()),
+        engine: stub(env),
         pack: None,
         root: root.to_path_buf(),
-        env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        mods: Vec::new(),
         launcher: Box::new(SystemLauncher),
         server_dir: None,
         out_dir: None,

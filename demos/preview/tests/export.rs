@@ -25,9 +25,9 @@ fn decoded(file: &Path) -> nui_png::Decoded {
     nui_png::decode(&std::fs::read(file).unwrap_or_else(|e| panic!("{}: {e}", file.display()))).expect("a PNG this crate wrote")
 }
 
-/// The runs of an export: no generator is needed.
+/// The runs of an export: no engine is needed.
 fn export_runs(root: &Path) -> Runs {
-    Runs { generator: None, ..runs(root, &[]) }
+    Runs { engine_dir: None, ..runs(root, &[]) }
 }
 
 #[test]
