@@ -5,7 +5,6 @@
 //! copied to docs/shots.
 
 use std::path::Path;
-use std::time::Instant;
 
 use nui_base::{App, Event, Rect, Vec2};
 use nui_ui::{Id, Theme, Ui};
@@ -144,7 +143,6 @@ fn side_at(world: Option<&World>, w: f32) -> f32 {
 /// minimum, so the square stays there until the panels are at theirs.
 #[test]
 fn r2_the_centre_is_one_continuous_function_of_the_window() {
-    let started = Instant::now();
     let [lw, rw] = natural();
     let mut last = side_at(None, STACK_AT);
     for w in (STACK_AT as u32 + 1)..=1920 {
@@ -158,7 +156,6 @@ fn r2_the_centre_is_one_continuous_function_of_the_window() {
         assert!((side - middle.min(COL_H - 64.0)).abs() < 0.01, "side {side} at {w}: the column is {middle}");
         last = side;
     }
-    println!("R2: {} widths in {:?}", 1920 - STACK_AT as u32, started.elapsed());
 }
 
 /// R3: a short window. The panels keep their x and width, the columns are as tall as the window less the bar and the

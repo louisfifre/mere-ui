@@ -42,13 +42,20 @@ pub struct PartOpts {
     pub button: bool,
 }
 
+/// The swatch column and the gap between a row's columns, and the least widths of the width and share columns (8 ch
+/// and 6 ch of 12 px). A panel that holds list rows reads them to work out its natural width.
+pub const SWATCH_W: f32 = 12.0;
+pub const ROW_GAP: f32 = 8.0;
+pub const WIDTH_MIN: f32 = 57.6;
+pub const SHARE_MIN: f32 = 43.2;
+
 /// `grid-template-columns: 12px minmax(0, 1fr) auto auto` (line 318).
 fn cols() -> Tracks {
-    Tracks::new(&[Track::Px(12.0), Track::MinMaxFr0(1.0), Track::Auto, Track::Auto])
+    Tracks::new(&[Track::Px(SWATCH_W), Track::MinMaxFr0(1.0), Track::Auto, Track::Auto])
 }
 
 fn grid(pad: Edges) -> Style {
-    Style { display: Display::Grid, cols: cols(), gap: Vec2::new(8.0, 0.0), align_items: Align::Center, pad, ..Style::default() }
+    Style { display: Display::Grid, cols: cols(), gap: Vec2::new(ROW_GAP, 0.0), align_items: Align::Center, pad, ..Style::default() }
 }
 
 fn end_cell(min_w: f32) -> Style {
@@ -80,7 +87,7 @@ impl Ui {
         // grey over the fill.
         let fill = t.faded(row.swatch, swatch_o);
         let frame = t.faded(mix(Color::hex(0x808080), 0.35, row.swatch), swatch_o);
-        let swatch = Style { w: Dim::Px(12.0), h: Dim::Px(12.0), ..Style::default() };
+        let swatch = Style { w: Dim::Px(SWATCH_W), h: Dim::Px(SWATCH_W), ..Style::default() };
         if opts.mark {
             // `border-radius: 50%` on 10 px with a 1 px outside shadow: a disc of radius 5 and a ring spanning 5 to 6.
             let shadow = Color::rgb8(0, 0, 0).with_alpha(0.55 * swatch_o);
@@ -96,8 +103,8 @@ impl Ui {
         self.add_ellipsis(row.name, body, name_color, resp.hovered && !opts.absent);
         if !opts.absent {
             // `.width` and `.share` (lines 323-325): min 8ch and 6ch of 12 px, right-aligned.
-            self.cell("width", end_cell(57.6), row.width, body, t.faded(t.muted, o));
-            self.cell("share", end_cell(43.2), row.share, body, t.faded(t.text, o));
+            self.cell("width", end_cell(WIDTH_MIN), row.width, body, t.faded(t.muted, o));
+            self.cell("share", end_cell(SHARE_MIN), row.share, body, t.faded(t.text, o));
         }
         self.close();
         resp

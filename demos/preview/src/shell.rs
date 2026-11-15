@@ -1614,7 +1614,7 @@ fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
                         CellKind::Value { goal, muted: grey } => {
                             let tone = if grey { Tone::Muted } else { Tone::Text };
                             let look = if goal { TextLook { size: cols.goal, line: cols.goal * 1.5, weight: Weight::SemiBold, tone, ..body } } else { TextLook { tone, ..body } };
-                            let v = ui.node(&key, Style { justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, look));
+                            let v = ui.node(&key, Style { min_w: Dim::Px(panels::FIG_VALUE), justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, look));
                             if goal {
                                 ids.goal_values.push(v);
                             }
@@ -1627,7 +1627,7 @@ fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
                         // Lines 304-306: what moved reads as strongly as the value on the figures of the goal.
                         CellKind::Before { goal } => {
                             let look = TextLook { tone: if goal { Tone::Text } else { Tone::Muted }, ..body };
-                            let v = ui.node(&key, Style { justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, look));
+                            let v = ui.node(&key, Style { min_w: Dim::Px(panels::FIG_CHANGE), justify: Justify::End, ..Style::default() }, |ui| ui.text(&cell.text, look));
                             // What the figure was in the run before (line 1530).
                             if let (false, Some(b)) = (cell.text.is_empty(), s.before.as_ref()) {
                                 let k = figures::KEYS[at];

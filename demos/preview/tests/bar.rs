@@ -161,7 +161,6 @@ fn b1_the_bar_keeps_its_form_at_every_width() {
         assert!(tabs.windows(2).all(|p| p[0].x + p[0].w <= p[1].x + 1.01), "tabs do not overlap at {w}");
         w += if w < 650.0 || w > 1900.0 { 1.0 } else { 7.0 };
     }
-    println!("B1: toggles {:?}, tools {:?}, tabs {:?}", rect_of(&ui14, ids14.toggles[0]), rect_of(&ui14, ids14.strip), ids14.tabs.iter().map(|&t| rect_of(&ui14, t).w).collect::<Vec<_>>());
 }
 /// B2: what a press at a point does, at 1400 x 940.
 #[test]

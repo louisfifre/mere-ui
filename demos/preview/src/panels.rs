@@ -8,7 +8,7 @@
 
 use std::sync::OnceLock;
 
-use nui_ui::{GUTTER, TextLook, Tone};
+use nui_ui::{GUTTER, ROW_GAP, SHARE_MIN, SWATCH_W, TextLook, Tone, WIDTH_MIN};
 
 use crate::bands::{HEIGHT_STEPS, SEA, SEA_DEPTHS, band_names};
 use crate::overflow::NARROW_BAR;
@@ -30,18 +30,21 @@ pub const MIN_HEIGHT: f32 = 600.0;
 /// The hit zone of the grip between a panel and the stage, centred in the gap.
 pub const GRIP_W: f32 = 8.0;
 
-// The content's own measures, which the rows are built with too (shell.rs): not choices, the columns of a row.
+// The content's own measures: the rows are built with these same names (shell.rs, nui-ui's list), so the natural widths follow them.
 /// `.setting`: the gap between its three columns, and the field's width (8 ch of 12 px).
 pub const SETTING_GAP: f32 = 10.0;
-pub const SETTING_FIELD: f32 = 57.6;
-/// The gap between the columns of the figures grid.
+pub const SETTING_FIELD: f32 = WIDTH_MIN;
+/// The gap between the columns of the figures grid, and the least widths of its value and change columns (the
+/// list rows' own, so that a figures row and a list row of one panel read alike).
 pub const FIG_GAP: f32 = 14.0;
+pub const FIG_VALUE: f32 = WIDTH_MIN;
+pub const FIG_CHANGE: f32 = SHARE_MIN;
 /// A list row: the swatch, the gaps, and the share column (6 ch of 12 px); the width column is the widest width a
 /// list shows, `LIST_WIDTH`, which is wider than the column's 8 ch minimum.
-const LIST_CHROME: f32 = 12.0 + 8.0 + 8.0 + 8.0 + 43.2;
+const LIST_CHROME: f32 = SWATCH_W + 3.0 * ROW_GAP + SHARE_MIN;
 const LIST_WIDTH: &str = "10,000 blocks";
 /// The value and the change of a figures row.
-const FIG_CELLS: f32 = 57.6 + 43.2;
+const FIG_CELLS: f32 = FIG_VALUE + FIG_CHANGE;
 
 // ---- what is derived ----
 
@@ -105,13 +108,6 @@ pub struct Plan {
     pub stacked: bool,
     /// The settings and the figures panel's widths; 0 for a closed one.
     pub widths: [f32; 2],
-}
-
-impl Plan {
-    /// The gap between the window's edge, the panels and the stage, and the page's side padding.
-    pub fn gap(&self) -> f32 {
-        if self.stacked { GAP_STACKED } else { GAP }
-    }
 }
 
 fn count(open: [bool; 2]) -> usize {

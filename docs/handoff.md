@@ -365,7 +365,7 @@ that `C:\Games\preview\out` and `world-preview` were untouched, the one new `win
 inside `nui-win32`), and looked at `figures-1400`, `history`, `stage-3d-relief`, `section-1400` and `run-progress`.
 The step 15 and 17 shots still show step 13's placeholder figures in the right column: they are those steps' record.
 
-Step 19 (2026-11-15) answered the maintainer's remark that the page had too many breakpoints: the world preview's
+Step 19 (2026-11-15; its fixed panels, its 1000x600 minimum and its single bar form are superseded by the fluid panels section further down) answered the maintainer's remark that the page had too many breakpoints: the world preview's
 panels never move (left 320, right 330, gap 28, padding 18/28/22/28; step 19.5: 10/28/22/28), the centre is one column that scales by one
 rule (the map's square side is `min(W - 762, H - 144)` (step 19.5: `H - 136`); the brief's `W - 752` left ten pixels out: 320 + 330 + 2 x 28 +
 2 x 28 = 762), and the top bar has one form from 1000 px up. The window has a minimum of 1000x600, so no layout

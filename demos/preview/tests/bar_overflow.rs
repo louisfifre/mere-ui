@@ -221,7 +221,6 @@ fn the_bar_fits_at_every_width_with_the_tools_named() {
             }
             // 2D and 3D are tabs or rows of "More", as the form says.
             assert_eq!(words.iter().any(|t| t == "2D"), !ids.form.shapes_in_more, "{name} {w}: 2D");
-            println!("{name:9} {w:5}: {:?}, strip {:.1} wide", ids.form, strip.w);
         }
     }
 }
