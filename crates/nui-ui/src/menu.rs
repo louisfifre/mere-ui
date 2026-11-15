@@ -23,6 +23,9 @@ const BOX_H: f32 = 25.0;
 pub struct SelectOpts {
     /// `:disabled`: half opacity and no menu.
     pub disabled: bool,
+    /// The box's height when it is not the launcher's 25 px: the preview's `select.field` measured 23 in
+    /// Chrome, with 3 px of padding above and below (the display-only `Ui::select`).
+    pub height: Option<f32>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -81,8 +84,8 @@ impl Ui {
         let fade = |c| if opts.disabled { t.faded(c, 0.5) } else { c };
         let style = Style {
             w: Dim::Pct(100.0),
-            h: Dim::Px(BOX_H),
-            pad: Edges::new(4.0, 5.0, 4.0, 7.0),
+            h: Dim::Px(opts.height.unwrap_or(BOX_H)),
+            pad: if opts.height.is_some() { Edges::new(3.0, 5.0, 3.0, 7.0) } else { Edges::new(4.0, 5.0, 4.0, 7.0) },
             align_items: Align::Center,
             ..Style::default()
         };

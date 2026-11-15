@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 use nui_base::{Cmd, Color, Cursor, DrawList, Orbit, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
-    ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, Slide, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
+    ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, SelectOpts, Slide, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
     choice_style, details_style, scroll_style, wrap_lines,
 };
 
@@ -35,6 +35,19 @@ use crate::text;
 pub const BAR_H: f32 = 40.0;
 /// The space between the bar and the content under it, for the world preview and for Home. The page has 18 (preview.html line 77, `padding: 18px 28px 22px`); the maintainer asked for less once the bar floats (step 19.5).
 pub const CONTENT_TOP: f32 = 10.0;
+/// The scanned area's choices, in points of 16 blocks (preview.html lines 806-809): 256 to 4096 by 256, so 4,096
+/// to 65,536 blocks.
+pub const AREA_POINTS: [u32; 16] = {
+    let mut a = [0; 16];
+    let mut i = 0;
+    while i < 16 {
+        a[i] = 256 * (i as u32 + 1);
+        i += 1;
+    }
+    a
+};
+/// `widest` (line 808): past this many points the sixteen-block detail is out of reach.
+pub const AREA_FINE_MAX: u32 = 2048;
 /// `--under` (line 227): what the stage keeps free under the map for `#under`.
 const UNDER: f32 = 64.0;
 /// The smallest window, in device-independent pixels. With the panels fixed the middle column is what is left, and
@@ -272,6 +285,8 @@ pub struct ShellIds {
     pub history_head: Id,
     pub seed: Id,
     pub select: Id,
+    /// `#areaHint`, built only past the widest fine area.
+    pub area_hint: Id,
     pub profiles: Id,
     pub settings_scroll: Id,
     pub group_heads: Vec<Id>,
@@ -371,6 +386,7 @@ impl Default for ShellIds {
             history_head: o,
             seed: o,
             select: o,
+            area_hint: o,
             profiles: o,
             settings_scroll: o,
             group_heads: Vec::new(),
@@ -536,13 +552,23 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme)
         });
         ui.node("areaRow", world_row(), |ui| {
             ui.text(text::SPAN, muted);
-            // 256 samples x 16 blocks (line 459): the scanned area as the page opens.
-            let r = ui.select("area", &format!("{} blocks", text::num(s.samples as f64 * 16.0)));
-            ids.select = r.id;
-            if r.clicked {
-                nui_base::observe!(Info, "the select's menu comes with step 14");
+            // The page's sixteen widths (lines 806-809): 256 to 4096 points of 16 blocks, by 256.
+            let labels: Vec<String> = AREA_POINTS.iter().map(|&p| text::span_value(p as f64 * 16.0)).collect();
+            let mut at = AREA_POINTS.iter().position(|&p| p == s.samples).unwrap_or(0);
+            let r = ui.select_menu("area", &labels, &mut at, SelectOpts { height: Some(23.0), ..SelectOpts::default() });
+            ids.select = r.resp.id;
+            if r.changed {
+                s.samples = AREA_POINTS.get(at).copied().unwrap_or(s.samples);
+                // Past 32,768 blocks the sixteen-block map is out of reach: the next coarser one (line 812).
+                if s.samples > AREA_FINE_MAX && DETAIL_BLOCKS[s.detail] == 16 {
+                    s.detail = DETAIL_BLOCKS.iter().position(|&d| d == 32).unwrap_or(s.detail);
+                }
             }
         });
+        // `#areaHint` (lines 382, 814), shown only past the widest fine area.
+        if s.samples > AREA_FINE_MAX {
+            ids.area_hint = ui.node("areaHint", Style::default(), |ui| ui.paragraph(text::SPAN_COARSE, TextLook::small(Tone::Muted)));
+        }
     });
     ids.world_head = r.id;
 
@@ -658,7 +684,7 @@ fn run_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme) {
                     // The wait this machine took for this detail on this area, under its name (showDetails, 819-830).
                     let wait = s.pace.about(s.samples, DETAIL_BLOCKS[i]).map(duration).unwrap_or_default();
                     // The sixteen-block map of a wide area is out of reach (line 823).
-                    let disabled = DETAIL_BLOCKS[i] == 16 && s.samples > 2048;
+                    let disabled = DETAIL_BLOCKS[i] == 16 && s.samples > AREA_FINE_MAX;
                     let r = ui.detail_tab(&format!("d{i}"), word, &wait, TabOpts { pressed: i == s.detail, disabled });
                     ui.title(r.id, if disabled { text::SPAN_COARSE } else { text::DETAIL_HINT });
                     if r.clicked {
