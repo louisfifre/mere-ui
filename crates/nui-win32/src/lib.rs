@@ -5,13 +5,17 @@
 
 mod clipboard;
 mod fonts;
+mod icon;
 mod ime;
+mod place;
 mod process;
 mod renderer;
 mod scheme;
 mod window;
 
 pub use clipboard::SystemClipboard;
+pub use icon::Icon;
+pub use place::Placement;
 pub use process::SystemLauncher;
 pub use renderer::Renderer;
 pub use scheme::{reduced_motion, system_dark};
