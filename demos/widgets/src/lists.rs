@@ -2,7 +2,7 @@
 //! builds all three cells; the sheet replays a few frames of it (the gutter comes one frame late, the scroll
 //! is set, the pointer moves) and keeps the last picture.
 //!
-//! Cell A is the biome list at the 1400 px column (330 wide), B the same at 1100 px (262 wide, narrow cells)
+//! Cell A is the biome list at the 1400 px column (330 wide), B a narrower column (262 wide)
 //! with absent rows and nothing to scroll, C the history's trend rows.
 
 use nui_base::{Cmd, Color, DrawList, Event, Vec2};
@@ -17,7 +17,7 @@ pub const LISTS: (u32, u32) = (860, 520);
 pub const A_POS: Vec2 = Vec2::new(20.0, 20.0);
 pub const B_POS: Vec2 = Vec2::new(440.0, 20.0);
 pub const C_POS: Vec2 = Vec2::new(440.0, 230.0);
-/// The widths of the columns: the page's `#listBlock` at 1400 px, at 1100 px, and the history column
+/// The widths of the columns: the page's `#listBlock` at 1400 px, a narrower one, and the history column
 /// (PLACEHOLDER: the page's column is wider; 140 shows the ellipsis of "Typical flat zone").
 pub const A_W: f32 = 330.0;
 pub const B_W: f32 = 262.0;
@@ -114,7 +114,7 @@ pub fn lists_live(ui: &mut Ui, s: &mut ListsState) {
     let ListsState { y_a, y_b, max_a, pressed, plots } = s;
     plots.clear();
     ui.node("a", column(A_POS, A_W, 6.0), |ui| {
-        ui.list_head("head", text::COL_BIOME, text::COL_WIDTH, text::COL_SHARE, false);
+        ui.list_head("head", text::COL_BIOME, text::COL_WIDTH, text::COL_SHARE);
         // basis Auto: the page's `flex: 1` would win over the height in a column.
         let style = Style { h: Dim::Px(A_H), grow: 0.0, basis: Dim::Auto, ..scroll_style() };
         let r = ui.scroll("list", y_a, style, ScrollOpts::LIST, |ui| {
@@ -130,13 +130,13 @@ pub fn lists_live(ui: &mut Ui, s: &mut ListsState) {
         *max_a = r.max;
     });
     ui.node("b", column(B_POS, B_W, 6.0), |ui| {
-        ui.list_head("head", text::COL_BIOME, text::COL_WIDTH, text::COL_SHARE, true);
+        ui.list_head("head", text::COL_BIOME, text::COL_WIDTH, text::COL_SHARE);
         let style = Style { h: Dim::Px(B_H), grow: 0.0, basis: Dim::Auto, ..scroll_style() };
         ui.scroll("list", y_b, style, ScrollOpts::LIST, |ui| {
             for (i, (name, absent)) in B_ROWS.into_iter().enumerate() {
                 let (width, share) = figures(i + 1);
                 let row = ListRow { swatch: swatch(i + 1), name, width, share };
-                ui.list_row(&format!("row{i}"), &row, RowOpts { absent, narrow: true, ..RowOpts::default() });
+                ui.list_row(&format!("row{i}"), &row, RowOpts { absent, ..RowOpts::default() });
             }
         });
     });

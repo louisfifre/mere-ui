@@ -1148,7 +1148,7 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option
     ids.list_title = title;
     // Line 2370-2372: the legend names the columns; a list without a cut has no legend.
     if shown.is_some() {
-        let head = ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1], false);
+        let head = ui.list_head("legend", text::ORE_LIST[1], text::ORE_COLUMNS[0], text::ORE_COLUMNS[1]);
         let hint = text::ore_columns_hint(&text::num(shown.map_or(0, |s| s.play.counted) as f64));
         ui.title(head[0], &hint);
         ui.title(head[1], &hint);
@@ -1157,7 +1157,7 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option
         for (k, low, high, from) in &figures {
             let name = ORE_KINDS[*k];
             let row = ListRow { swatch: rgb(ORE_COLOURS[*k]), name: text::ORES[*k], width: low, share: high };
-            let opts = RowOpts { pressed: s.chosen_ores.contains(name), choosing: !s.chosen_ores.is_empty(), narrow: false, ..RowOpts::default() };
+            let opts = RowOpts { pressed: s.chosen_ores.contains(name), choosing: !s.chosen_ores.is_empty(), ..RowOpts::default() };
             let r = ui.list_row(&format!("ore{k}"), &row, opts);
             ui.title(r.id, &text::ore_from(from));
             ids.ores.push(r.id);
@@ -1264,7 +1264,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
 
     if legend_shown {
         let (width, share) = if counted { (text::COL_SPACING, text::COL_COUNT) } else { (text::COL_WIDTH, text::COL_SHARE) };
-        let head = ui.list_head("legend", column_word, width, share, false);
+        let head = ui.list_head("legend", column_word, width, share);
         // Only the spacing column of the structures says what it is (line 1643).
         if counted {
             ui.title(head[0], text::COL_SPACING_HINT);
@@ -1281,7 +1281,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             let share = if counted { text::num(l.cells[i]) } else { percent(100.0 * l.cells[i] / total) };
             let width = blocks(l.widths[i]);
             let item = ListRow { swatch: rgb(l.colours[i]), name: &l.names[i], width: &width, share: &share };
-            let opts = RowOpts { pressed: chosen.contains(&l.ids[i]), choosing, narrow: false, mark: counted, ..RowOpts::default() };
+            let opts = RowOpts { pressed: chosen.contains(&l.ids[i]), choosing, mark: counted, ..RowOpts::default() };
             let r = ui.list_row(&format!("row{i}"), &item, opts);
             // The biomes and the structures are named by their id on hover (line 1660).
             if view == View::Biomes || counted {
@@ -1310,7 +1310,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
                 for (k, id) in absent.iter().enumerate() {
                     let name = text::pretty(id);
                     let item = ListRow { swatch: rgb(biome_colour(id)), name: &name, width: "", share: "" };
-                    let r = ui.list_row(&format!("absent{k}"), &item, RowOpts { absent: true, narrow: false, ..RowOpts::default() });
+                    let r = ui.list_row(&format!("absent{k}"), &item, RowOpts { absent: true, ..RowOpts::default() });
                     ui.title(r.id, id);
                     ids.absent_rows.push(r.id);
                 }

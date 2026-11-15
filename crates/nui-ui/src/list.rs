@@ -27,8 +27,6 @@ pub struct RowOpts {
     pub choosing: bool,
     /// `.absent` (lines 337-338): muted, half-opaque swatch, and no width or share.
     pub absent: bool,
-    /// The 1100 px column (lines 360-363): narrower width and share cells.
-    pub narrow: bool,
     /// `i.mark` (line 348): the swatch is a round mark, as a structure's on the map.
     pub mark: bool,
 }
@@ -98,9 +96,8 @@ impl Ui {
         self.add_ellipsis(row.name, body, name_color, resp.hovered && !opts.absent);
         if !opts.absent {
             // `.width` and `.share` (lines 323-325): min 8ch and 6ch of 12 px, right-aligned.
-            let (w, s) = if opts.narrow { (50.4, 36.0) } else { (57.6, 43.2) };
-            self.cell("width", end_cell(w), row.width, body, t.faded(t.muted, o));
-            self.cell("share", end_cell(s), row.share, body, t.faded(t.text, o));
+            self.cell("width", end_cell(57.6), row.width, body, t.faded(t.muted, o));
+            self.cell("share", end_cell(43.2), row.share, body, t.faded(t.text, o));
         }
         self.close();
         resp
@@ -135,16 +132,15 @@ impl Ui {
     /// `.legend` (lines 352-354): the same columns at 11 px, muted. `min-width` is in 11 px `ch`, so the
     /// cells are narrower than the rows' (52.8 and 39.6 against 57.6 and 43.2); the right edges still meet
     /// because the cells are right-aligned. Returns the ids of the width and share cells, which may carry a title.
-    pub fn list_head(&mut self, key: &str, column: &str, width: &str, share: &str, narrow: bool) -> [Id; 2] {
+    pub fn list_head(&mut self, key: &str, column: &str, width: &str, share: &str) -> [Id; 2] {
         let id = self.key(key);
         let t = *self.theme();
         let look = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Muted) };
         self.open(key, id, grid(Edges::default()), Paint::None);
         self.add("pad", Style { w: Dim::Px(12.0), ..Style::default() }, Paint::None);
         self.add_text(column, look, t.muted, false, Style::default());
-        let (w, s) = if narrow { (46.2, 33.0) } else { (52.8, 39.6) };
-        let w = self.cell("width", end_cell(w), width, look, t.muted);
-        let s = self.cell("share", end_cell(s), share, look, t.muted);
+        let w = self.cell("width", end_cell(52.8), width, look, t.muted);
+        let s = self.cell("share", end_cell(39.6), share, look, t.muted);
         self.close();
         [w, s]
     }

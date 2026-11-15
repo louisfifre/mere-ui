@@ -57,7 +57,7 @@ fn fixture(ui: &mut Ui, y: &mut f32, opts: impl Fn(usize) -> RowOpts) -> (DrawLi
     let mut sr = None;
     let mut rows = Vec::new();
     ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| {
-        ui.list_head("head", "biome", "typical width", "share", false);
+        ui.list_head("head", "biome", "typical width", "share");
         // basis Auto: the page's `flex: 1` would otherwise win over the 200 px height in a column.
         let style = Style { h: Dim::Px(200.0), grow: 0.0, basis: Dim::Auto, ..scroll_style() };
         sr = Some(ui.scroll("list", y, style, ScrollOpts::LIST, |ui| {
@@ -275,31 +275,27 @@ fn opacity_states() {
 #[test]
 fn legend_columns() {
     let t = Theme::dark();
-    for narrow in [false, true] {
-        let mut ui = Ui::new(t);
-        ui.begin_frame(SIZE);
-        ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| {
-            ui.list_head("head", "biome", "typical width", "share", narrow);
-        });
-        let l = ui.end_frame().clone();
-        // The row's right edge is 350. "share" is 5 x 6.6 = 33 wide in a cell of at least 39.6 (33 narrow).
-        near(text_at(&l, "share").0.x, 350.0 - 33.0);
-        // "typical width" is 13 x 6.6 = 85.8, wider than its minimum, so its cell is its text:
-        // 350 - cell(39.6 or 33) - 8 - 85.8.
-        near(text_at(&l, "typical width").0.x, 350.0 - if narrow { 33.0 } else { 39.6 } - 8.0 - 85.8);
-        let (at, color) = text_at(&l, "biome");
-        near(at.x, 20.0 + 12.0 + 8.0);
-        same(color, t.muted);
-    }
-    // The widest case of the narrow minimum 46.2 for the width cell: a short word is held to it.
     let mut ui = Ui::new(t);
     ui.begin_frame(SIZE);
     ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| {
-        ui.list_head("head", "biome", "w", "s", true);
+        ui.list_head("head", "biome", "typical width", "share");
     });
     let l = ui.end_frame().clone();
-    // Cells of 46.2 and 33, right-aligned: "w" ends at 350 - 33 - 8 = 309, so it starts at 309 - 6.6.
-    near(text_at(&l, "w").0.x, 309.0 - 6.6);
+    // The row's right edge is 350. "share" is 5 x 6.6 = 33 wide in a cell of at least 39.6.
+    near(text_at(&l, "share").0.x, 350.0 - 33.0);
+    // "typical width" is 13 x 6.6 = 85.8, wider than its minimum, so its cell is its text: 350 - 39.6 - 8 - 85.8.
+    near(text_at(&l, "typical width").0.x, 350.0 - 39.6 - 8.0 - 85.8);
+    let (at, color) = text_at(&l, "biome");
+    near(at.x, 20.0 + 12.0 + 8.0);
+    same(color, t.muted);
+    // A short word is held to the minimum cells 52.8 and 39.6, right-aligned.
+    let mut ui = Ui::new(t);
+    ui.begin_frame(SIZE);
+    ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| {
+        ui.list_head("head", "biome", "w", "s");
+    });
+    let l = ui.end_frame().clone();
+    near(text_at(&l, "w").0.x, 350.0 - 39.6 - 8.0 - 6.6);
     near(text_at(&l, "s").0.x, 350.0 - 6.6);
 }
 
