@@ -56,9 +56,12 @@ fn check(theme: Theme, w: u32, name: &str) {
     same(at(g.x + 3.0, g.y + 3.0), theme.text, "generate inside");
     assert!(ids.status_text.is_empty() && ids.status == nui_ui::Id::ROOT, "an empty status is not built");
 
-    // P6: the select's arrow: its second row of ink, 13 px from the right edge plus 4, 9 + 2 down.
+    // P6: the select's arrow: its third row of ink (the first full one), 13 px from the right edge plus 4. The five
+    // rows are centred in the content box, on the whole pixel above: floor(pad + (content - 5) / 2).
     let sel = rect(ids.select);
-    same(at(sel.x + sel.w - 13.0 + 4.0, sel.y + 9.0 + 2.0), theme.text, "select chevron");
+    let pad = nui_ui::tokens::FRAME + nui_ui::tokens::INSET_HAIR;
+    let top = (pad + (sel.h - 2.0 * pad - 5.0) / 2.0).floor();
+    same(at(sel.x + sel.w - 13.0 + 4.0, sel.y + top + 2.0), theme.text, "select chevron");
 
     // P7: the settings thumb, 3 px wide in the middle of the scroll box's gutter, at the top of the track (10 px
     // under the box's top, the room of the arrow), muted. The box is 10 px wider than the column (the page's

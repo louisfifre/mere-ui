@@ -1,5 +1,7 @@
 //! The core without a GPU: pointer rules, colours by state, and the sizes of the page's widgets.
 
+#[allow(unused_imports)]
+use nui_ui::tokens::*;
 use std::sync::Mutex;
 
 use nui_base::{Button, Cmd, Color, DrawList, Event, Vec2, Weight, log};
@@ -86,23 +88,23 @@ fn tracking_adds_after_every_char() {
 fn theme_dark_and_light_are_the_page_variables() {
     let d = Theme::dark();
     assert_eq!(d.ground, Color::hex(0x000000));
-    assert_eq!(d.line, Color::hex(0x2a2a2a));
-    assert_eq!(d.text, Color::hex(0xececec));
-    assert_eq!(d.muted, Color::hex(0x8a8a8a));
-    assert_eq!(d.warn, Color::hex(0xe5a44e));
+    assert_eq!(d.line, Color::hex(0x303030));
+    assert_eq!(d.text, Color::hex(0xebebeb));
+    assert_eq!(d.muted, Color::hex(0x959595));
+    assert_eq!(d.warn, Color::hex(0xe2a356));
     assert_eq!(d.grid, Color::hex(0xffffff).with_alpha(0.16));
-    assert_eq!(d.track, Color::hex(0x6a6a6a));
-    assert_eq!(d.edge, Color::hex(0x4a4a4a));
+    assert_eq!(d.track, Color::hex(0x606060));
+    assert_eq!(d.edge, Color::hex(0x484848));
     assert_eq!((d.body, d.small), (12.0, 11.0));
     let l = Theme::light();
-    assert_eq!(l.ground, Color::hex(0xfafaf8));
-    assert_eq!(l.line, Color::hex(0xdeded9));
-    assert_eq!(l.text, Color::hex(0x171717));
-    assert_eq!(l.muted, Color::hex(0x707070));
-    assert_eq!(l.warn, Color::hex(0xa85d00));
+    assert_eq!(l.ground, Color::hex(0xf5f5f5));
+    assert_eq!(l.line, Color::hex(0xcecece));
+    assert_eq!(l.text, Color::hex(0x0f0f0f));
+    assert_eq!(l.muted, Color::hex(0x606060));
+    assert_eq!(l.warn, Color::hex(0x865401));
     assert_eq!(l.grid, Color::hex(0x000000).with_alpha(0.12));
-    assert_eq!(l.track, Color::hex(0x9a9a96));
-    assert_eq!(l.edge, Color::hex(0xb4b4ae));
+    assert_eq!(l.track, Color::hex(0x959595));
+    assert_eq!(l.edge, Color::hex(0xb1b1b1));
     assert_eq!((l.body, l.small), (12.0, 11.0));
 }
 
@@ -261,21 +263,21 @@ fn sizes_match_the_page() {
     let (go, plain, link) = ids.unwrap();
     let g = ui.rect(go).unwrap();
     near(g.w, 180.0);
-    near(g.h, 34.0);
+    near(g.h, CONTROL_LARGE);
     let t = texts(&list);
     near(t[0].0.x, g.x + 13.0);
-    near(t[0].0.y, g.y + 9.2);
+    near(t[0].0.y, g.y + 10.2);
     assert_eq!(t[0].3, Weight::SemiBold);
     let p = ui.rect(plain).unwrap();
-    near(p.w, 76.8);
-    near(p.h, 20.0);
-    near(t[1].0.y, p.y + 2.2);
+    near(p.w, 80.8);
+    near(p.h, 22.0);
+    near(t[1].0.y, p.y + 3.2);
     let l = ui.rect(link).unwrap();
     near(l.w, 43.2);
-    near(l.h, 20.0);
+    near(l.h, 22.0);
     let underline = list.cmds.iter().rev().find_map(|c| if let Cmd::Fill { rect, .. } = c { Some(*rect) } else { None }).unwrap();
     near(underline.x, l.x);
-    near(underline.y, l.y + 17.5);
+    near(underline.y, l.y + 18.5);
     near(underline.w, 43.2);
     near(underline.h, 1.0);
 
@@ -290,7 +292,7 @@ fn sizes_match_the_page() {
     near(tg.w, 57.6);
     near(tg.h, 24.0);
     let off = texts(&list).into_iter().find(|t| t.1 == "off").unwrap();
-    near(off.0.x, row.x + 151.4);
+    near(off.0.x, row.x + 149.4);
 }
 
 #[test]
@@ -303,7 +305,7 @@ fn colours_follow_state() {
     let c = centre(&ui, &r);
     mv(&mut ui, c);
     let (_, hover) = primary(&mut ui, ButtonOpts::default());
-    assert_eq!(fills(&hover)[0], t.faded(t.text, 0.85));
+    assert_eq!(fills(&hover)[0], t.faded(t.text, FADE_LIT));
     down(&mut ui, c);
     let (r, held) = primary(&mut ui, ButtonOpts::default());
     assert!(r.held);
@@ -337,7 +339,7 @@ fn colours_follow_state() {
     let c = centre(&ui, &r);
     mv(&mut ui, c);
     assert_eq!(frames(&tog(&mut ui).1)[0], t.text);
-    assert_eq!(px(t.text), [0xec, 0xec, 0xec]);
+    assert_eq!(px(t.text), [0xeb, 0xeb, 0xeb]);
 }
 
 static SEEN: Mutex<Vec<String>> = Mutex::new(Vec::new());

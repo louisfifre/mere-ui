@@ -8,16 +8,19 @@ use nui_layout::{Dim, Edges, Margin, Overflow, Side, Style};
 use crate::id::Id;
 use crate::ui::{Paint, Ui};
 
-/// What the browser's thin scrollbar reserves on the right of the box, in DIP. UNVERIFIED against Chrome.
-pub const GUTTER: f32 = 11.0;
-/// The shortest the thumb gets, in DIP. UNVERIFIED against Chrome.
-pub const THUMB_MIN: f32 = 18.0;
-/// How far one wheel notch moves the content, in DIP. UNVERIFIED against Chrome.
+/// What the scrollbar reserves on the right of the box once the content overflows.
+pub const GUTTER: f32 = 12.0;
+/// The shortest the thumb gets.
+pub const THUMB_MIN: f32 = 16.0;
+/// How far one wheel notch or one arrow press moves the content.
 pub const WHEEL_STEP: f32 = 100.0;
-/// The room of one arrow at an end of the track, in DIP; the gutter's width stays `GUTTER`.
-pub const ARROW: f32 = 10.0;
-/// The thumb's width, in DIP; the track is 1 px.
-pub const THUMB_W: f32 = 3.0;
+/// The room of one arrow at an end of the track; the gutter's width stays `GUTTER`.
+pub const ARROW: f32 = 12.0;
+/// The thumb's width; the track is 1 px.
+pub const THUMB_W: f32 = 4.0;
+/// Where the thumb starts in the gutter, and where the 1 px track runs: on whole pixels, the track inside the thumb.
+const THUMB_X: f32 = 4.0;
+const TRACK_X: f32 = 6.0;
 
 #[derive(Copy, Clone, Debug, Default)]
 pub struct ScrollOpts {
@@ -79,15 +82,15 @@ pub(crate) struct ScrollMetrics {
     pub gutter: bool,
 }
 
-/// The centre line of the bar, in the middle of the gutter.
-fn bar_x(view: Rect) -> f32 {
-    view.x + view.w - GUTTER / 2.0
+/// The gutter's left edge.
+fn gutter_x(view: Rect) -> f32 {
+    view.x + view.w - GUTTER
 }
 
 /// The track: the box's height less the room of the two arrows, which is kept at both ends even when an arrow
 /// is absent, so that the thumb never jumps when one appears.
 pub(crate) fn track_rect(view: Rect) -> Rect {
-    Rect::new(bar_x(view) - 0.5, view.y + ARROW, 1.0, (view.h - 2.0 * ARROW).max(0.0))
+    Rect::new(gutter_x(view) + TRACK_X, view.y + ARROW, 1.0, (view.h - 2.0 * ARROW).max(0.0))
 }
 
 /// The thumb: its length is the share of the content that shows (of the track), and it runs along the track in
@@ -96,10 +99,10 @@ pub(crate) fn thumb_rect(view: Rect, content_h: f32, max: f32, off: f32) -> Rect
     let track = track_rect(view);
     let h = (track.h * view.h / content_h).max(THUMB_MIN).min(track.h);
     let y = if max > 0.0 { track.y + (track.h - h) * off / max } else { track.y };
-    Rect::new(bar_x(view) - THUMB_W / 2.0, y, THUMB_W, h)
+    Rect::new(gutter_x(view) + THUMB_X, y, THUMB_W, h)
 }
 
-/// Where a press grabs the thumb: the thumb's length by the whole gutter's width, since 3 px is too thin to aim at.
+/// Where a press grabs the thumb: the thumb's length by the whole gutter's width, since the thumb is too thin to aim at.
 pub(crate) fn thumb_grip(view: Rect, thumb: Rect) -> Rect {
     Rect::new(view.x + view.w - GUTTER, thumb.y, GUTTER, thumb.h)
 }
@@ -132,8 +135,8 @@ pub fn arrows_shown(max: f32, off: f32) -> (bool, bool) {
     (off > 0.5, off < max - 0.5)
 }
 
-/// `.scroll` (lines 133-137): `flex: 1; min-height: 0; overflow-y: auto; margin-right: -10px;
-/// padding: 0 10px 28px 0`. A flex column: the page's rows come with their own gaps.
+/// A flex column that fills its parent's height and scrolls: it reaches `GUTTER` into the right margin, so the
+/// bar sits there, and keeps `section` after its last row. The rows come with their own gaps.
 pub fn scroll_style() -> Style {
     Style {
         column: true,
@@ -141,8 +144,8 @@ pub fn scroll_style() -> Style {
         shrink: 1.0,
         basis: Dim::Px(0.0),
         min_h: Dim::Px(0.0),
-        margin: Margin { right: Side::Px(-10.0), ..Margin::default() },
-        pad: Edges::new(0.0, 10.0, 28.0, 0.0),
+        margin: Margin { right: Side::Px(-GUTTER), ..Margin::default() },
+        pad: Edges::new(0.0, GUTTER, crate::tokens::SECTION, 0.0),
         overflow: Overflow::ScrollY,
         ..Style::default()
     }

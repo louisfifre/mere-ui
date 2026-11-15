@@ -4,6 +4,7 @@
 
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use nui_layout::{Dim, Style};
+use nui_ui::tokens::{CONTROL, CONTROL_COMPACT};
 use nui_ui::{Resp, TabOpts, TextLook, Theme, Tone, Ui, wrap_lines, wrap_lines_after};
 
 #[test]
@@ -89,9 +90,8 @@ fn n4_select_size_and_click() {
     let mut ui = Ui::new(Theme::dark());
     let first = select_frame(&mut ui);
     let r = ui.rect(first.id).unwrap();
-    // 1 border + 2 padding + 18 line + 2 padding + 1 border = 24 would be a text field; the select was
-    // measured at 23 in Chrome.
-    near(r.h, 23.0);
+    // The display-only select is the compact control: 1 border + 3 padding + 18 line + 3 padding + 1 border.
+    near(r.h, CONTROL_COMPACT);
     near(r.w, 320.0);
     let p = Vec2::new(r.x + 20.0, r.y + 10.0);
     ui.event(&Event::PointerMoved { pos: p });
@@ -112,9 +112,9 @@ fn n5_detail_tab_without_a_sub_line() {
         ids.push(ui.detail_tab("b", "16 blocks", "1 min", TabOpts::default()).id);
     });
     ui.end_frame();
-    // 18 line + 2 x 3 padding + 2 x 1 border = 26.
-    near(ui.rect(ids[0]).unwrap().h, 26.0);
-    near(ui.rect(ids[1]).unwrap().h, 26.0 + 16.5);
+    // 18 line + 2 x 5 padding (frame included) + 0 = 28.
+    near(ui.rect(ids[0]).unwrap().h, CONTROL);
+    near(ui.rect(ids[1]).unwrap().h, CONTROL + 16.5);
 }
 
 #[test]

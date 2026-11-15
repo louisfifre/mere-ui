@@ -14,6 +14,7 @@ use crate::compose::{self, Compose};
 use crate::edit::{Accept, Edit, Outcome};
 use crate::number::{self, NumberSpec, js_number};
 use crate::text::{ASCENT_EM, DESCENT_EM, TextLook, Tone, baseline, cells, cells_of, half_leading};
+use crate::tokens::{FADE_DISABLED, FRAME, INSET, INSET_HAIR, INSET_TIGHT};
 use crate::ui::{Paint, Resp, Ui};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -155,9 +156,9 @@ impl Shape {
     /// Padding plus the 1 px border.
     fn pad(self) -> Edges {
         match self {
-            Shape::Text => Edges::vh(4.0, 7.0),
-            Shape::Compact => Edges::vh(2.0, 7.0),
-            Shape::Number => Edges::vh(3.0, 7.0),
+            Shape::Text => Edges::vh(FRAME + INSET_TIGHT, FRAME + INSET),
+            Shape::Compact => Edges::vh(FRAME + INSET_HAIR, FRAME + INSET),
+            Shape::Number => Edges::vh(FRAME + INSET_HAIR, FRAME + INSET),
         }
     }
     /// `.setting .field` is right-aligned, line 170.
@@ -378,9 +379,9 @@ impl Ui {
             placeholder: placeholder.to_string(),
             right,
             scroll,
-            frame: if disabled { t.faded(t.edge, 0.5) } else if focused { t.text } else { t.edge },
-            text_color: if disabled { t.faded(t.text, 0.5) } else { t.text },
-            muted: if disabled { t.faded(t.muted, 0.5) } else { t.muted },
+            frame: if disabled { t.faded(t.edge, FADE_DISABLED) } else if focused { t.text } else { t.edge },
+            text_color: if disabled { t.faded(t.text, FADE_DISABLED) } else { t.text },
+            muted: if disabled { t.faded(t.muted, FADE_DISABLED) } else { t.muted },
             select: t.select,
             select_text: t.select_text,
             caret,

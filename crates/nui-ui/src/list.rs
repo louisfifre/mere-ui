@@ -8,6 +8,7 @@ use nui_layout::{Align, Dim, Display, Edges, Justify, Style, Track, Tracks};
 use crate::id::Id;
 use crate::text::{TextLook, Tone};
 use crate::theme::mix;
+use crate::tokens::{FADE_DIM, FADE_LIT, GAP, GAP_WIDE, INSET_HAIR, INSET_TIGHT};
 use crate::ui::{Paint, Resp, Ui};
 
 pub struct ListRow<'a> {
@@ -44,10 +45,12 @@ pub struct PartOpts {
 
 /// The swatch column and the gap between a row's columns, and the least widths of the width and share columns (8 ch
 /// and 6 ch of 12 px). A panel that holds list rows reads them to work out its natural width.
-pub const SWATCH_W: f32 = 12.0;
-pub const ROW_GAP: f32 = 8.0;
+pub const SWATCH_W: f32 = crate::tokens::SWATCH;
+pub const ROW_GAP: f32 = crate::tokens::GAP;
 pub const WIDTH_MIN: f32 = 57.6;
 pub const SHARE_MIN: f32 = 43.2;
+/// The height of a trend row's plot slot.
+pub const PLOT_H: f32 = 32.0;
 
 /// `grid-template-columns: 12px minmax(0, 1fr) auto auto` (line 318).
 fn cols() -> Tracks {
@@ -74,15 +77,15 @@ impl Ui {
         let t = *self.theme();
         // Line 349: `aria-pressed=false` rows fade while the list is choosing; hovered ones less (line 350).
         let o = if opts.choosing && !opts.pressed {
-            if resp.hovered { 0.85 } else { 0.5 }
+            if resp.hovered { FADE_LIT } else { FADE_DIM }
         } else {
             1.0
         };
-        let swatch_o = o * if opts.absent { 0.5 } else { 1.0 };
+        let swatch_o = o * if opts.absent { FADE_DIM } else { 1.0 };
         let body = TextLook::body(Tone::Text);
         let name_color = t.faded(if opts.absent { t.muted } else { t.text }, o);
 
-        self.open(key, id, grid(Edges::vh(3.0, 0.0)), Paint::None);
+        self.open(key, id, grid(Edges::vh(INSET_TIGHT, 0.0)), Paint::None);
         // The page's swatch has `box-shadow: inset 0 0 0 1px rgb(128 128 128 / .35)`: a 1 px frame of that
         // grey over the fill.
         let fill = t.faded(row.swatch, swatch_o);
@@ -124,7 +127,7 @@ impl Ui {
         let color = if opts.pressed { t.text } else { t.muted };
         let style = Style {
             align_items: Align::Baseline,
-            pad: Edges::new(if opts.first { 2.0 } else { 12.0 }, 0.0, 4.0, 0.0),
+            pad: Edges::new(if opts.first { INSET_HAIR } else { GAP_WIDE }, 0.0, INSET_TIGHT, 0.0),
             ..grid(Edges::default())
         };
         self.open(key, id, style, Paint::None);
@@ -153,7 +156,7 @@ impl Ui {
     }
 
     /// One `.trend` row of the history (lines 310-313): a name that ends in an ellipsis, the value, and a
-    /// 30 px slot for the plot under both. `plot` is drawn in the slot's own coordinates and not clipped (the
+    /// `PLOT_H` slot for the plot under both. `plot` is drawn in the slot's own coordinates and not clipped (the
     /// svg's `overflow: visible`). Returns the slot's id. The `#history` column (gap 8) is the caller's node.
     pub fn trend_row(&mut self, key: &str, name: &str, value: &str, plot: Vec<Cmd>) -> Id {
         let id = self.key(key);
@@ -161,7 +164,7 @@ impl Ui {
         let style = Style {
             display: Display::Grid,
             cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto]),
-            gap: Vec2::new(10.0, 0.0),
+            gap: Vec2::new(GAP, 0.0),
             align_items: Align::Baseline,
             ..Style::default()
         };
@@ -170,7 +173,7 @@ impl Ui {
         self.add_ellipsis(name, body, t.text, false);
         self.add_text(value, body, t.text, false, Style::default());
         let slot = self.key("plot");
-        self.open("plot", slot, Style { col_span_all: true, h: Dim::Px(30.0), ..Style::default() }, Paint::Cmds(plot));
+        self.open("plot", slot, Style { col_span_all: true, h: Dim::Px(PLOT_H), ..Style::default() }, Paint::Cmds(plot));
         self.close();
         self.close();
         slot

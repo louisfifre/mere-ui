@@ -195,9 +195,9 @@ fn the_bar_fits_at_every_width_with_the_tools_named() {
             assert_eq!(ids.brand, Id::ROOT, "{name} {w}: the brand is Home's");
             assert!(left.x + left.w <= strip.x + 0.01, "{name} {w}: the settings button overlaps the tools {left:?} {strip:?}");
             assert!(strip.x + strip.w <= right.x + 0.01, "{name} {w}: the tools overlap the figures button");
-            assert!(right.x + right.w <= w - 138.0 + 0.01, "{name} {w}: the figures button overlaps the window's buttons");
+            assert!(right.x + right.w <= w - overflow::ENDS_W + 0.01, "{name} {w}: the figures button overlaps the window's buttons");
             assert!((left.x - 12.0).abs() < 0.01, "{name} {w}: the settings button is 12 in from the edge: {left:?}");
-            assert!((right.x + right.w + 8.0 - (w - 138.0)).abs() < 0.01, "{name} {w}: the figures button is 8 before the window's buttons: {right:?}");
+            assert!((right.x + right.w + 8.0 - (w - overflow::ENDS_W)).abs() < 0.01, "{name} {w}: the figures button is 8 before the window's buttons: {right:?}");
             if ids.form.centred {
                 assert!((strip.x + strip.w / 2.0 - w / 2.0).abs() <= 0.5, "{name} {w}: the tools are centred");
             } else {

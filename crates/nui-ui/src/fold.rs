@@ -4,6 +4,7 @@ use nui_layout::{Align, Dim, Edges, Margin, Side, Style};
 use nui_base::{Cursor, Vec2, Weight};
 
 use crate::text::TextLook;
+use crate::tokens::{GAP, GAP_WIDE, INSET_HAIR};
 use crate::ui::{Paint, Resp, Ui};
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -52,9 +53,9 @@ impl Ui {
         }
 
         let head = Style {
-            pad: Edges::vh(9.0, 0.0),
+            pad: Edges::vh(GAP, 0.0),
             align_items: Align::Baseline,
-            gap: Vec2::new(10.0, 0.0),
+            gap: Vec2::new(GAP, 0.0),
             ..Style::default()
         };
         self.open("head", head_id, head, Paint::None);
@@ -70,8 +71,8 @@ impl Ui {
             let b = self.key("body");
             let mut style = Style {
                 column: true,
-                gap: Vec2::new(0.0, 8.0),
-                pad: Edges::new(2.0, 0.0, 14.0, 0.0),
+                gap: Vec2::new(0.0, GAP),
+                pad: Edges::new(INSET_HAIR, 0.0, GAP_WIDE, 0.0),
                 min_h: Dim::Px(0.0),
                 ..Style::default()
             };

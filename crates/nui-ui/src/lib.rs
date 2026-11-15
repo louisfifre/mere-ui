@@ -30,6 +30,7 @@ mod scroll;
 mod tab;
 mod text;
 mod theme;
+pub mod tokens;
 mod ui;
 mod widgets;
 
@@ -39,7 +40,7 @@ pub use edit::MemoryClipboard;
 pub use icon::Icon;
 pub use field::{FieldLook, FieldOpts, FieldResp};
 pub use menu::{MENU_ROW, MenuResp, MenuRow, SelectOpts, SelectResp};
-pub use list::{ListRow, PartOpts, ROW_GAP, RowOpts, SHARE_MIN, SWATCH_W, WIDTH_MIN};
+pub use list::{ListRow, PLOT_H, PartOpts, ROW_GAP, RowOpts, SHARE_MIN, SWATCH_W, WIDTH_MIN};
 pub use number::{NumberOpts, NumberSpec};
 pub use scroll::{ARROW, GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, THUMB_W, WHEEL_STEP, arrows_shown, scroll_style};
 pub use fold::FoldOpts;

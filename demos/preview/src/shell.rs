@@ -700,7 +700,7 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
             // The page's sixteen widths (lines 806-809): 256 to 4096 points of 16 blocks, by 256.
             let labels: Vec<String> = AREA_POINTS.iter().map(|&p| text::span_value(p as f64 * 16.0)).collect();
             let mut at = AREA_POINTS.iter().position(|&p| p == s.samples).unwrap_or(0);
-            let r = ui.select_menu("area", &labels, &mut at, SelectOpts { height: Some(23.0), ..SelectOpts::default() });
+            let r = ui.select_menu("area", &labels, &mut at, SelectOpts { height: Some(nui_ui::tokens::CONTROL_COMPACT), ..SelectOpts::default() });
             ids.select = r.resp.id;
             if r.changed {
                 s.samples = AREA_POINTS.get(at).copied().unwrap_or(s.samples);

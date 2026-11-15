@@ -196,7 +196,7 @@ pub struct Trend {
 }
 
 /// The height of a line's box (line 313).
-pub const PLOT_H: f64 = 30.0;
+pub const PLOT_H: f64 = nui_ui::PLOT_H as f64;
 
 /// `showHistory` (1569-1615) as data, for the runs of `here`. `pointed` is the run the pointer is over.
 pub fn trend(runs: &[&Entry], pointed: Option<usize>, width: f64) -> Trend {
@@ -312,9 +312,10 @@ mod tests {
         assert_eq!(flat.lines.len(), 2);
         assert_eq!(flat.lines[0].len(), 1);
         assert_eq!(flat.lines[1].len(), 2);
-        // 30 is the lowest: the bottom of the box, 2 + 26; 40 the highest: the top, 2.
-        assert_eq!(flat.d, "M0.0,28.0M220.0,2.0L330.0,15.0");
-        assert_eq!(flat.dot, Some((330.0, 15.0)));
+        // 30 is the lowest: the bottom of the box, 2 + (PLOT_H - 4); 40 the highest: the top, 2; 35 halfway.
+        let (bottom, middle) = (PLOT_H - 2.0, PLOT_H / 2.0);
+        assert_eq!(flat.d, format!("M0.0,{bottom:.1}M220.0,2.0L330.0,{middle:.1}"));
+        assert_eq!(flat.dot, Some((330.0, middle)));
         assert_eq!(t.probe, text::history_hint(4));
     }
 
@@ -323,7 +324,8 @@ mod tests {
         let runs = [run("7", 16.0, 0.1, Some(30.0)), run("7", 16.0, 0.2, Some(30.0))];
         let refs: Vec<&Entry> = runs.iter().collect();
         let t = trend(&refs, Some(0), 100.0);
-        assert!(t.rows[0].d.starts_with("M0.0,15.0L100.0,15.0"), "{}", t.rows[0].d);
+        let middle = PLOT_H / 2.0;
+        assert!(t.rows[0].d.starts_with(&format!("M0.0,{middle:.1}L100.0,{middle:.1}")), "{}", t.rows[0].d);
         assert_eq!(t.rows[0].value, "30.0%");
         assert_eq!(t.rows[1].value, "1,250 blocks");
         assert_eq!(t.probe, "Run 1 of 2: the first one kept.");

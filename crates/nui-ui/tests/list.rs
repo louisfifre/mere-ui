@@ -1,9 +1,24 @@
 //! The scroll area, the ellipsis, the list rows and the trend row, without a GPU: the numbers come from the
 //! page's CSS (preview.html lines 133-137, 310-325, 337-363) and each is derived in its test's comment.
 
+#[allow(unused_imports)]
+use nui_ui::tokens::*;
 use nui_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use nui_layout::{Dim, Display, Edges, Insets, Position, Style};
-use nui_ui::{ListRow, Resp, RowOpts, ScrollOpts, ScrollResp, TextLook, Theme, Tone, Ui, ellipsize, scroll_style};
+use nui_ui::{ARROW, GUTTER, ListRow, PLOT_H, Resp, RowOpts, ScrollOpts, ScrollResp, THUMB_W, TextLook, Theme, Tone, Ui, ellipsize, scroll_style};
+
+/// A list row: the 18 px line and `INSET_TIGHT` above and below.
+const ROW_H: f32 = 18.0 + 2.0 * INSET_TIGHT;
+/// 20 rows and the scroll box's bottom padding (`SECTION`), in a view of 200.
+const CONTENT_H: f32 = 20.0 * ROW_H + SECTION;
+const MAX: f32 = CONTENT_H - 200.0;
+/// The box's width: the 330 px column and the gutter it reaches into the margin.
+const BOX_W: f32 = 330.0 + GUTTER;
+/// The track between the two arrows, and the thumb's length in it.
+const TRACK_H: f32 = 200.0 - 2.0 * ARROW;
+const THUMB_H: f32 = TRACK_H * 200.0 / CONTENT_H;
+/// The box starts under the 16.5 legend line and the column's gap of 6.
+const BOX_Y: f32 = 20.0 + 16.5 + 6.0;
 
 const SIZE: Vec2 = Vec2::new(860.0, 600.0);
 
@@ -116,16 +131,16 @@ fn second_frame_reserves_the_gutter() {
     fixture(&mut ui, &mut y, plain);
     let (list, sr, _) = fixture(&mut ui, &mut y, plain);
     assert!(!ui.want_redraw());
-    // The box is 340 wide (margin -10), its padding is 10 + 11, so a row is 319 wide and rows end at 339.
-    // Name column: 319 - 12 - 24 - 86.4 - 43.2 = 153.4, n = 20.
+    // The box is 342 wide (margin -12), its padding is 12 + 12, so a row is 318 wide and rows end at 338.
+    // Name column: 318 - 12 - 24 - 86.4 - 43.2 = 152.4, n = 20.
     text_at(&list, "Windswept gravelly h\u{2026}");
-    // 20 + 12 + 8 + 153.4 + 8 = 201.4.
-    near(text_at(&list, "1,250 blocks").0.x, 201.4);
-    // The share cell starts at 201.4 + 86.4 + 8 = 295.8, is 43.2 wide, and "12.3%" is 36: 295.8 + 7.2 = 303.
-    near(text_at(&list, "12.3%").0.x, 303.0);
-    near(303.0 + 36.0, 339.0);
-    // 20 rows of 24 + the 28 px bottom padding = 508, in a view of 200.
-    near(sr.max, 308.0);
+    // 20 + 12 + 8 + 152.4 + 8 = 200.4.
+    near(text_at(&list, "1,250 blocks").0.x, 200.4);
+    // The share cell starts at 200.4 + 86.4 + 8 = 294.8, is 43.2 wide, and "12.3%" is 36: 294.8 + 7.2 = 302.
+    near(text_at(&list, "12.3%").0.x, 302.0);
+    near(302.0 + 36.0, 338.0);
+    // 20 rows of 26 + the 24 px bottom padding = 544, in a view of 200.
+    near(sr.max, 344.0);
     assert!(sr.overflow);
 }
 
@@ -136,21 +151,21 @@ fn thumb_at_thirty_percent() {
     fixture(&mut ui, &mut y, plain);
     let (l2, _, _) = fixture(&mut ui, &mut y, plain);
     let row0 = text_at(&l2, "Windswept gravelly h\u{2026}").0.y;
-    y = 0.3 * 308.0;
+    y = 0.3 * MAX;
     let (l3, _, _) = fixture(&mut ui, &mut y, plain);
-    // The track runs between two 10 px arrows: 180 long from 52.5. Thumb height = 180 x 200 / 508 = 70.87;
-    // top = 52.5 + (180 - 70.87) x 0.3; the gutter is 349 to 360, so its middle is 354.5 and the 3 px thumb is at 353.
+    // The track runs between two 12 px arrows: 176 long from 42.5 + 12 = 54.5. Thumb height = 176 x 200 / 544 = 64.71;
+    // top = 54.5 + (176 - 64.71) x 0.3; the gutter is 350 to 362: the 4 px thumb is at 354 and the 1 px track at 356.
     let t = Theme::dark();
-    let thumb = fills(&l3).into_iter().find(|(r, c)| r.w == 3.0 && same_px(*c, t.muted)).expect("a thumb").0;
-    near(thumb.x, 353.0);
-    near(thumb.y, 52.5 + (180.0 - 70.87) * 0.3);
-    near(thumb.h, 70.87);
-    // The track is a 1 px line in the theme's line colour, centred in the gutter, the full length between the arrows.
+    let thumb = fills(&l3).into_iter().find(|(r, c)| r.w == THUMB_W && same_px(*c, t.muted)).expect("a thumb").0;
+    near(thumb.x, 354.0);
+    near(thumb.y, BOX_Y + ARROW + (TRACK_H - THUMB_H) * 0.3);
+    near(thumb.h, THUMB_H);
+    // The track is a 1 px line in the theme's line colour, inside the thumb, the full length between the arrows.
     let track = fills(&l3).into_iter().find(|(r, c)| r.w == 1.0 && r.h > 100.0 && same_px(*c, t.line)).expect("a track").0;
-    near(track.x, 354.0);
-    near(track.y, 52.5);
-    near(track.h, 180.0);
-    near(text_at(&l3, "Windswept gravelly h\u{2026}").0.y, row0 - 92.4);
+    near(track.x, 356.0);
+    near(track.y, BOX_Y + ARROW);
+    near(track.h, TRACK_H);
+    near(text_at(&l3, "Windswept gravelly h\u{2026}").0.y, row0 - 0.3 * MAX);
 }
 
 /// The chevrons drawn this frame: (is it in the top half of the box, its colour).
@@ -180,7 +195,7 @@ fn arrows_show_only_where_content_is_left() {
     both.sort();
     assert_eq!(both, [false, true]);
     // At the end: the top arrow alone.
-    y = 308.0;
+    y = MAX;
     let (l, _, _) = fixture(&mut ui, &mut y, plain);
     assert_eq!(chevrons(&l).iter().map(|c| c.0).collect::<Vec<_>>(), [true]);
     // Resting, an arrow is the muted colour.
@@ -217,12 +232,12 @@ fn the_thumb_takes_the_text_colour_while_hovered() {
     fixture(&mut ui, &mut y, plain);
     fixture(&mut ui, &mut y, plain);
     let t = Theme::dark();
-    mv(&mut ui, 354.5, 60.0);
+    mv(&mut ui, 356.0, 60.0);
     let (l, _, _) = fixture(&mut ui, &mut y, plain);
-    assert!(fills(&l).iter().any(|(r, c)| r.w == 3.0 && same_px(*c, t.text)));
+    assert!(fills(&l).iter().any(|(r, c)| r.w == THUMB_W && same_px(*c, t.text)));
     mv(&mut ui, 100.0, 60.0);
     let (l, _, _) = fixture(&mut ui, &mut y, plain);
-    assert!(fills(&l).iter().any(|(r, c)| r.w == 3.0 && same_px(*c, t.muted)));
+    assert!(fills(&l).iter().any(|(r, c)| r.w == THUMB_W && same_px(*c, t.muted)));
 }
 
 #[test]
@@ -232,7 +247,7 @@ fn fade_bands() {
     fixture(&mut ui, &mut y, plain);
     let (l, _, _) = fixture(&mut ui, &mut y, plain);
     let g = Theme::dark().ground;
-    let bands: Vec<_> = fills(&l).into_iter().filter(|(r, c)| r.h == 1.0 && r.w == 340.0 && c.r == g.r && c.a < 1.0).collect();
+    let bands: Vec<_> = fills(&l).into_iter().filter(|(r, c)| r.h == 1.0 && r.w == BOX_W && c.r == g.r && c.a < 1.0).collect();
     assert_eq!(bands.len(), 28);
     // Box bottom 42.5 + 200 = 242.5; the first band is 28 px above it, and alpha rises by 1/28 per band.
     near(bands[0].0.y, 42.5 + 172.0);
@@ -254,11 +269,11 @@ fn wheel_scrolls_clamps_and_needs_the_pointer_inside() {
     near(y, 100.0);
     wheel(&mut ui, 100.0, 100.0, -10.0);
     fixture(&mut ui, &mut y, plain);
-    near(y, 308.0);
+    near(y, MAX);
     // Outside the box (x 500 is right of it): nothing moves.
     wheel(&mut ui, 500.0, 100.0, 5.0);
     fixture(&mut ui, &mut y, plain);
-    near(y, 308.0);
+    near(y, MAX);
     wheel(&mut ui, 100.0, 100.0, 10.0);
     fixture(&mut ui, &mut y, plain);
     near(y, 0.0);
@@ -272,13 +287,13 @@ fn hidden_rows_take_no_pointer() {
     fixture(&mut ui, &mut y, plain);
     y = 92.4;
     fixture(&mut ui, &mut y, plain);
-    // Row 3 spans 42.5 + 72 - 92.4 = 22.1 to 46.1: the legend (20 to 36.5) lies over its top, which is
+    // Row 3 spans 42.5 + 78 - 92.4 = 28.1 to 54.1: the legend (20 to 36.5) lies over its top, which is
     // scrolled out of the box. A pointer at y 30 is on the row's rect but not on its visible part.
     mv(&mut ui, 100.0, 30.0);
     let (_, _, rows) = fixture(&mut ui, &mut y, plain);
     assert!(!rows[3].hovered);
-    // Row 4 spans 46.1 to 70.1, inside the box.
-    mv(&mut ui, 100.0, 50.0);
+    // Row 4 spans 54.1 to 80.1, inside the box.
+    mv(&mut ui, 100.0, 60.0);
     let (l, _, rows) = fixture(&mut ui, &mut y, plain);
     assert!(rows[4].hovered);
     let name = text_at(&l, "Biome 4");
@@ -294,15 +309,16 @@ fn thumb_drag() {
     fixture(&mut ui, &mut y, plain);
     y = 92.4;
     fixture(&mut ui, &mut y, plain);
-    // The thumb is 70.87 high at 52.5 + 109.13 x 0.3 = 85.24: its centre is at y 120.67, x 354.5.
-    let c = Vec2::new(354.5, 120.67);
+    // The thumb is 64.71 high at 54.5 + 111.29 x (92.4 / 344) = 84.39: its centre is half its height lower, at x 356.
+    let room = TRACK_H - THUMB_H;
+    let c = Vec2::new(356.0, BOX_Y + ARROW + room * 92.4 / MAX + THUMB_H / 2.0);
     ui.event(&Event::PointerDown { pos: c, button: Button::Left, clicks: 1 });
     fixture(&mut ui, &mut y, plain);
     near(y, 92.4);
-    // 50 px down the room of 180 - 70.87 = 109.13 is 50 / 109.13 of the range 308.
+    // 50 px down the room of 176 - 64.71 = 111.29 is 50 / 111.29 of the range 344.
     mv(&mut ui, c.x, c.y + 50.0);
     fixture(&mut ui, &mut y, plain);
-    near(y, 92.4 + 50.0 / 109.13 * 308.0);
+    near(y, 92.4 + 50.0 / room * MAX);
     ui.event(&Event::PointerUp { pos: Vec2::new(c.x, c.y + 50.0), button: Button::Left });
     fixture(&mut ui, &mut y, plain);
     let held = y;
@@ -330,12 +346,12 @@ fn opacity_states() {
     let choosing = RowOpts { choosing: true, ..RowOpts::default() };
     let mut ui = Ui::new(t);
     let (l, _) = scene(&mut ui, choosing, None);
-    same(text_at(&l, "Plains").1, t.faded(t.text, 0.5));
-    // The row is 24 high at y 20: a pointer at y 32 is on it.
+    same(text_at(&l, "Plains").1, t.faded(t.text, FADE_DIM));
+    // The row is 26 high at y 20: a pointer at y 32 is on it.
     scene(&mut ui, choosing, Some(Vec2::new(100.0, 32.0)));
     let (l, r) = scene(&mut ui, choosing, None);
     assert!(r.hovered);
-    same(text_at(&l, "Plains").1, t.faded(t.text, 0.85));
+    same(text_at(&l, "Plains").1, t.faded(t.text, FADE_LIT));
     let (l, _) = scene(&mut ui, RowOpts { pressed: true, ..choosing }, None);
     same(text_at(&l, "Plains").1, t.text);
 
@@ -343,7 +359,7 @@ fn opacity_states() {
     let absent = RowOpts { absent: true, ..RowOpts::default() };
     let (l, _) = scene(&mut ui, absent, None);
     same(text_at(&l, "Plains").1, t.muted);
-    assert!(fills(&l).iter().any(|(r, c)| r.w == 12.0 && r.h == 12.0 && c.r == t.faded(swatch, 0.5).r && c.g == t.faded(swatch, 0.5).g));
+    assert!(fills(&l).iter().any(|(r, c)| r.w == 12.0 && r.h == 12.0 && c.r == t.faded(swatch, FADE_DIM).r && c.g == t.faded(swatch, FADE_DIM).g));
     assert!(texts(&l).iter().all(|t| t.1 != "350 blocks" && t.1 != "1.0%"), "an absent row has no width or share");
     ui.event(&Event::PointerMoved { pos: Vec2::new(100.0, 32.0) });
     scene(&mut ui, absent, None);
@@ -392,15 +408,15 @@ fn trend_row_layout() {
         plots.push(ui.trend_row("b", "Sea", "5.0%", Vec::new()));
     });
     let l = ui.end_frame().clone();
-    // Name column: 140 - 10 (gap) - 36 ("41.2%") = 94; n = floor((94 - 7.2) / 7.2) = 12.
+    // Name column: 140 - 8 (gap) - 36 ("41.2%") = 96; n = floor((96 - 7.2) / 7.2) = 12.
     let (name, _) = text_at(&l, "Typical flat\u{2026}");
     near(name.x, 20.0);
     near(text_at(&l, "41.2%").0.x, 20.0 + 104.0);
-    // The plot slot sits under the line of 18 px and is 30 high and as wide as the row.
+    // The plot slot sits under the line of 18 px and is PLOT_H (32) high and as wide as the row.
     let p = ui.rect(plots[0]).unwrap();
     near(p.y, 20.0 + 18.0);
-    near(p.h, 30.0);
+    near(p.h, PLOT_H);
     near(p.w, 140.0);
-    // The row is 48 high; the next one starts after the gap of 8.
-    near(ui.rect(plots[1]).unwrap().y, 20.0 + 56.0 + 18.0);
+    // The row is 50 high (18 + 32); the next one starts after the gap of 8.
+    near(ui.rect(plots[1]).unwrap().y, 20.0 + 58.0 + 18.0);
 }

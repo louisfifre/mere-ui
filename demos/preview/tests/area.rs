@@ -53,7 +53,7 @@ fn a1_the_area_opens_its_sixteen_widths_and_a_row_sets_it() {
     assert!(r.says("4,096 blocks"), "the box shows the area as the page opens");
     assert!(!r.says("65,536 blocks"), "the menu is closed");
     let b = r.ui.rect(r.ids.select).expect("the select is built");
-    assert!((b.h - 23.0).abs() < 0.01, "the preview's select keeps its 23 px: {b:?}");
+    assert!((b.h - nui_ui::tokens::CONTROL_COMPACT).abs() < 0.01, "the preview's select is a compact one: {b:?}");
 
     r.click(Vec2::new(b.x + b.w / 2.0, b.y + b.h / 2.0));
     for blocks in ["4,096 blocks", "32,768 blocks", "36,864 blocks", "65,536 blocks"] {
