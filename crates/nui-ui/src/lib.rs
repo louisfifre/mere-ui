@@ -14,6 +14,7 @@
 //!
 //! This crate names no operating system: the draw list is drawn by whichever backend the application uses.
 
+mod anim;
 mod chrome;
 mod compose;
 mod edit;
@@ -32,6 +33,7 @@ mod theme;
 mod ui;
 mod widgets;
 
+pub use anim::{SLIDE_SECONDS, Slide, ease};
 pub use chrome::{CORNER, GRIP, IconLook, IconOpts, chrome_hit, grip};
 pub use edit::MemoryClipboard;
 pub use icon::Icon;
