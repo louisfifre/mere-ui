@@ -13,7 +13,7 @@
 use std::sync::OnceLock;
 
 use nui_base::{Cmd, Color, Rect, Vec2};
-use nui_layout::{Align, Dim, Display, Edges, Insets, Position, Style, Track, Tracks};
+use nui_layout::{Align, Dim, Display, Edges, Position, Style, Track, Tracks};
 use nui_ui::{Icon, IconLook, IconOpts, TabLook, TabOpts, TextLook, Ui, strip_style};
 
 use crate::shell::{BAR_H, Mode, PreviewState, RunEnd, ShellIds, Want};
