@@ -606,8 +606,8 @@ views do not shuffle while they slide; the account and the word follow the tool 
 
 At 1000 px with the loaded world (stopped at a coarse detail, so Flat, Structures and Section are greyed): the account is
 gone, "More" holds Flat, Structures and Section, Biomes, Relief and Temperature stay, the word stays. With every view on:
-"More" holds Structures and Section (the account gone as well). With the current widths and an account such as "Louis", nothing is given up from 1035 px up; the account goes at 1034,
-the greyed views move into "More" at 1013, and with every view on Section moves at 1013, then Structures at 1007 (the
+"More" holds Structures and Section (the account gone as well). With the current widths and an account such as "Louis", nothing is given up from 1035 px up; the account goes from 1034 down,
+the greyed views move into "More" from 1014 down, and with every view on Section moves from 1014 down, then Structures from 1008 (the
 words in the tables are measured, so another account name or catalog word moves these numbers by itself).
 ## Goal of this run
 
