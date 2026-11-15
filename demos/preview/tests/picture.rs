@@ -60,9 +60,11 @@ fn check(theme: Theme, w: u32, name: &str) {
     let sel = rect(ids.select);
     same(at(sel.x + sel.w - 13.0 + 4.0, sel.y + 9.0 + 2.0), theme.text, "select chevron");
 
-    // P7: the settings thumb, in the last 7 px of the scroll box's gutter, 10 px under its top. The box is 10 px wider\n    // than the column (the page's margin-right: -10px), so the thumb sits just outside the column's edge.
+    // P7: the settings thumb, 3 px wide in the middle of the scroll box's gutter, at the top of the track (10 px
+    // under the box's top, the room of the arrow), muted. The box is 10 px wider than the column (the page's
+    // margin-right: -10px), so the bar sits just outside the column's edge.
     let sc = rect(ids.settings_scroll);
-    same(at(sc.x + sc.w - GUTTER + 2.0 + 3.0, sc.y + 10.0), theme.line, "settings thumb");
+    same(at(sc.x + sc.w - GUTTER / 2.0, sc.y + 15.0), theme.muted, "settings thumb");
 
     assert!(rgba.chunks(4).any(|p| p[..3] != rgba[..3]), "the picture is one colour");
 }

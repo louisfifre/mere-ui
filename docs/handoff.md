@@ -86,6 +86,9 @@ are the sheet (11 `nui-ui` tests in `tests/list.rs`, 1 `Rect::intersect` test, 2
 or read from the page, not seen in a browser:
 
 - `GUTTER` 11 px (what the thin classic scrollbar reserves), `THUMB_MIN` 18 px and `WHEEL_STEP` 100 px per notch.
+- Since the fluid-panels branch the bar has its own look (maintainer's request, not the page's): a 1 px track in the
+  line colour, a 3 px thumb (muted, text colour on hover or drag) and a chevron arrow at each end that has content
+  beyond it (`ARROW` 10 px of room at both ends of the track); the gutter stays 11 px.
 - Plex Mono's U+2026: zoomed 5x in the sheet it looks like three dots in one cell at the baseline, in the text's grey, so
   it seems to be the font's own glyph and not a fallback; nothing proves the font has it.
 - The underline's thickness, and that a 1 px band per row quantises the page's mask gradient well enough.
@@ -362,7 +365,7 @@ that `C:\Games\preview\out` and `world-preview` were untouched, the one new `win
 inside `nui-win32`), and looked at `figures-1400`, `history`, `stage-3d-relief`, `section-1400` and `run-progress`.
 The step 15 and 17 shots still show step 13's placeholder figures in the right column: they are those steps' record.
 
-Step 19 (2026-11-15) answered the maintainer's remark that the page had too many breakpoints: the world preview's
+Step 19 (2026-11-15; its fixed panels, its 1000x600 minimum and its single bar form are superseded by the fluid panels section further down) answered the maintainer's remark that the page had too many breakpoints: the world preview's
 panels never move (left 320, right 330, gap 28, padding 18/28/22/28; step 19.5: 10/28/22/28), the centre is one column that scales by one
 rule (the map's square side is `min(W - 762, H - 144)` (step 19.5: `H - 136`); the brief's `W - 752` left ten pixels out: 320 + 330 + 2 x 28 +
 2 x 28 = 762), and the top bar has one form from 1000 px up. The window has a minimum of 1000x600, so no layout
@@ -679,3 +682,12 @@ The steps depend on each other, so the workflow is a chain, not a fan-out; keep 
 - The orchestrator (the session) reads each verdict, looks at the final PNGs itself, and reports in French.
 - Every agent prompt carries the rules of `AGENTS.md` and the commit rule above.
 
+## Fluid side panels (branch feat/fluid-panels, 2026-11-15)
+
+Replaces step 19's fixed panels (left 320, right 330, minimum window 1000x600). Decided with the maintainer; the prototype is a page outside this repository.
+- The numbers set by hand are in `demos/preview/src/panels.rs`: panel minimum 220, natural cap 330, map minimum 238, gaps 28 (beside) and 16 (stacked), height 600. The stacking width (790 with both panels open), the least window (`MIN_SIZE`, const arithmetic: the larger of the narrow bar, `overflow::NARROW_BAR`, and 2 x 220 + 3 x 16) and the bar's centred threshold are derived.
+- Natural width = widest row on one line (label, field, gaps, scrollbar gutter) under the cap: 319 settings, 321 figures. The rows are the panels' fixed words, never a run's data. Labels wider than their cell wrap.
+- Beside: the map's column shrinks first, then the panels toward 220 in proportion to their slack. Grips (8 px, in the gap) drag, no maximum, double click resets; the width lives in `PreviewState::panel_w`, not on disk. Stacked: the stage on the half of the height under the bar, the panels below in equal columns, each one scroll area (no nesting), no rule.
+- The bar in the preview tool: the settings panel's button replaces the brand, the figures panel's sits before the window's buttons; below the width where the tools can be centred they sit left, then 2D and 3D go into More (`overflow.rs`). Home keeps brand and account.
+- Pictures: `docs/shots/responsive-*` and `bar-*`. `responsive-section-1000.png` is `--data C:\Games\preview\out-section --view section`.
+- Checks on this machine: the loaded `C:\Games\preview\out` is a coarse 320-sample world without a section, so the section, map, figures, page_* and run tests that need it already failed before this branch (same tests, same reasons).

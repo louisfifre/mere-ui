@@ -5,7 +5,7 @@ use nui_base::{Rect, Vec2};
 use nui_ui::{GUTTER, Id, Theme, Ui};
 use preview::settings::grouped;
 use preview::world::World;
-use preview::{BAR_H, Columns, PAGE, PreviewState, ShellIds, picture, picture_with};
+use preview::{BAR_H, Columns, PAGE, PreviewState, ShellIds, panels, picture, picture_with};
 
 const H: f32 = 940.0;
 
@@ -40,25 +40,32 @@ fn near_r(ui: &Ui, id: Id, x: f32, w: f32, what: &str) {
     near(q.w, w, &format!("{what} w"));
 }
 
+/// The panels' widths at a window width, both open and none dragged.
+fn widths(w: f32) -> [f32; 2] {
+    panels::plan(w, [true, true], [None, None]).widths
+}
+
 #[test]
 fn l1_columns() {
-    // The panels never move: left at 28, right against the right edge (W - 28 - 330), the middle what is left.
-    for (w, left, middle, right) in [
-        (1400.0, (28.0, 320.0), (376.0, 638.0), (1042.0, 330.0)),
-        (1200.0, (28.0, 320.0), (376.0, 438.0), (842.0, 330.0)),
-        (1000.0, (28.0, 320.0), (376.0, 238.0), (642.0, 330.0)),
-    ] {
+    // What each panel wants on one line: the longest label of the settings, "Lanterns over underground rivers",
+    // 32 cells of 7.2, the gaps and the field (77.6) and the scrollbar's gutter (11) make 319; the figures' widest
+    // row, "Sea, deeper than 45" with the width column of "10,000 blocks", the share and the swatch, makes 321.
+    assert_eq!(panels::natural(), [319.0, 321.0]);
+    // Side by side: the panels pinned to the edges at their natural width, the middle what is left.
+    for w in [1400.0, 1200.0, 1000.0] {
+        let [l, rw] = widths(w);
+        assert_eq!([l, rw], [319.0, 321.0], "natural at {w}");
         let (ui, ids, c) = shell(w, H);
         let y = BAR_H + c.pad.top;
         let h = H - BAR_H - c.pad.top - c.pad.bottom;
-        for (id, (x, cw), name) in [(ids.left, left, "left"), (ids.middle, middle, "middle"), (ids.right, right, "right")] {
+        let middle = w - 4.0 * 28.0 - l - rw;
+        for (id, (x, cw), name) in [(ids.left, (28.0, l), "left"), (ids.middle, (28.0 + l + 28.0, middle), "middle"), (ids.right, (w - 28.0 - rw, rw), "right")] {
             near_r(&ui, id, x, cw, &format!("{name} at {w}"));
             near(r(&ui, id).y, y, &format!("{name} y at {w}"));
             near(r(&ui, id).h, h, &format!("{name} h at {w}"));
         }
     }
 }
-
 #[test]
 fn l3_sections_in_order() {
     let (ui, ids, _) = shell(1400.0, H);
@@ -76,7 +83,8 @@ fn l3_sections_in_order() {
 
 #[test]
 fn l4_frame_and_under() {
-    for (w, side) in [(1400.0, 638.0), (1200.0, 438.0), (1000.0, 238.0)] {
+    // The side is the middle column's width: what the two panels at their natural width leave of the window.
+    for (w, side) in [(1400.0, 648.0), (1200.0, 448.0), (1000.0, 248.0)] {
         let (ui, ids, _) = shell(w, H);
         let (m, f) = (r(&ui, ids.middle), r(&ui, ids.frame));
         near(f.w, side, "side");
@@ -91,7 +99,7 @@ fn l4_frame_and_under() {
     let (ui, ids, _) = shell(1400.0, 600.0);
     let f = r(&ui, ids.frame);
     near(f.w, 464.0, "short side");
-    near(f.x, 376.0 + 87.0, "short frame x");
+    near(f.x, r(&ui, ids.middle).x + (648.0 - 464.0) / 2.0, "short frame x");
     near(r(&ui, ids.under).y, f.y + 464.0 + 10.0, "short under y");
     near(r(&ui, ids.export).x + r(&ui, ids.export).w, f.x + f.w, "export right edge on the frame");
 }
@@ -129,7 +137,7 @@ fn l6_gutter_is_reserved() {
     let left = r(&ui, ids.left);
     let first = r(&ui, ids.rows[0]);
     near(first.x + first.w, left.x + left.w - GUTTER, "row right edge");
-    assert_eq!(first.x + first.w, 337.0);
+    assert_eq!(first.x + first.w, 28.0 + 319.0 - 11.0);
     let _ = c;
 }
 

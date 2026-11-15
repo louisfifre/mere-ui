@@ -120,15 +120,16 @@ fn rect_of(ui: &Ui, id: Id) -> Rect {
     ui.rect(id).expect("built")
 }
 
-/// B1: the bar has one form. Over 1000..1920 the brand, each tool, each tab and each window button are the same
-/// size; the tools are centred; the window's buttons end at the right edge; and nothing overlaps, at 1000 included.
+/// B1: the bar's parts keep their sizes. From the least width to 1920 the two panels' buttons, each tool, each tab and
+/// each window button are the same size; the tools are centred while the bar can centre them and sit left, after the
+/// settings button, when it cannot; the window's buttons end at the right edge; and nothing overlaps.
 #[test]
 fn b1_the_bar_keeps_its_form_at_every_width() {
-    // The brand, the tools and the window's buttons never change size; a tab keeps its size too, but the bar may
+    // The buttons, the tools and the window's buttons never change size; a tab keeps its size too, but the bar may
     // hold fewer of them at a narrow width (the rest are in "More", tests/bar_overflow.rs): the ones it holds are
     // those of the full bar, less the ones in More.
     let sizes = |ids: &ShellIds, ui: &Ui| -> Vec<(f32, f32)> {
-        let parts = [ids.brand, ids.tools[0], ids.tools[1], ids.ends[0], ids.ends[1], ids.ends[2]];
+        let parts = [ids.toggles[0], ids.toggles[1], ids.tools[0], ids.tools[1], ids.ends[0], ids.ends[1], ids.ends[2]];
         parts.iter().map(|&p| (rect_of(ui, p).w, rect_of(ui, p).h)).collect()
     };
     let tab_sizes = |ids: &ShellIds, ui: &Ui| -> Vec<(f32, f32)> { ids.tabs.iter().map(|&p| (rect_of(ui, p).w, rect_of(ui, p).h)).collect() };
@@ -137,26 +138,30 @@ fn b1_the_bar_keeps_its_form_at_every_width() {
     let tab_reference = tab_sizes(&ids14, &ui14);
     assert_eq!(ids14.tabs.len(), 8, "six views, 2D and 3D, always as words");
     near(rect_of(&ui14, ids14.bar).h, 40.0, "bar height");
-    let mut w = 1000.0;
+    let mut w = preview::MIN_SIZE.0;
     while w <= 1920.0 {
         let (_, ui, ids) = picture(Theme::dark(), Vec2::new(w, 940.0));
         assert_eq!(sizes(&ids, &ui), reference, "the parts' sizes at {w}");
-        let kept: Vec<(f32, f32)> = (0..8).filter(|i| !ids.form.more.contains(i)).map(|i| tab_reference[i]).collect();
+        let kept: Vec<(f32, f32)> = (0..8).filter(|i| !ids.form.more.contains(i) && !(*i >= 6 && ids.form.shapes_in_more)).map(|i| tab_reference[i]).collect();
         assert_eq!(tab_sizes(&ids, &ui), kept, "the tabs' sizes at {w}");
-        let (brand, strip) = (rect_of(&ui, ids.brand), rect_of(&ui, ids.strip));
-        assert!((strip.x + strip.w / 2.0 - w / 2.0).abs() <= 0.5, "tools centred at {w}: {strip:?}");
+        let (lead, strip, trail) = (rect_of(&ui, ids.toggles[0]), rect_of(&ui, ids.strip), rect_of(&ui, ids.toggles[1]));
+        if ids.form.centred {
+            assert!((strip.x + strip.w / 2.0 - w / 2.0).abs() <= 0.5, "tools centred at {w}: {strip:?}");
+        } else {
+            assert!((strip.x - (lead.x + lead.w + 12.0)).abs() <= 1.01, "tools sat left at {w}: {strip:?}");
+        }
         for (i, e) in ids.ends.iter().enumerate() {
             near(rect_of(&ui, *e).x, w - 138.0 + 46.0 * i as f32, &format!("end {i} at {w}"));
         }
-        assert!(brand.x + brand.w < strip.x, "the brand ends before the tools at {w}: {brand:?} {strip:?}");
-        assert!(strip.x + strip.w < w - 138.0, "the tools end before the window's buttons at {w}: {strip:?}");
+        near(trail.x + trail.w + 8.0, w - 138.0, &format!("the figures button before the window's buttons at {w}"));
+        near(lead.x, 12.0, &format!("the settings button at {w}"));
+        assert!(lead.x + lead.w < strip.x, "the settings button ends before the tools at {w}: {lead:?} {strip:?}");
+        assert!(strip.x + strip.w < trail.x, "the tools end before the figures button at {w}: {strip:?}");
         let tabs: Vec<Rect> = ids.tabs.iter().map(|&t| rect_of(&ui, t)).collect();
         assert!(tabs.windows(2).all(|p| p[0].x + p[0].w <= p[1].x + 1.01), "tabs do not overlap at {w}");
-        w += if w < 1010.0 || w > 1900.0 { 1.0 } else { 7.0 };
+        w += if w < 650.0 || w > 1900.0 { 1.0 } else { 7.0 };
     }
-    println!("B1: brand {:?}, tools {:?}, tabs {:?}", rect_of(&ui14, ids14.brand), rect_of(&ui14, ids14.strip), ids14.tabs.iter().map(|&t| rect_of(&ui14, t).w).collect::<Vec<_>>());
 }
-
 /// B2: what a press at a point does, at 1400 x 940.
 #[test]
 fn b2_hit_regions() {
@@ -183,15 +188,15 @@ fn b2_hit_regions() {
     assert_eq!(hit(&rig, 1380.0, 20.0), Hit::Client, "the close button");
     assert_eq!(hit(&rig, 700.0, 500.0), Hit::Client, "the page");
     let ids = rig.app.ids().clone();
-    let brand = centre(rig.rect(ids.brand));
-    assert_eq!(hit(&rig, brand.x, brand.y), Hit::Caption, "the brand");
-    let (brand_r, strip_r) = (rig.rect(ids.brand), rig.rect(ids.strip));
-    let between = ((brand_r.x + brand_r.w) + strip_r.x) / 2.0;
-    assert_eq!(hit(&rig, between, 20.0), Hit::Caption, "between the brand and the tools");
-    let free = (strip_r.x + strip_r.w + 1400.0 - 138.0) / 2.0;
-    assert_eq!(hit(&rig, free, 20.0), Hit::Caption, "between the tools and the window's buttons");
+    let (lead_r, strip_r, trail_r) = (rig.rect(ids.toggles[0]), rig.rect(ids.strip), rig.rect(ids.toggles[1]));
+    assert_eq!(hit(&rig, lead_r.x / 2.0, 20.0), Hit::Caption, "left of the settings button");
+    let between = ((lead_r.x + lead_r.w) + strip_r.x) / 2.0;
+    assert_eq!(hit(&rig, between, 20.0), Hit::Caption, "between the settings button and the tools");
+    let free = (strip_r.x + strip_r.w + trail_r.x) / 2.0;
+    assert_eq!(hit(&rig, free, 20.0), Hit::Caption, "between the tools and the figures button");
     let mut buttons: Vec<Id> = ids.tabs.clone();
     buttons.extend(ids.tools);
+    buttons.extend(ids.toggles);
     buttons.extend(ids.ends);
     for b in buttons {
         let c = centre(rig.rect(b));
@@ -357,9 +362,30 @@ fn b6_the_bar_is_whole_device_pixels_at_every_scale() {
             assert!(inked >= 8, "scale {scale}: the {what} icon is drawn ({inked} pixels)");
         }
 
+        // The panels' buttons are pressed (both panels are open): the icon is the ground on the text colour's fill, and
+        // each pixel of it is one or the other.
+        for (what, id) in [("settings panel", ids.toggles[0]), ("figures panel", ids.toggles[1])] {
+            let c = centre(rig.rect(id));
+            let (x0, y0) = (((c.x - 8.0) * scale).floor() as u32, ((c.y - 8.0) * scale).floor() as u32);
+            let (x1, y1) = (((c.x + 8.0) * scale).ceil() as u32, ((c.y + 8.0) * scale).ceil() as u32);
+            let mut inked = 0;
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let p = rig.px(&rgba, x, y);
+                    assert!(p == rgb(t.ground) || p == rgb(t.text), "scale {scale}: the {what} icon has {p:?} at ({x}, {y})");
+                    inked += (p == rgb(t.ground)) as usize;
+                }
+            }
+            assert!(inked >= 8, "scale {scale}: the {what} icon is drawn ({inked} pixels)");
+        }
+
         // The tabs' frames: along the top edge of each, from just inside its corners, the pixels are exactly the
         // frame's colour (a blurred line would have a mix).
         for (i, tab) in ids.tabs.iter().enumerate() {
+            // A greyed tab (the loaded world is a coarse one) is drawn faded: its frame is not the plain edge.
+            if world.coarse() && matches!(i, 1 | 4 | 5) {
+                continue;
+            }
             let r = rig.rect(*tab);
             let want = if i == 2 || i == 6 { rgb(t.text) } else { rgb(t.edge) };
             let y = (r.y * scale).round() as u32;
@@ -420,7 +446,8 @@ fn b3_the_cursor_follows_what_is_under_the_pointer() {
     use nui_base::Cursor;
     let Some(world) = load() else { return };
     let mut rig = Rig::standard(&world);
-    let tab = centre(rig.rect(rig.app.ids().tabs[1]));
+    // Biomes: a greyed tab (the loaded world is a coarse one) asks for no hand.
+    let tab = centre(rig.rect(rig.app.ids().tabs[0]));
     rig.hover(tab);
     assert_eq!(rig.app.cursor(), Cursor::Hand, "over a tab");
     let map = centre(rig.rect(rig.app.ids().stage));
@@ -564,40 +591,36 @@ fn a3_the_options_slide_shut_and_are_inert() {
     assert_eq!(rig.app.ids().options, Id::ROOT, "gone when shut");
 }
 
-/// A4: the account sits 10 px after the name, muted, in Home and in the preview tool; a long one is cut before
-/// the tools.
+/// A4: in Home the account sits 10 px after the name, muted; a long one is cut before the tools. The preview tool has
+/// no brand, so no account: its left end is the settings panel's button.
 #[test]
 fn a4_the_account_follows_the_name() {
-    for (mode, w) in [(Mode::Home, 1000), (Mode::Home, 1920), (Mode::Preview, 1000), (Mode::Preview, 1400), (Mode::Preview, 1920)] {
-        let rig = slide_rig(mode, true, Some("PlayerOne"), w, 1.0);
+    for w in [1000, 1920] {
+        let rig = slide_rig(Mode::Home, true, Some("PlayerOne"), w, 1.0);
         let shown: Vec<(String, Vec2)> = rig.app.list().cmds.iter().filter_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { text.starts_with("Player").then(|| (text.clone(), *at)) } else { None }).collect();
-        // At 1000 the preview tool's views leave the brand no room for even a short stub: the account is gone
-        // (tests/bar_overflow.rs holds the rule).
-        if (mode, w) == (Mode::Preview, 1000) {
-            assert!(shown.is_empty(), "{shown:?}");
-            continue;
-        }
-        assert_eq!(shown.len(), 1, "{mode:?} {w}");
+        assert_eq!(shown.len(), 1, "Home {w}");
         let (text, at) = &shown[0];
-        assert!((at.x - 119.28).abs() < 0.5, "{mode:?} {w}: {}", at.x);
+        assert!((at.x - 119.28).abs() < 0.5, "Home {w}: {}", at.x);
         let brand = rig.rect(rig.app.ids().brand);
         assert!((at.y + 9.0 - (brand.y + brand.h / 2.0)).abs() < 3.0, "on the bar's centre line");
-        // Whole whenever the free space left of the tools holds it: always in Home, from 1200 in the preview tool.
-        if mode == Mode::Home || w >= 1200 {
-            assert_eq!(text, "PlayerOne", "{mode:?} {w}");
-        }
+        assert_eq!(text, "PlayerOne", "whole whenever the free space left of the tools holds it: always in Home, {w}");
         let strip = rig.rect(rig.app.ids().strip);
-        assert!(at.x + text.chars().count() as f32 * 7.2 <= strip.x + 0.01, "{mode:?} {w}: runs into the tools");
+        assert!(at.x + text.chars().count() as f32 * 7.2 <= strip.x + 0.01, "Home {w}: runs into the tools");
+    }
+    for w in [1000, 1400, 1920] {
+        let rig = slide_rig(Mode::Preview, true, Some("PlayerOne"), w, 1.0);
+        let shown = rig.app.list().cmds.iter().filter(|c| matches!(c, nui_base::Cmd::Text { text, .. } if text.starts_with("Player"))).count();
+        assert_eq!(shown, 0, "the preview tool shows no account at {w}");
+        assert_eq!(rig.app.ids().brand, Id::ROOT);
     }
     let long = "A".repeat(40);
-    let rig = slide_rig(Mode::Preview, true, Some(&long), 1100, 1.0);
+    let rig = slide_rig(Mode::Home, true, Some(&long), 600, 1.0);
     let cut = rig.app.list().cmds.iter().find_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { (text.ends_with('\u{2026}') && text.starts_with("AAA")).then(|| (text.clone(), *at)) } else { None });
-    let (text, at) = cut.expect("a 40 char account does not fit before the tools at 1100 and ends in an ellipsis");
+    let (text, at) = cut.expect("a 40 char account does not fit before the tools at 600 and ends in an ellipsis");
     let right = at.x + text.chars().count() as f32 * 7.2;
     let strip = rig.rect(rig.app.ids().strip);
     assert!(right <= strip.x + 0.01, "{right} runs into the strip at {}", strip.x);
 }
-
 /// The picture of the half-open tabs.
 #[test]
 fn a5_the_half_open_bar_picture() {

@@ -10,7 +10,7 @@ use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::id::Id;
 use crate::input::Input;
 use crate::menu::Menu;
-use crate::scroll::{ScrollMetrics, ScrollPaint, thumb_rect};
+use crate::scroll::{ArrowDir, BarHot, ScrollMetrics, ScrollPaint, arrow_rects, arrows_shown, chevron, thumb_rect, track_rect};
 use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
 
@@ -326,6 +326,12 @@ impl Ui {
     /// Where the pointer is, in window coordinates; None until it has been seen.
     pub fn pointer(&self) -> Option<Vec2> {
         self.input.pos
+    }
+
+    /// Presses in a row at one spot that the last left press made, as the backend counted them: 1, 2 or 3. It
+    /// means something on the frame where a widget's `Resp::pressed` is true: a double click is `pressed` with 2.
+    pub fn clicks(&self) -> u8 {
+        self.input.clicks
     }
 
     /// The wheel notches of this frame (positive away from the user) and where the pointer was, when it was
@@ -769,15 +775,27 @@ impl Painter<'_> {
         }
         if let Some((s, content_h, max, off)) = scrolled {
             let overflow = content_h > r.h + 0.5;
-            // The thumb, then the mask over it: the CSS mask fades the scrollbar with the content.
-            if overflow {
-                self.list.fill(thumb_rect(r, content_h, max, off), s.thumb);
-            }
+
             // The ground is opaque behind the list, so laying it over in 1 px bands of rising opacity equals
             // the page's `mask-image` gradient, quantised per band.
             for i in 0..s.fade as usize {
                 let band = Rect::new(r.x, r.y + r.h - s.fade + i as f32, r.w, 1.0);
                 self.list.fill(band, s.ground.with_alpha((i as f32 + 0.5) / s.fade));
+            }
+            // The bar comes after the mask: it lives in the gutter, beside the content, so the fade has no
+            // business with it, and the bottom arrow must stay plain.
+            if overflow {
+                let hue = |hot| if s.hot == hot { s.text } else { s.muted };
+                self.list.fill(track_rect(r), s.line);
+                self.list.fill(thumb_rect(r, content_h, max, off), hue(BarHot::Thumb));
+                let (up, down) = arrow_rects(r);
+                let (show_up, show_down) = arrows_shown(max, off);
+                if show_up {
+                    self.list.polyline(chevron(up, ArrowDir::Up), 1.0, hue(BarHot::Up));
+                }
+                if show_down {
+                    self.list.polyline(chevron(down, ArrowDir::Down), 1.0, hue(BarHot::Down));
+                }
             }
             self.scrolls.insert(
                 s.id,

@@ -183,7 +183,7 @@ fn fold_grow_takes_the_free_height() {
         frame(&mut ui, |ui| {
             let s = at(0.0, 0.0, Style { column: true, w: Dim::Px(320.0), h: Dim::Px(300.0), ..Style::default() });
             ui.node("cell", s, |ui| {
-                ui.fold_with("f", "Grow", &mut open, FoldOpts { grow: true }, |_| {});
+                ui.fold_with("f", "Grow", &mut open, FoldOpts { grow: true, ..FoldOpts::default() }, |_| {});
                 after = Some(ui.node("after", Style { h: Dim::Px(20.0), shrink: 0.0, ..Style::default() }, |_| {}));
             });
         });

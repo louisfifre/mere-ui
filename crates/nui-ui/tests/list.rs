@@ -20,6 +20,11 @@ fn same(a: Color, b: Color) {
     assert_eq!(px(a), px(b), "{a:?} != {b:?}");
 }
 
+fn same_px(a: Color, b: Color) -> bool {
+    let px = |c: Color| [c.r, c.g, c.b].map(|v| (v * 255.0).round() as i32);
+    px(a) == px(b)
+}
+
 fn texts(l: &DrawList) -> Vec<(Vec2, String, Color)> {
     l.cmds.iter().filter_map(|c| if let Cmd::Text { at, text, color, .. } = c { Some((*at, text.clone(), *color)) } else { None }).collect()
 }
@@ -133,14 +138,91 @@ fn thumb_at_thirty_percent() {
     let row0 = text_at(&l2, "Windswept gravelly h\u{2026}").0.y;
     y = 0.3 * 308.0;
     let (l3, _, _) = fixture(&mut ui, &mut y, plain);
-    // thumb height = 200 x 200 / 508 = 78.74; top = 42.5 + (200 - 78.74) x 0.3; x = 20 + 340 - 11 + 2 = 351.
-    let line = Theme::dark().line;
-    let thumb = fills(&l3).into_iter().find(|(r, c)| r.x == 351.0 && (c.r - line.r).abs() < 1e-4).expect("a thumb").0;
-    near(thumb.x, 351.0);
-    near(thumb.y, 42.5 + (200.0 - 78.74) * 0.3);
-    near(thumb.w, 7.0);
-    near(thumb.h, 78.74);
+    // The track runs between two 10 px arrows: 180 long from 52.5. Thumb height = 180 x 200 / 508 = 70.87;
+    // top = 52.5 + (180 - 70.87) x 0.3; the gutter is 349 to 360, so its middle is 354.5 and the 3 px thumb is at 353.
+    let t = Theme::dark();
+    let thumb = fills(&l3).into_iter().find(|(r, c)| r.w == 3.0 && same_px(*c, t.muted)).expect("a thumb").0;
+    near(thumb.x, 353.0);
+    near(thumb.y, 52.5 + (180.0 - 70.87) * 0.3);
+    near(thumb.h, 70.87);
+    // The track is a 1 px line in the theme's line colour, centred in the gutter, the full length between the arrows.
+    let track = fills(&l3).into_iter().find(|(r, c)| r.w == 1.0 && r.h > 100.0 && same_px(*c, t.line)).expect("a track").0;
+    near(track.x, 354.0);
+    near(track.y, 52.5);
+    near(track.h, 180.0);
     near(text_at(&l3, "Windswept gravelly h\u{2026}").0.y, row0 - 92.4);
+}
+
+/// The chevrons drawn this frame: (is it in the top half of the box, its colour).
+fn chevrons(l: &DrawList) -> Vec<(bool, Color)> {
+    l.cmds
+        .iter()
+        .filter_map(|c| match c {
+            Cmd::Polyline { points, width, color } if points.len() == 3 && *width == 1.0 => Some((points[1].y < 142.5, *color)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn arrows_show_only_where_content_is_left() {
+    let mut ui = Ui::new(Theme::dark());
+    let mut y = 0.0;
+    fixture(&mut ui, &mut y, plain);
+    fixture(&mut ui, &mut y, plain);
+    // At the top: nothing above, so the bottom arrow alone.
+    let (l, _, _) = fixture(&mut ui, &mut y, plain);
+    assert_eq!(chevrons(&l).iter().map(|c| c.0).collect::<Vec<_>>(), [false]);
+    // Midway: both.
+    y = 150.0;
+    let (l, _, _) = fixture(&mut ui, &mut y, plain);
+    let mut both: Vec<_> = chevrons(&l).iter().map(|c| c.0).collect();
+    both.sort();
+    assert_eq!(both, [false, true]);
+    // At the end: the top arrow alone.
+    y = 308.0;
+    let (l, _, _) = fixture(&mut ui, &mut y, plain);
+    assert_eq!(chevrons(&l).iter().map(|c| c.0).collect::<Vec<_>>(), [true]);
+    // Resting, an arrow is the muted colour.
+    assert!(same_px(chevrons(&l)[0].1, Theme::dark().muted));
+}
+
+#[test]
+fn an_arrow_click_scrolls_one_wheel_step() {
+    let mut ui = Ui::new(Theme::dark());
+    let mut y = 0.0;
+    fixture(&mut ui, &mut y, plain);
+    fixture(&mut ui, &mut y, plain);
+    let click = |ui: &mut Ui, y: &mut f32, p: Vec2| {
+        ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: 1 });
+        fixture(ui, y, plain);
+        ui.event(&Event::PointerUp { pos: p, button: Button::Left });
+        fixture(ui, y, plain);
+    };
+    // The box is 42.5 to 242.5: the top arrow is absent at the start, so a press there does nothing.
+    let (top, bottom) = (Vec2::new(354.5, 47.5), Vec2::new(354.5, 237.5));
+    click(&mut ui, &mut y, top);
+    near(y, 0.0);
+    // The bottom arrow moves the content up by one step, and then the top arrow brings it back.
+    click(&mut ui, &mut y, bottom);
+    near(y, 100.0);
+    click(&mut ui, &mut y, top);
+    near(y, 0.0);
+}
+
+#[test]
+fn the_thumb_takes_the_text_colour_while_hovered() {
+    let mut ui = Ui::new(Theme::dark());
+    let mut y = 0.0;
+    fixture(&mut ui, &mut y, plain);
+    fixture(&mut ui, &mut y, plain);
+    let t = Theme::dark();
+    mv(&mut ui, 354.5, 60.0);
+    let (l, _, _) = fixture(&mut ui, &mut y, plain);
+    assert!(fills(&l).iter().any(|(r, c)| r.w == 3.0 && same_px(*c, t.text)));
+    mv(&mut ui, 100.0, 60.0);
+    let (l, _, _) = fixture(&mut ui, &mut y, plain);
+    assert!(fills(&l).iter().any(|(r, c)| r.w == 3.0 && same_px(*c, t.muted)));
 }
 
 #[test]
@@ -212,15 +294,15 @@ fn thumb_drag() {
     fixture(&mut ui, &mut y, plain);
     y = 92.4;
     fixture(&mut ui, &mut y, plain);
-    // The thumb is 78.74 high at 42.5 + 36.378 = 78.878: its centre is at y 118.248, x 354.5.
-    let c = Vec2::new(354.5, 118.248);
+    // The thumb is 70.87 high at 52.5 + 109.13 x 0.3 = 85.24: its centre is at y 120.67, x 354.5.
+    let c = Vec2::new(354.5, 120.67);
     ui.event(&Event::PointerDown { pos: c, button: Button::Left, clicks: 1 });
     fixture(&mut ui, &mut y, plain);
     near(y, 92.4);
-    // 50 px down the track of 200 - 78.74 = 121.26 is 50 / 121.26 of the range 308.
+    // 50 px down the room of 180 - 70.87 = 109.13 is 50 / 109.13 of the range 308.
     mv(&mut ui, c.x, c.y + 50.0);
     fixture(&mut ui, &mut y, plain);
-    near(y, 92.4 + 50.0 / 121.26 * 308.0);
+    near(y, 92.4 + 50.0 / 109.13 * 308.0);
     ui.event(&Event::PointerUp { pos: Vec2::new(c.x, c.y + 50.0), button: Button::Left });
     fixture(&mut ui, &mut y, plain);
     let held = y;

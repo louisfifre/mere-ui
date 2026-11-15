@@ -455,8 +455,10 @@ fn cli_theme_light_gives_the_light_ground_and_a_list() {
         [png.rgba[i], png.rgba[i + 1], png.rgba[i + 2]]
     };
     assert_eq!(px(2, 2), [0xfa, 0xfa, 0xf8], "the light ground");
-    // The right column starts at x 1042 at 1400 px: a swatch of the list is 6 px in, in one of the rows below.
-    let swatch = (420..900).any(|y| px(1048, y) != [0xfa, 0xfa, 0xf8] && px(1048, y) != px(2, 2));
+    // The right column ends 28 px from the edge of a 1400 px window and is as wide as the plan says: a swatch of the
+    // list is 6 px in, in one of the rows below.
+    let right_x = (1400.0 - 28.0 - preview::panels::plan(1400.0, [true, true], [None, None]).widths[1]) as usize;
+    let swatch = (420..900).any(|y| px(right_x + 6, y) != [0xfa, 0xfa, 0xf8] && px(right_x + 6, y) != px(2, 2));
     assert!(swatch, "no list row in the right column");
     assert!(Path::new(&runs_root).join("history.json").exists(), "the picture's map was kept in the history, under target\\tmp");
     let _: Option<Runs> = None;

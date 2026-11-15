@@ -380,6 +380,11 @@ pub const TOOL_NAMES: [&str; 2] = ["Home", "Preview"];
 /// The strip's last tab when the bar lacks room: it holds the views that no longer fit, and its tooltip.
 pub const MORE: &str = "More";
 pub const MORE_TITLE: &str = "More views";
+/// The tooltips of the bar's two buttons that open and close the side panels (preview tool only), and of the grip
+/// between a panel and the stage. Not the page's: the page has fixed panels.
+pub const SETTINGS_PANEL: &str = "Settings panel";
+pub const FIGURES_PANEL: &str = "Figures panel";
+pub const RESIZE_PANEL: &str = "Drag to resize, double-click to reset";
 /// Line 342: where a run of the preview stands, by marker.
 pub const PREVIEW_STATE: [&str; 3] = ["computing", "ready", "failed"];
 /// Line 343.

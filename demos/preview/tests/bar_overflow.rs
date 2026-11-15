@@ -1,5 +1,5 @@
 //! The bar when the window is too narrow for all of it: what it gives up, in which order, and that what it keeps
-//! stays whole. Layout is judged on the real rects of a built frame, at 1000, 1280, 1920 and 2560 px wide.
+//! stays whole. Layout is judged on the real rects of a built frame, from the window's least width to 2560 px.
 //!
 //! The world the tests load (`C:\Games\preview\out`) was stopped at a coarse detail, so Flat, Structures and Section
 //! are greyed in it; `None` stands for a world with every view on.
@@ -13,7 +13,7 @@ use preview::overflow::{self, Form, Inputs};
 use preview::world::World;
 use preview::{Mode, PreviewApp, PreviewState, ShellIds, picture_with, text};
 
-const WIDTHS: [f32; 4] = [1000.0, 1280.0, 1920.0, 2560.0];
+const WIDTHS: [f32; 7] = [600.0, 700.0, 800.0, 1000.0, 1280.0, 1920.0, 2560.0];
 const LONG: &str = "AVeryLongAccountNameThatCannotFit";
 
 fn rect_of(ui: &Ui, id: Id) -> Rect {
@@ -34,13 +34,13 @@ fn drawn(list: &nui_base::DrawList) -> Vec<String> {
 }
 
 fn inputs(w: f32, account: Option<&str>, pressed: usize, disabled: [bool; 6]) -> Inputs<'_> {
-    Inputs { width: w, ends: overflow::ENDS_W, account, preview_open: true, pressed, disabled, shapes: pressed != 5 }
+    Inputs { width: w, account, preview_open: true, pressed, disabled, shapes: pressed != 5 }
 }
 
-/// Every distinct form met while the window narrows from 2560 to 1000, widest first.
+/// Every distinct form met while the window narrows from 2560 to 500, widest first.
 fn forms_while_narrowing(account: Option<&str>, pressed: usize, disabled: [bool; 6]) -> Vec<Form> {
     let mut seen: Vec<Form> = Vec::new();
-    for w in (1000..=2560).rev() {
+    for w in (500..=2560).rev() {
         let f = overflow::plan(&inputs(w as f32, account, pressed, disabled));
         if seen.last() != Some(&f) {
             seen.push(f);
@@ -49,15 +49,16 @@ fn forms_while_narrowing(account: Option<&str>, pressed: usize, disabled: [bool;
     seen
 }
 
-fn form(account: bool, word: bool, more: &[usize]) -> Form {
-    Form { account, word, more: more.to_vec() }
+/// A form of the preview tool's bar: the brand is not in it, so its parts are off.
+fn form(more: &[usize], centred: bool, shapes_in_more: bool) -> Form {
+    Form { account: false, word: false, more: more.to_vec(), centred, shapes_in_more }
 }
 
 /// The widths the plan counts are the widths the layout gives: the strip, for every form it can take.
 #[test]
 fn the_measured_strip_is_the_laid_out_strip() {
     let coarse = common::world();
-    let mut w = 1000.0;
+    let mut w = 600.0;
     let mut checked = 0;
     while w <= 2560.0 {
         for world in [coarse.as_ref(), None] {
@@ -68,7 +69,7 @@ fn the_measured_strip_is_the_laid_out_strip() {
                     }
                     let (_, ui, ids) = built(w, state(account, view), world);
                     let disabled: [bool; 6] = std::array::from_fn(|i| world.is_some_and(World::coarse) && matches!(i, 1 | 4 | 5));
-                    let predicted = overflow::strip_width(&inputs(w, account, view, disabled), &ids.form.more);
+                    let predicted = overflow::strip_width(&inputs(w, account, view, disabled), &ids.form);
                     let got = rect_of(&ui, ids.strip).w;
                     assert!((predicted - got).abs() < 0.01, "w {w} view {view} {account:?}: predicted {predicted}, laid out {got}");
                     checked += 1;
@@ -80,56 +81,76 @@ fn the_measured_strip_is_the_laid_out_strip() {
     assert!(checked > 100, "{checked}");
 }
 
-/// The order of giving way: the account, the greyed views, the word, then the others from the strip's end, with
-/// the pressed view (Relief here) never among them.
+/// The order of giving way in the preview tool: the greyed views, then the others from the strip's end (the pressed
+/// view, Relief here, never among them), then the tools stop being centred, then 2D and 3D join the views in "More".
 #[test]
 fn the_bar_gives_way_in_its_order() {
     let coarse = [false, true, false, false, true, true];
     assert_eq!(
         forms_while_narrowing(Some("Louis"), 2, coarse),
         vec![
-            form(true, true, &[]),
-            form(false, true, &[]),
-            form(false, true, &[1, 4, 5]),
-            form(false, false, &[1, 4, 5]),
-            form(false, false, &[1, 3, 4, 5]),
-            form(false, false, &[0, 1, 3, 4, 5]),
-        ][..forms_while_narrowing(Some("Louis"), 2, coarse).len()],
+            form(&[], true, false),
+            form(&[1, 4, 5], true, false),
+            form(&[1, 3, 4, 5], true, false),
+            form(&[0, 1, 3, 4, 5], true, false),
+            form(&[0, 1, 3, 4, 5], false, false),
+            form(&[0, 1, 3, 4, 5], false, true),
+        ],
         "greyed world"
     );
-    // With every view on there is nothing greyed to move: the word goes, then the views from the end.
+    // With every view on there is nothing greyed to move: the views go from the end.
     let all_on = forms_while_narrowing(Some("Louis"), 2, [false; 6]);
-    let expected = [
-        form(true, true, &[]),
-        form(false, true, &[]),
-        form(false, true, &[5]),
-        form(false, true, &[4, 5]),
+    let expected = vec![
+        form(&[], true, false),
+        form(&[5], true, false),
+        form(&[4, 5], true, false),
+        form(&[3, 4, 5], true, false),
+        form(&[1, 3, 4, 5], true, false),
+        form(&[0, 1, 3, 4, 5], true, false),
+        form(&[0, 1, 3, 4, 5], false, false),
+        form(&[0, 1, 3, 4, 5], false, true),
     ];
-    assert_eq!(all_on, expected, "every view on: the word stays, it buys no room next to the window's buttons");
-    // The pressed view is never moved: Section pressed, the others go from Structures back.
+    assert_eq!(all_on, expected, "every view on");
+    // The pressed view is never moved: Section pressed, the others go from Structures back, and it has no 2D or 3D.
     let section = forms_while_narrowing(None, 5, [false; 6]);
-    assert!(section.iter().all(|f| !f.more.contains(&5)), "{section:?}");
+    assert!(section.iter().all(|f| !f.more.contains(&5) && !f.shapes_in_more), "{section:?}");
+    assert_eq!(section.last(), Some(&form(&[0, 1, 2, 3, 4], false, false)));
     // Structures pressed: the last view goes first, then the one before the pressed one is passed over.
     let structures = forms_while_narrowing(None, 4, [false; 6]);
     assert!(structures.iter().all(|f| !f.more.contains(&4)), "{structures:?}");
     assert_eq!(structures.iter().find(|f| !f.more.is_empty()).map(|f| f.more.clone()), Some(vec![5]));
 }
 
-/// The word comes before the other views when the brand is what is widest: with the window's buttons made narrow
-/// (they never are, at 138 px), the account goes, then the word, then the views from the end.
+/// Home keeps its brand: it gives up the account first, and the word stays whatever the width, because it buys no
+/// room next to the window's buttons. At the window's least width it gives up nothing.
 #[test]
-fn the_word_goes_before_the_other_views_when_it_buys_room() {
+fn home_gives_up_the_account_and_never_the_word() {
+    let home = |w: f32| Inputs { width: w, account: Some("Louis"), preview_open: false, pressed: 2, disabled: [false; 6], shapes: true };
+    assert_eq!(overflow::plan(&home(preview::MIN_SIZE.0)), Form::default());
+    assert_eq!(overflow::plan(&home(2560.0)), Form::default());
     let mut seen: Vec<Form> = Vec::new();
-    for w in (500..=2560).rev() {
-        let i = Inputs { ends: 40.0, ..inputs(w as f32, Some("Louis"), 2, [false; 6]) };
-        let f = overflow::plan(&i);
+    for w in (300..=2560).rev() {
+        let f = overflow::plan(&home(w as f32));
         if seen.last() != Some(&f) {
             seen.push(f);
         }
     }
-    assert_eq!(&seen[..4], &[form(true, true, &[]), form(false, true, &[]), form(false, false, &[]), form(false, false, &[5])]);
+    assert_eq!(seen[..2], [Form::default(), Form { account: false, ..Form::default() }]);
 }
 
+/// The const arithmetic of the narrowest bar is the runtime arithmetic of the plan: the least width of the preview
+/// tool's bar is the width at which its last form stops fitting.
+#[test]
+fn the_narrowest_bar_is_where_the_last_form_stops_fitting() {
+    // Temperature is the widest view's tab, which the const counts for the pressed one.
+    let i = |w: f32| inputs(w, None, 3, [false; 6]);
+    let last = |w: f32| overflow::plan(&i(w));
+    let narrowest = last(500.0);
+    assert_eq!(narrowest, form(&[0, 1, 2, 4, 5], false, true));
+    assert!(overflow::fits(&i(overflow::NARROW_BAR), &narrowest), "fits at the const's width");
+    assert!(!overflow::fits(&i(overflow::NARROW_BAR - 1.0), &narrowest), "and not a pixel less");
+    assert!(preview::MIN_SIZE.0 >= overflow::NARROW_BAR);
+}
 /// The widths at which the bar changes form, printed for the record (`cargo test -- --ignored --nocapture`).
 /// A measure, not a check: it asserts nothing, so it does not run with the suite.
 #[test]
@@ -137,7 +158,7 @@ fn the_word_goes_before_the_other_views_when_it_buys_room() {
 fn the_thresholds_are_printed() {
     for (name, disabled) in [("greyed world", [false, true, false, false, true, true]), ("every view on", [false; 6])] {
         let mut last: Option<Form> = None;
-        for w in (900..=2560).rev() {
+        for w in (500..=2560).rev() {
             let f = overflow::plan(&inputs(w as f32, Some("Louis"), 2, disabled));
             if last.as_ref() != Some(&f) {
                 println!("{name}: from {w} px down: {f:?}");
@@ -152,7 +173,7 @@ fn the_thresholds_are_printed() {
 #[test]
 fn the_bar_takes_the_first_form_that_fits() {
     let disabled = [false, true, false, false, true, true];
-    for w in (1000..=2560).step_by(3) {
+    for w in (500..=2560).step_by(3) {
         let i = inputs(w as f32, Some("Louis"), 2, disabled);
         let chosen = overflow::plan(&i);
         let order = forms_while_narrowing(Some("Louis"), 2, disabled);
@@ -161,59 +182,81 @@ fn the_bar_takes_the_first_form_that_fits() {
     }
 }
 
-/// At the four widths: nothing overlaps, both tools say their names, and the form is the expected one.
+/// At the widths of the sweep: nothing overlaps, both tools say their names, the panels' buttons are at the bar's
+/// ends, the tools are centred while the form says so and sit left, after the settings button, when it does not.
 #[test]
 fn the_bar_fits_at_every_width_with_the_tools_named() {
     let world = common::world();
     for w in WIDTHS {
         for (name, world) in [("coarse", world.as_ref()), ("all views", None)] {
-            for account in [None, Some("Louis"), Some(LONG)] {
-                let (list, ui, ids) = built(w, state(account, 2), world);
-                let (brand, strip, bar) = (rect_of(&ui, ids.brand), rect_of(&ui, ids.strip), rect_of(&ui, ids.bar));
-                assert!(brand.x + brand.w <= strip.x + 0.01, "{name} {w}: the brand overlaps the tools {brand:?} {strip:?}");
-                assert!(strip.x + strip.w <= w - 138.0 + 0.01, "{name} {w}: the tools overlap the window's buttons");
+            let (list, ui, ids) = built(w, state(None, 2), world);
+            let (strip, bar) = (rect_of(&ui, ids.strip), rect_of(&ui, ids.bar));
+            let (left, right) = (rect_of(&ui, ids.toggles[0]), rect_of(&ui, ids.toggles[1]));
+            assert_eq!(ids.brand, Id::ROOT, "{name} {w}: the brand is Home's");
+            assert!(left.x + left.w <= strip.x + 0.01, "{name} {w}: the settings button overlaps the tools {left:?} {strip:?}");
+            assert!(strip.x + strip.w <= right.x + 0.01, "{name} {w}: the tools overlap the figures button");
+            assert!(right.x + right.w <= w - 138.0 + 0.01, "{name} {w}: the figures button overlaps the window's buttons");
+            assert!((left.x - 12.0).abs() < 0.01, "{name} {w}: the settings button is 12 in from the edge: {left:?}");
+            assert!((right.x + right.w + 8.0 - (w - 138.0)).abs() < 0.01, "{name} {w}: the figures button is 8 before the window's buttons: {right:?}");
+            if ids.form.centred {
                 assert!((strip.x + strip.w / 2.0 - w / 2.0).abs() <= 0.5, "{name} {w}: the tools are centred");
-                let mut parts = ids.tabs.clone();
-                parts.extend(ids.tools);
-                if ids.more != Id::ROOT {
-                    parts.push(ids.more);
-                }
-                let mut rects: Vec<Rect> = parts.iter().map(|&p| rect_of(&ui, p)).collect();
-                rects.sort_by(|a, b| a.x.total_cmp(&b.x));
-                assert!(rects.windows(2).all(|p| p[0].x + p[0].w <= p[1].x + 1.01), "{name} {w}: parts overlap");
-                assert!(rects.iter().all(|r| r.x >= strip.x - 0.01 && r.x + r.w <= strip.x + strip.w + 0.01 && r.y >= bar.y && r.y + r.h <= bar.y + bar.h), "{name} {w}: a part is outside");
-                // The tools say their names, always, and are as wide as the word and the icon need.
-                let words = drawn(&list);
-                for (i, tool) in ids.tools.iter().enumerate() {
-                    assert!(words.iter().any(|t| t == text::TOOL_NAMES[i]), "{name} {w}: '{}' is not drawn", text::TOOL_NAMES[i]);
-                    let r = rect_of(&ui, *tool);
-                    assert!((r.w - tool_button_width(text::TOOL_NAMES[i])).abs() < 0.01, "{name} {w}: tool {i} is {} wide", r.w);
-                }
-                // With no account the brand is the cube and, when the form keeps it, the word: its width says which.
-                if account.is_none() {
-                    let i = Inputs { width: w, ends: overflow::ENDS_W, account, preview_open: true, pressed: 2, disabled: [false; 6], shapes: true };
-                    assert!((rect_of(&ui, ids.brand).w - overflow::brand_need(&i, &ids.form)).abs() < 0.01, "{name} {w}: the brand is not what the form says");
-                }
-                println!("{name:9} {w:5} {account:?}: {:?}, strip {:.1} wide", ids.form, strip.w);
+            } else {
+                assert!((strip.x - (left.x + left.w + 12.0)).abs() < 1.01, "{name} {w}: the tools start 12 px after the settings button: {strip:?}");
             }
+            let mut parts = ids.tabs.clone();
+            parts.extend(ids.tools);
+            if ids.more != Id::ROOT {
+                parts.push(ids.more);
+            }
+            let mut rects: Vec<Rect> = parts.iter().map(|&p| rect_of(&ui, p)).collect();
+            rects.sort_by(|a, b| a.x.total_cmp(&b.x));
+            assert!(rects.windows(2).all(|p| p[0].x + p[0].w <= p[1].x + 1.01), "{name} {w}: parts overlap");
+            assert!(rects.iter().all(|r| r.x >= strip.x - 0.01 && r.x + r.w <= strip.x + strip.w + 0.01 && r.y >= bar.y && r.y + r.h <= bar.y + bar.h), "{name} {w}: a part is outside");
+            // The tools say their names, always, and are as wide as the word and the icon need.
+            let words = drawn(&list);
+            for (i, tool) in ids.tools.iter().enumerate() {
+                assert!(words.iter().any(|t| t == text::TOOL_NAMES[i]), "{name} {w}: '{}' is not drawn", text::TOOL_NAMES[i]);
+                let r = rect_of(&ui, *tool);
+                assert!((r.w - tool_button_width(text::TOOL_NAMES[i])).abs() < 0.01, "{name} {w}: tool {i} is {} wide", r.w);
+            }
+            // 2D and 3D are tabs or rows of "More", as the form says.
+            assert_eq!(words.iter().any(|t| t == "2D"), !ids.form.shapes_in_more, "{name} {w}: 2D");
         }
     }
 }
 
-/// The expected outcome at the window's minimum width: the account goes, the greyed views go into "More", and
-/// Biomes, Relief and Temperature stay.
+/// The least width of the preview tool's bar is the window's least width: the bar fits there, in its last form,
+/// with the two tools named and nothing overlapping.
 #[test]
-fn at_the_minimum_width_the_greyed_views_are_in_more() {
+fn at_the_least_width_the_bar_is_in_its_last_form_and_fits() {
+    let w = preview::MIN_SIZE.0;
+    let (list, ui, ids) = built(w, state(None, 3), None);
+    assert_eq!(ids.form, form(&[0, 1, 2, 4, 5], false, true));
+    let (strip, right) = (rect_of(&ui, ids.strip), rect_of(&ui, ids.toggles[1]));
+    assert!(strip.x + strip.w <= right.x + 0.01, "the tools reach the figures button: {strip:?} {right:?}");
+    let words = drawn(&list);
+    for kept in ["Home", "Preview", "Temperature", "More"] {
+        assert!(words.iter().any(|t| t == kept), "{kept} is drawn: {words:?}");
+    }
+    for gone in ["Biomes", "Relief", "2D", "3D"] {
+        assert!(!words.iter().any(|t| t == gone), "{gone} is in More: {words:?}");
+    }
+}
+
+/// At 1000 the greyed views are in "More" and Biomes, Relief and Temperature stay, the bar still centred.
+#[test]
+fn at_1000_the_greyed_views_are_in_more() {
     let Some(world) = common::world() else { return };
     assert!(world.coarse(), "the loaded world is a coarse one");
     let (list, ui, ids) = built(1000.0, state(Some("Louis"), 2), Some(&world));
-    assert_eq!(ids.form, form(false, true, &[1, 4, 5]));
+    assert_eq!(ids.form, form(&[1, 4, 5], true, false));
     assert_eq!(ids.tabs.len(), 3 + 2, "Biomes, Relief, Temperature, then 2D and 3D");
     assert_ne!(ids.more, Id::ROOT);
     let words = drawn(&list);
     for kept in ["Biomes", "Relief", "Temperature", "More", "Home", "Preview", "2D", "3D"] {
         assert!(words.iter().any(|t| t == kept), "{kept} is drawn: {words:?}");
     }
+    // The preview tool has no brand, so no account either.
     for gone in ["Flat", "Structures", "Section", "Louis"] {
         assert!(!words.iter().any(|t| t == gone), "{gone} is not drawn");
     }
@@ -225,46 +268,54 @@ fn at_the_minimum_width_the_greyed_views_are_in_more() {
 /// Wide enough, nothing is given up.
 #[test]
 fn a_wide_window_keeps_everything() {
-    let world = common::world();
-    let (_, ui, ids) = built(1920.0, state(Some("Louis"), 2), None);
-    assert_eq!(ids.form, form(true, true, &[]));
+    let (_, _, ids) = built(1920.0, state(Some("Louis"), 2), None);
+    assert_eq!(ids.form, form(&[], true, false));
     assert_eq!(ids.more, Id::ROOT);
     assert_eq!(ids.tabs.len(), 8);
-    let _ = (ui, world);
 }
 
-/// Home has the room: it keeps the account and the word at 1000, while the preview tool, on show, gives them up.
+/// Home has the brand: it keeps the account and the word at the window's least width, and the preview tool has the
+/// panels' buttons in their place.
 #[test]
-fn home_keeps_what_the_preview_tool_gives_up() {
+fn home_keeps_its_brand_and_the_preview_tool_has_the_panels_buttons() {
+    let w = preview::MIN_SIZE.0;
     let mut st = state(Some("Louis"), 2);
     st.mode = Mode::Home;
-    let (_, _, ids) = built(1000.0, st, None);
+    let (list, _, ids) = built(w, st, None);
     assert!(ids.form.account && ids.form.word, "{:?}", ids.form);
-    let (_, _, ids) = built(1000.0, state(Some("Louis"), 2), None);
-    assert!(!ids.form.account, "{:?}", ids.form);
+    assert_ne!(ids.brand, Id::ROOT);
+    assert_eq!(ids.toggles, [Id::ROOT; 2], "no panel buttons in Home");
+    let words = drawn(&list);
+    assert!(words.iter().any(|t| t == "Louis"), "{words:?}");
+    let (list, _, ids) = built(w, state(Some("Louis"), 2), None);
+    assert_eq!(ids.brand, Id::ROOT);
+    assert_ne!(ids.toggles, [Id::ROOT; 2]);
+    let words = drawn(&list);
+    assert!(!words.iter().any(|t| t == "Louis"), "{words:?}");
 }
 
 /// The pressed view stays among the tabs, at every width and for every view.
 #[test]
 fn the_pressed_view_is_never_in_more() {
     for view in 0..6 {
-        for w in (1000..=1500).step_by(25) {
+        for w in (600..=1500).step_by(25) {
             let (_, _, ids) = built(w as f32, state(Some("Louis"), view), None);
             assert!(!ids.form.more.contains(&view), "view {view} at {w}: {:?}", ids.form);
-            let shapes = if view == 5 { 0 } else { 2 };
+            let shapes = if view == 5 || ids.form.shapes_in_more { 0 } else { 2 };
             assert_eq!(ids.tabs.len(), 6 - ids.form.more.len() + shapes, "view {view} at {w}");
         }
     }
 }
 
-/// An account that fits is whole; one that is a little too long is cut with an ellipsis; one that would be cut
-/// to nothing is gone.
+/// In Home, an account that fits is whole; one that is a little too long is cut with an ellipsis; one that would be
+/// cut to nothing is gone.
 #[test]
 fn the_account_is_whole_then_cut_then_gone() {
     let mut cut = None;
     let mut gone_at = None;
-    for w in (1000..=2000).rev() {
-        let (list, _, ids) = built(w as f32, state(Some("Alexandrina"), 2), None);
+    for w in (400..=700).rev() {
+        let st = PreviewState { mode: Mode::Home, ..state(Some("Alexandrina"), 2) };
+        let (list, _, ids) = built(w as f32, st, None);
         let words = drawn(&list);
         let shown = words.iter().find(|t| t.starts_with("Al") && !t.contains(' '));
         match shown {
@@ -282,7 +333,6 @@ fn the_account_is_whole_then_cut_then_gone() {
     let (cut, gone_at) = (cut.expect("a width where it is cut"), gone_at.expect("a width where it goes"));
     assert!(cut > gone_at, "cut at {cut}, gone at {gone_at}");
 }
-
 struct Rig {
     app: PreviewApp,
     r: Renderer,
@@ -330,14 +380,14 @@ impl Rig {
 #[test]
 fn choosing_a_view_in_more_presses_it() {
     let mut rig = Rig::new(1000, state(None, 0), None);
-    assert_eq!(rig.app.ids().form.more, vec![4, 5], "Structures and Section are in More at 1000");
+    assert_eq!(rig.app.ids().form.more, vec![3, 4, 5], "Temperature, Structures and Section are in More at 1000");
     let at = rig.more();
     rig.click(Vec2::new(at.x + 10.0, at.y + 10.0));
     let words = rig.words();
     for row in ["Structures", "Section"] {
         assert!(words.iter().any(|t| t == row), "{row} is listed: {words:?}");
     }
-    let at = rig.row(1);
+    let at = rig.row(2);
     rig.click(at);
     assert_eq!(rig.app.state().view, 5, "Section is pressed");
     assert!(!rig.app.ids().form.more.contains(&5), "and it is in the strip");
@@ -360,4 +410,29 @@ fn a_greyed_view_in_more_cannot_be_chosen() {
     rig.click(at);
     assert_eq!(rig.app.state().view, before, "Flat did nothing");
     assert!(rig.words().iter().any(|t| t == "Flat"), "the list stays open: Flat is in it and in no tab");
+}
+
+/// Narrower still, 2D and 3D are rows of "More" after the views, and choosing one presses it like a tab does.
+#[test]
+fn shapes_in_more_are_chosen_like_views() {
+    let mut rig = Rig::new(640, state(None, 0), None);
+    let ids = rig.app.ids().clone();
+    assert!(ids.form.shapes_in_more && !ids.form.centred, "{:?}", ids.form);
+    assert_eq!(ids.tabs.len(), 1, "only the pressed view is a tab");
+    let at = rig.more();
+    rig.click(Vec2::new(at.x + 10.0, at.y + 10.0));
+    let words = rig.words();
+    for row in ["Flat", "Section", "2D", "3D"] {
+        assert!(words.iter().any(|t| t == row), "{row} is listed: {words:?}");
+    }
+    let n = ids.form.more.len();
+    let at = rig.row(n + 1);
+    rig.click(at);
+    assert!(rig.app.state().in3d, "3D is pressed");
+    assert_eq!(rig.app.state().view, 0, "and the view is the same");
+    let at = rig.more();
+    rig.click(Vec2::new(at.x + 10.0, at.y + 10.0));
+    let at = rig.row(n);
+    rig.click(at);
+    assert!(!rig.app.state().in3d, "2D is back");
 }
