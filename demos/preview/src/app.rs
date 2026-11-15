@@ -663,7 +663,9 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
         self.last = list;
         gfx.end();
         // A run under way no longer asks for frames at full speed: `wake_in` says when the clock next changes.
-        self.ui.want_redraw() || moving
+        // The tools' slide asks for frames only while it moves.
+        let sliding = self.state.options.moving(self.ui.clock(), self.state.reduce_motion);
+        self.ui.want_redraw() || moving || sliding
     }
 
     fn wake_in(&self) -> Option<f32> {

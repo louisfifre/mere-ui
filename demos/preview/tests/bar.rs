@@ -32,7 +32,9 @@ struct Rig {
 }
 
 impl Rig {
-    fn new(world: Option<&World>, state: PreviewState, w: u32, h: u32, scale: f32, dark: bool) -> Rig {
+    fn new(world: Option<&World>, mut state: PreviewState, w: u32, h: u32, scale: f32, dark: bool) -> Rig {
+        // These tests switch tools to look at the state, not the slide: the slide has its own tests.
+        state.reduce_motion = true;
         let theme = if dark { Theme::dark() } else { Theme::light() };
         let (pw, ph) = ((w as f32 * scale) as u32, (h as f32 * scale) as u32);
         let mut r = Renderer::offscreen(pw, ph, scale).expect("offscreen renderer");
@@ -222,6 +224,7 @@ fn b4_the_buttons_and_the_title_are_requests() {
     drop(rig);
     let mut state = PreviewState::for_world(Some(&world));
     state.detail = 2;
+    state.reduce_motion = true;
     let runs = common::runs(&root, &[("NUI_STUB", "hold")]);
     let theme = Theme::dark();
     let mut r = Renderer::offscreen(1400, 940, 1.0).unwrap();
@@ -477,4 +480,117 @@ fn t3_errors_are_the_pages_note_and_the_status_line() {
     assert!(says(&rig, preview::text::NO_PREVIEW));
     assert_eq!(rig.app.ids().status_text, preview::text::UNREADABLE, "the status line holds the trouble");
     rig.write("error_unreadable.png");
+}
+// ---- the bar's slide and account (step 21) ----
+
+/// A rig on the preview with no world, at 1400 x 940 in Home or in the preview tool, the clock held at `at`.
+fn slide_rig(mode: Mode, reduce: bool, account: Option<&str>, w: u32, at: f64) -> Rig {
+    let state = PreviewState { mode, account: account.map(String::from), ..PreviewState::default() };
+    let mut rig = Rig::new(None, state, w, 940, 1.0, true);
+    rig.app.state_mut().reduce_motion = reduce;
+    rig.app.set_clock(Some(at));
+    rig.frame();
+    rig
+}
+
+fn options_w(rig: &Rig) -> f32 {
+    rig.rect(rig.app.ids().options).w
+}
+
+/// A1: Home to the preview tool, 110 ms in: the options are at the ease's value of their width.
+#[test]
+fn a1_the_options_slide_open_in_220_ms() {
+    let mut rig = slide_rig(Mode::Home, false, None, 1400, 10.0);
+    assert_eq!(rig.app.ids().options, Id::ROOT, "closed: not built");
+    let preview = rig.app.ids().tools[1];
+    rig.click_on(preview);
+    assert_eq!(rig.app.state().mode, Mode::Preview);
+    rig.app.set_clock(Some(10.11));
+    rig.app.frame(&mut rig.r, 0.0);
+    let natural = rig.app.state().options_w;
+    assert!(natural > 300.0, "the tabs' width is known: {natural}");
+    let w = options_w(&rig);
+    let want = nui_ui::ease(0.5) * natural;
+    assert!((w - want).abs() < 1.5, "{w} against {want}");
+    assert!(rig.app.frame(&mut rig.r, 0.0), "frames go on while it moves");
+    rig.app.set_clock(Some(11.0));
+    rig.app.frame(&mut rig.r, 0.0);
+    assert!((options_w(&rig) - natural).abs() < 0.01);
+    assert!(!rig.app.frame(&mut rig.r, 0.0), "and stop when it has settled");
+    rig.write("bar_slide_done.png");
+}
+
+/// A2: with the system's reduced motion the options are whole on the first frame after the click.
+#[test]
+fn a2_reduced_motion_switches_at_once() {
+    let mut rig = slide_rig(Mode::Home, true, None, 1400, 10.0);
+    let preview = rig.app.ids().tools[1];
+    rig.click_on(preview);
+    let natural = rig.app.state().options_w;
+    assert!(natural > 300.0);
+    assert!((options_w(&rig) - natural).abs() < 0.01);
+    assert!(!rig.app.frame(&mut rig.r, 0.0));
+}
+
+/// A3: closing: 110 ms after a click on Home the tabs are at 1 - ease(0.5) of their width, and inert.
+#[test]
+fn a3_the_options_slide_shut_and_are_inert() {
+    let mut rig = slide_rig(Mode::Preview, false, None, 1400, 10.0);
+    let natural = rig.app.state().options_w;
+    assert!(natural > 300.0);
+    let home = rig.app.ids().tools[0];
+    rig.click_on(home);
+    assert_eq!(rig.app.state().mode, Mode::Home);
+    rig.app.set_clock(Some(10.11));
+    rig.app.frame(&mut rig.r, 0.0);
+    let w = options_w(&rig);
+    let want = (1.0 - nui_ui::ease(0.5)) * natural;
+    assert!((w - want).abs() < 1.5, "{w} against {want}");
+    let (view, tab) = (rig.app.state().view, rig.app.ids().tabs[0]);
+    let c = centre(rig.rect(tab));
+    // The first tab is under the pointer only if the slide has not cut it off: click it, whatever it is.
+    rig.click(c);
+    assert_eq!(rig.app.state().view, view, "a tab does nothing while its tool closes");
+    rig.app.set_clock(Some(11.0));
+    rig.frame();
+    assert_eq!(rig.app.ids().options, Id::ROOT, "gone when shut");
+}
+
+/// A4: the account sits 10 px after the name, muted, in Home and in the preview tool; a long one is cut before
+/// the tools.
+#[test]
+fn a4_the_account_follows_the_name() {
+    for (mode, w) in [(Mode::Home, 1000), (Mode::Home, 1920), (Mode::Preview, 1000), (Mode::Preview, 1400), (Mode::Preview, 1920)] {
+        let rig = slide_rig(mode, true, Some("PlayerOne"), w, 1.0);
+        let shown: Vec<(String, Vec2)> = rig.app.list().cmds.iter().filter_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { text.starts_with("Player").then(|| (text.clone(), *at)) } else { None }).collect();
+        assert_eq!(shown.len(), 1, "{mode:?} {w}");
+        let (text, at) = &shown[0];
+        assert!((at.x - 119.28).abs() < 0.5, "{mode:?} {w}: {}", at.x);
+        let brand = rig.rect(rig.app.ids().brand);
+        assert!((at.y + 9.0 - (brand.y + brand.h / 2.0)).abs() < 3.0, "on the bar's centre line");
+        // Whole whenever the free space left of the tools holds it: always in Home, from 1200 in the preview tool
+        // (at 1000 its tabs leave 179 px, which holds 8 letters).
+        if mode == Mode::Home || w >= 1200 {
+            assert_eq!(text, "PlayerOne", "{mode:?} {w}");
+        }
+        let strip = rig.rect(rig.app.ids().strip);
+        assert!(at.x + text.chars().count() as f32 * 7.2 <= strip.x + 0.01, "{mode:?} {w}: runs into the tools");
+    }    let long = "A".repeat(40);
+    let rig = slide_rig(Mode::Preview, true, Some(&long), 1000, 1.0);
+    let cut = rig.app.list().cmds.iter().find_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { (text.ends_with('\u{2026}') && text.starts_with("AAA")).then(|| (text.clone(), *at)) } else { None });
+    let (text, at) = cut.expect("a 40 char account does not fit before the tools at 1000 and ends in an ellipsis");
+    let right = at.x + text.chars().count() as f32 * 7.2;
+    let strip = rig.rect(rig.app.ids().strip);
+    assert!(right <= strip.x + 0.01, "{right} runs into the strip at {}", strip.x);
+}
+
+/// The picture of the half-open tabs.
+#[test]
+fn a5_the_half_open_bar_picture() {
+    let mut rig = slide_rig(Mode::Home, false, Some("PlayerOne"), 1400, 10.0);
+    let preview = rig.app.ids().tools[1];
+    rig.click_on(preview);
+    rig.app.set_clock(Some(10.11));
+    rig.frame();
+    rig.write("bar_slide_mid.png");
 }

@@ -13,8 +13,8 @@
 use std::sync::OnceLock;
 
 use nui_base::{Cmd, Color, Rect, Vec2};
-use nui_layout::{Align, Dim, Display, Edges, Position, Style, Track, Tracks};
-use nui_ui::{Icon, IconLook, IconOpts, TabLook, TabOpts, TextLook, Ui, strip_style};
+use nui_layout::{Align, Dim, Display, Edges, Overflow, Position, Style, Track, Tracks};
+use nui_ui::{Icon, IconLook, IconOpts, Slide, TabLook, TabOpts, TextLook, Tone, Ui, strip_style};
 
 use crate::shell::{BAR_H, Mode, PreviewState, RunEnd, ShellIds, Want};
 use crate::text;
@@ -121,6 +121,15 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
     let t = *ui.theme();
     let icons = icons();
     let marker = marker(s);
+    // A state that names a tool without the slide that goes with it (a test, a host) is put right: the options
+    // are open only for the preview.
+    if s.mode == Mode::Home && s.options == Slide::settled(true) {
+        s.options = Slide::settled(false);
+    } else if s.mode == Mode::Preview && s.options == Slide::settled(false) {
+        s.options = Slide::settled(true);
+    }
+    let now = ui.clock();
+    let value = s.options.value(now, s.reduce_motion);
     // The bar is a grid of three columns with a free space on each side of the tools, so the tools stay in the
     // middle whatever the width (line 76). The launcher page has a 1 px border-bottom on #titlebar (line 77); the
     // native bar drops it by the maintainer's choice (2026-11-15: the header should float, no separating line), a
@@ -139,13 +148,18 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
     ids.bar = ui.node("bar", bar, |ui| {
         // `.brand` (lines 81-82): the cube and the name in capitals, 12 px in from the left, 10 px apart.
         // Its own width, not the column's: the page's stretches it over the free space, which nothing can see.
-        let brand = Style { align_items: Align::Center, gap: Vec2::new(10.0, 0.0), pad: Edges::new(0.0, 0.0, 0.0, 12.0), min_w: Dim::Px(0.0), justify_self: Some(Align::Start), ..Style::default() };
+        let brand = Style { align_items: Align::Center, gap: Vec2::new(10.0, 0.0), pad: Edges::new(0.0, 0.0, 0.0, 12.0), min_w: Dim::Px(0.0), max_w: Dim::Pct(100.0), justify_self: Some(Align::Start), ..Style::default() };
         ids.brand = ui.node("brand", brand, |ui| {
             let cube = Style { w: Dim::Px(16.0), h: Dim::Px(16.0), shrink: 0.0, ..Style::default() };
             ui.canvas("pack", cube, |_, _| {
                 icons.pack.iter().map(|(i, c)| Cmd::Shape { rect: Rect::new(0.0, 0.0, 16.0, 16.0), grid: i.grid, figures: i.figures.clone(), color: *c, crisp: false }).collect()
             });
             ui.text(&text::BAR_TITLE.to_uppercase(), TextLook::heading());
+            // `#account` (line 84): muted, and cut with an ellipsis only when the free space left of the tools is
+            // narrower than it. The page hides it under 640 px (line 85); the window is never under 1000.
+            if let Some(a) = &s.account {
+                ui.ellipsis(a, TextLook::body(Tone::Muted));
+            }
         });
 
         // `.strip` (line 109): the tools, one box wide each, then the preview's tabs after its own tool.
@@ -162,6 +176,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
                 // `showMode` (line 797): the same mode does nothing; the preview, once shown, has been seen.
                 if r.clicked && s.mode != mode {
                     s.mode = mode;
+                    s.options.toward(mode == Mode::Preview, now, s.reduce_motion);
                     if mode == Mode::Preview {
                         s.preview_seen = true;
                     }
@@ -171,9 +186,22 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             ui.strip_gap();
             ui.node("preview", Style::default(), |ui| {
                 tool(ui, ids, s, 1);
-                // A closed tool's choices are 0 wide and not built.
-                if s.mode == Mode::Preview {
-                    ui.node("options", Style { pad: Edges::new(0.0, 0.0, 0.0, 1.0), ..Style::default() }, |ui| tabs(ui, s, ids, world));
+                // A closed tool's choices are 0 wide and not built; while they slide they are built at their own width
+                // inside a box that is cut to the share the slide has reached (`.options`, lines 124-127).
+                if s.mode == Mode::Preview || value > 0.0 {
+                    let settled = s.reduce_motion || (value >= 1.0 && !s.options.moving(now, false));
+                    let outer = if settled {
+                        Style::default()
+                    } else {
+                        Style { overflow: Overflow::Hidden, min_w: Dim::Px(0.0), shrink: 0.0, w: Dim::Px(value * s.options_w), ..Style::default() }
+                    };
+                    let mut inner = None;
+                    ids.options = ui.node("options", outer, |ui| {
+                        inner = Some(ui.node("inner", Style { pad: Edges::new(0.0, 0.0, 0.0, 1.0), shrink: 0.0, ..Style::default() }, |ui| tabs(ui, s, ids, world)));
+                    });
+                    if let Some(r) = inner.and_then(|id| ui.rect(id)) {
+                        s.options_w = r.w;
+                    }
                 }
             });
         });
@@ -217,7 +245,8 @@ fn tabs(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&Wo
         ids.tabs.push(r.id);
         ids.bar_buttons.push(r.id);
         ui.title(r.id, if disabled { text::NEEDS_FULL } else { word });
-        if r.clicked {
+        // `inert` while the tool is not the one on screen (the page's closing slide).
+        if r.clicked && s.mode == Mode::Preview {
             s.view = i;
         }
     }
@@ -229,7 +258,7 @@ fn tabs(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&Wo
             ids.tabs.push(r.id);
             ids.bar_buttons.push(r.id);
             ui.title(r.id, word);
-            if r.clicked {
+            if r.clicked && s.mode == Mode::Preview {
                 s.in3d = i == 1;
             }
         }

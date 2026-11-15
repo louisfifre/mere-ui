@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 use nui_base::{Cmd, Color, Cursor, DrawList, Orbit, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
-    ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
+    ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, Slide, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
     choice_style, details_style, scroll_style, wrap_lines,
 };
 
@@ -170,6 +170,16 @@ pub struct PreviewState {
     /// The preview was on screen since its last run ended (the launcher's `previewSeen`).
     pub preview_seen: bool,
     pub ended: RunEnd,
+    /// The bar's `#account` (launcher line 84): who plays, said once beside the game's name. None while unknown, and
+    /// in the standalone preview, which has no account.
+    pub account: Option<String>,
+    /// The tools' options sliding open and shut (launcher line 124), 1 being open. Kept in step with `mode`: a
+    /// state that names a mode without it is put right when the bar is built.
+    pub options: Slide,
+    /// The width the options take when open, as the last frame measured it: what the slide scales.
+    pub options_w: f32,
+    /// The system asks for no animation (read once at start): the slide then jumps.
+    pub reduce_motion: bool,
 }
 
 impl PreviewState {
@@ -224,6 +234,10 @@ impl Default for PreviewState {
             maximized: false,
             preview_seen: true,
             ended: RunEnd::Idle,
+            account: None,
+            options: Slide::settled(true),
+            options_w: 0.0,
+            reduce_motion: false,
         }
     }
 }
@@ -248,6 +262,8 @@ pub struct ShellIds {
     pub home_body: Id,
     /// The tools' strip in the middle of the bar, and the preview's tabs in it.
     pub strip: Id,
+    /// The box that slides the preview's tabs open (Id::ROOT while they are not built).
+    pub options: Id,
     pub tabs: Vec<Id>,
     pub world_head: Id,
     pub settings_head: Id,
@@ -346,6 +362,7 @@ impl Default for ShellIds {
             home_pane: o,
             home_body: o,
             strip: o,
+            options: o,
             tabs: Vec::new(),
             world_head: o,
             settings_head: o,
