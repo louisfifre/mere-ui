@@ -86,6 +86,9 @@ are the sheet (11 `nui-ui` tests in `tests/list.rs`, 1 `Rect::intersect` test, 2
 or read from the page, not seen in a browser:
 
 - `GUTTER` 11 px (what the thin classic scrollbar reserves), `THUMB_MIN` 18 px and `WHEEL_STEP` 100 px per notch.
+- Since the fluid-panels branch the bar has its own look (maintainer's request, not the page's): a 1 px track in the
+  line colour, a 3 px thumb (muted, text colour on hover or drag) and a chevron arrow at each end that has content
+  beyond it (`ARROW` 10 px of room at both ends of the track); the gutter stays 11 px.
 - Plex Mono's U+2026: zoomed 5x in the sheet it looks like three dots in one cell at the baseline, in the text's grey, so
   it seems to be the font's own glyph and not a fallback; nothing proves the font has it.
 - The underline's thickness, and that a 1 px band per row quantises the page's mask gradient well enough.

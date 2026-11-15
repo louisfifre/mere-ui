@@ -208,7 +208,11 @@ with `scroll_style()` (the page's `.scroll`, a flex column, `margin-right: -10`,
 every node has a visible rect next to its absolute one and `interact` judges the pointer against the visible one (a row
 scrolled under the legend takes no hover; `Resp.rect` stays the full rect). The gutter (`GUTTER` 11 px of padding) is
 reserved from the frame after the content first overflows, so `want_redraw()` is true after that frame, as for Tab. The
-thumb is `thumb_rect` (length `view^2 / content`, at least `THUMB_MIN`) in `theme.line`; the bottom fade (`ScrollOpts::LIST`,
+bar (kit's own look, no longer the page's thin classic one) is a 1 px track in `theme.line` centred in the gutter, between
+two `ARROW` (10 px) rooms; the thumb is `thumb_rect` (3 px wide, `THUMB_W`; length `track * view / content`, at least
+`THUMB_MIN`) in `theme.muted`, `theme.text` while hovered or dragged; a chevron (5 px wide, a 1 px polyline) shows at the
+top when there is content above and at the bottom when there is content below (`arrows_shown`), and a press on it moves
+`WHEEL_STEP`. The bar is painted after the fade, since it lives in the gutter, never over the content. The bottom fade (`ScrollOpts::LIST`,
 28 px) is 1 px bands of the ground at rising alpha, which equals the page's mask because the ground is opaque. The wheel
 (`Input.wheel`, `wheel_pos`) moves `WHEEL_STEP` px per notch and is consumed by the innermost area under the pointer; a
 thumb drag keeps the grab offset (`Ui::grab`, one drag at a time, like the focus). Rows: `list_row(key, &ListRow, RowOpts

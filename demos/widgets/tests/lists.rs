@@ -42,13 +42,17 @@ fn check(theme: Theme, name: &str) {
     let y_a = sheet_offset(268.0);
     let row_top = |i: usize| A_LIST_TOP + ROW_H * i as f32 - y_a;
 
-    // The thumb: 240 x 240 / 508 = 113.4 high at 42.5 + (240 - 113.4) x y / 268, in the gutter's last 7 px
-    // (x 20 + 340 - 11 + 2 = 351). Its centre, and the gutter above it.
-    let thumb_h = A_H * A_H / 508.0;
-    let thumb_top = A_LIST_TOP + (A_H - thumb_h) * y_a / 268.0;
-    let tx = A_POS.x + A_W + 10.0 - 11.0 + 2.0 + 3.0;
-    same(at(tx, thumb_top + thumb_h / 2.0), theme.line, "thumb centre");
-    same(at(tx, A_LIST_TOP + 10.0), theme.ground, "gutter above the thumb");
+    // The bar sits in the middle of the 11 px gutter (x 20 + 340 - 5.5). The track runs between two 10 px arrows,
+    // 220 long from 52.5; the thumb is 220 x 240 / 508 = 103.9 high at 52.5 + (220 - 103.9) x y / 268, muted. The
+    // track above it is a 1 px line, and the gutter beside both is the ground.
+    let thumb_h = (A_H - 20.0) * A_H / 508.0;
+    let thumb_top = A_LIST_TOP + 10.0 + (A_H - 20.0 - thumb_h) * y_a / 268.0;
+    let tx = A_POS.x + A_W + 10.0 - 5.5;
+    same(at(tx, thumb_top + thumb_h / 2.0), theme.muted, "thumb centre");
+    same(at(tx + 1.0, thumb_top + thumb_h / 2.0), theme.muted, "thumb is 3 px wide");
+    same(at(tx + 2.0, thumb_top + thumb_h / 2.0), theme.ground, "gutter beside the thumb");
+    same(at(tx, A_LIST_TOP + 20.0), theme.line, "track above the thumb");
+    same(at(tx - 3.0, A_LIST_TOP + 20.0), theme.ground, "gutter beside the track");
 
     // Swatch interiors: 12 px at the row's top + 6 (padding 3, centred in 18). Pressed rows are not faded;
     // the others are at .5, and the hovered one at .85.
@@ -63,7 +67,7 @@ fn check(theme: Theme, name: &str) {
     same(at(50.0, row_top(HOVER_ROW) + 19.5), theme.faded(theme.text, 0.85), "hovered underline");
 
     // B has 5 x 24 + 28 = 148 of content in 160: no thumb, so its gutter column is the ground.
-    let bx = B_POS.x + B_W + 10.0 - 11.0 + 2.0 + 3.0;
+    let bx = B_POS.x + B_W + 10.0 - 5.5;
     same(at(bx, A_LIST_TOP + 60.0), theme.ground, "B has no thumb");
     // B's rows start flush with its legend: the first row's swatch (top 42.5 + 6) at the column's left.
     same(at(B_POS.x + 6.0, A_LIST_TOP + 12.0), theme.faded(swatch(1), 1.0), "B first swatch");
