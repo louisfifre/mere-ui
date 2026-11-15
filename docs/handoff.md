@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 19 done (2026-11-15)
+## Status: steps 0 to 20 done (2026-11-15)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -422,7 +422,54 @@ box (step 21 builds in it).
 - PLACEHOLDER: the Home pane is unchanged (`HOME_LATER`, now inside `home_body`).
 - Not built: unchanged (no animation, `#account`).
 
-Next: step 20 (IME in the text field, UNVERIFIED need) and step 21 (the launcher's own migration, in the pack's repository).
+Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the text field.
+- Built: `nui-base` has `Event::Ime(Ime)` (`Start`, `Update { text, cursor }`, `Commit { text }`, `End`, one per IMM
+  message; `Event` is no longer `Copy`) and `App::ime_spot()` (the caret in dip, None turns the input method off).
+  `nui-ui` counts cells: a wide char (East Asian Wide or Fullwidth, a reduced UAX #11 table in `text.rs`) takes two
+  cells inside a field, for the text's width, the caret, the selection, the pointer and the scroll; `max_chars` still
+  counts chars. The composition (preedit) is shown inline at the caret, with one underline under all of it; the value
+  the application holds changes only at the commit (a departure from the browser's input events, on purpose), which goes
+  through the edit model as one undo step and replaces a selection. A cancel (an empty update, then the end) leaves the
+  text and the selection as they were. Keys and chars are dropped while a composition shows; a blur drops it (the system
+  is told to cancel; Chrome commits on blur, which would here commit after the focus moved, possibly into another
+  field). Number fields ignore the input method. `nui-win32` (`ime.rs`, the only module that names IMM): the
+  composition becomes `Event::Ime`, the system's own composition window is hidden (`WM_IME_SETCONTEXT`), the candidate
+  window is placed under the composition's start with `CFS_EXCLUDE`, `WM_IME_COMPOSITION` never reaches
+  `DefWindowProcW` (no second typing through `WM_IME_CHAR`), and no input context is associated with the window unless a
+  text field has the keyboard. The new `windows` feature is `Win32_UI_Input_Ime`; `Cargo.lock` did not change.
+  `demos/widgets` has the input method sheet (`ime_sheet`, `docs/shots/ime-dark.png`, `ime-light.png`); both apps pass
+  `Ui::ime_spot` to the backend.
+- Evidence: `cargo test --offline --workspace` 402 passed, 0 failed, 1 ignored, no warning (22 new: 3 wide-cell tests in
+  `nui-ui/tests/field.rs`, 9 in `nui-ui/tests/ime.rs`, 6 unit tests of `nui-win32/src/ime.rs`, the `key_of(0xE5)` test,
+  2 pixel tests in `demos/widgets/tests/ime.rs`, 1 in `demos/preview/tests/ime.rs`). No other shot was regenerated.
+- PLACEHOLDER: none.
+- UNVERIFIED: the live input-method path in its entirety (no Japanese or Chinese input method is installed or driven
+  here); the candidate window's place on screen; the glyph centring in two cells, which assumes the fallback font
+  advances 1 em (IBM Plex Mono has no CJK glyphs); the behaviour at a display scale of 150%.
+- Not built: the composition's attributes and clauses (one underline only, no target-clause look), reconversion
+  (`IMR_RECONVERTSTRING`), TSF, wide cells outside fields (labels, lists and the ellipsis count one cell per char),
+  half-width katakana drawn at its own advance inside its one cell, and commit on blur (we cancel).
+- Choices where the brief was silent: `byte_near_cell` and `byte_under_cell` take the pointer's position in cells (a
+  float); a message of `WM_IME_COMPOSITION` that carries neither the result nor the composition string (only attributes
+  or the caret) sends nothing, and only lparam 0 sends an empty update; the spot is clamped to the field's content box;
+  `byte_at_col` stays, for tests only.
+- The manual check, by the maintainer:
+  1. Add Japanese (Microsoft IME) under Settings > Time & language > Language & region.
+  2. `cargo run --offline -p widgets -- --fields`, click the seed field, switch to Japanese with Win+Space and then
+     Alt+`, and type "nihongo". It must show にほんご underlined inline at the caret, with no separate floating
+     composition box.
+  3. Space: the candidate list opens just under the field, at the start of the composition, not at the top-left of the
+     screen.
+  4. Enter: 日本語 appears once, not twice, and the caret is after it.
+  5. Type "ka" and press Escape (twice if needed): the composition disappears and the text is unchanged.
+  6. Click the "Vertical scale" number field and type with the input method selected: no composition, the
+     input-method indicator shows it off, and digits go in.
+  7. Click elsewhere during a composition: it is dropped.
+  8. Repeat 2-5 in `cargo run --offline -p preview` on the seed field, at 100% and at 150% display scale.
+  9. Optionally, Microsoft Pinyin: type "zhongwen", Space, then 1.
+  10. Logs at Debug show "ime on" / "ime off" and the commit counts.
+
+Next: step 21 (the launcher's own migration, in the pack's repository).
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
