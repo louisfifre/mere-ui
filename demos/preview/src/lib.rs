@@ -14,6 +14,7 @@ pub mod json;
 pub mod map;
 pub mod overflow;
 pub mod paint;
+pub mod panels;
 pub mod run;
 pub mod scene;
 pub mod section;

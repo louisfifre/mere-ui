@@ -1,7 +1,8 @@
 //! The world preview's shell (build plan step 13): the bar and the three columns of `#page`
 //! (preview.html lines 63-88, 370-449), built with `nui-ui` and filled with the page's real settings
-//! sections and static values. Since step 19 it has no breakpoint: the side panels are fixed (`PAGE`) and pinned to
-//! the window's edges, and the middle column is what is left, its map a square of one rule at every width.
+//! sections and static values. The side panels are fluid (`panels.rs`): each is as wide as its content wants, the
+//! middle column is what they leave, its map a square of one rule, and when the window cannot hold both panels
+//! and the map's minimum side by side the panels stack under the stage.
 //!
 //! The right column follows the view with the page's own figures, lists and history (step 18). Not built: changed
 //! marks, hints and tooltips, the select's menu, the ores group; in 3D, the structure marks, the right-drag pan, keys
@@ -23,6 +24,7 @@ use crate::figures::{self, CellKind, Figures, List, blocks, figure_cells, js_rou
 use crate::history::{Entry, PLOT_H, here, trend};
 use crate::map::{Carry, Look, frame_cmds, point_under, structure_near, tick_at};
 use crate::paint::{View, rows};
+use crate::panels::{self, Plan};
 use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Steps, duration};
 use crate::scene;
 use crate::section::{ORE_COLOURS, ORE_KINDS, Shown};
@@ -50,9 +52,9 @@ pub const AREA_POINTS: [u32; 16] = {
 pub const AREA_FINE_MAX: u32 = 2048;
 /// `--under` (line 227): what the stage keeps free under the map for `#under`.
 const UNDER: f32 = 64.0;
-/// The smallest window, in device-independent pixels. With the panels fixed the middle column is what is left, and
-/// at 1000 it is 238 px wide: the least that keeps the stage's export link out of the gap, and the width the bar needs.
-pub const MIN_SIZE: (f32, f32) = (1000.0, 600.0);
+/// The smallest window, in device-independent pixels: what the narrow bar needs, or the two stacked panels with the
+/// gaps around them, whichever is more (`panels::MIN_WIDTH`), by 600. Derived, never typed.
+pub const MIN_SIZE: (f32, f32) = (panels::MIN_WIDTH, panels::MIN_HEIGHT);
 
 /// The command line's rule for `--size`, in pixels: raised to `MIN_SIZE`, with a warning when it was.
 pub fn min_size_px(size: (u32, u32)) -> (u32, u32) {
@@ -70,17 +72,12 @@ pub fn raise_to_min(size: Vec2) -> Vec2 {
     raised
 }
 
-/// The page's one layout. The media queries of the page (1250 and 1100 px) are not built: the maintainer's rule is
-/// that the side panels never move nor change width, whatever the window, and that the centre follows the window
-/// with one rule. These are the page's wide numbers (lines 75-81, 297, 303), except the top padding, which is
-/// `CONTENT_TOP` (10) instead of the page's 18 (step 19.5); they are the only widths where no
-/// settings label is cut ("Lanterns over underground rivers" is 230.4 px in a label cell of 231.4).
-/// Derivation: column_h = H - 40 - 10 - 22 = H - 72; side = min(W - 762, H - 72 - 64) = min(W - 762, H - 136).
+/// What the page keeps of the original's wide layout (lines 75-81, 297, 303), apart from the panels' widths, which
+/// are `panels.rs`'s: the padding (the top is `CONTENT_TOP`, 10, instead of the page's 18, step 19.5), the gap
+/// between the columns of the figures grid, and the size of the goal figures.
+/// Beside, column_h = H - 40 - 10 - 22 = H - 72 and the square's side is min(middle_w, column_h - 64).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Columns {
-    pub left: f32,
-    pub right: f32,
-    pub gap: f32,
     pub pad: Edges,
     /// The gap between the columns of the figures grid.
     pub fig_gap: f32,
@@ -88,7 +85,7 @@ pub struct Columns {
     pub goal: f32,
 }
 
-pub const PAGE: Columns = Columns { left: 320.0, right: 330.0, gap: 28.0, pad: Edges::new(CONTENT_TOP, 28.0, 22.0, 28.0), fig_gap: 14.0, goal: 14.0 };
+pub const PAGE: Columns = Columns { pad: Edges::new(CONTENT_TOP, panels::GAP, 22.0, panels::GAP), fig_gap: panels::FIG_GAP, goal: 14.0 };
 /// A press the shell recorded and the application acts on after the build (a frame may build up to three times,
 /// so the shell never acts itself: recording is idempotent).
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -119,9 +116,28 @@ pub enum RunEnd {
     Failed,
 }
 
+/// A press on the grip between a panel and the stage: which panel, where the pointer was, and how wide the panel
+/// and the other one were then.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Grip {
+    /// 0 for the settings panel, 1 for the figures panel.
+    pub side: usize,
+    pub from: f32,
+    pub start: f32,
+    pub other: f32,
+}
+
 /// What the application owns; the widgets read it and a click or a keystroke changes it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreviewState {
+    /// The two side panels, settings then figures: open on the bar's buttons, and the width a hand gave each (None:
+    /// its natural width). The widths live for the session and are not kept on disk.
+    pub panel_open: [bool; 2],
+    pub panel_w: [Option<f32>; 2],
+    /// The press on a grip being dragged.
+    pub grip: Option<Grip>,
+    /// The scroll of each panel as one whole, when the panels are stacked.
+    pub panel_y: [f32; 2],
     /// The strip's pressed view: 0 to 4 are `text::VIEWS`, 5 is the section.
     pub view: usize,
     pub in3d: bool,
@@ -212,6 +228,10 @@ impl Default for PreviewState {
     /// The page after loading a preview in the relief view, in a fresh browser (the seed is `preview.json`'s).
     fn default() -> PreviewState {
         PreviewState {
+            panel_open: [true, true],
+            panel_w: [None, None],
+            grip: None,
+            panel_y: [0.0, 0.0],
             view: 2,
             in3d: false,
             seed: "94427382".to_string(),
@@ -266,6 +286,15 @@ pub struct ShellIds {
     /// The bar of the window, its brand, the two tools' buttons (Home, preview) and the window's three buttons.
     pub bar: Id,
     pub brand: Id,
+    /// The bar's two buttons that open and close the settings and the figures panel (Id::ROOT in Home).
+    pub toggles: [Id; 2],
+    /// The grips between each panel and the stage (Id::ROOT when stacked or the panel is closed).
+    pub grips: [Id; 2],
+    /// How the page was laid out: the panels' widths and whether they are stacked.
+    pub plan: Plan,
+    /// The scroll area of each panel as one whole (stacked only), and every scroll area built in the page.
+    pub panel_scrolls: [Id; 2],
+    pub scroll_areas: Vec<Id>,
     pub tools: [Id; 2],
     pub ends: [Id; 3],
     /// Every button of the bar (the tools', the tabs' and the window's): what a press on the bar does not drag.
@@ -376,6 +405,11 @@ impl Default for ShellIds {
             right: o,
             bar: o,
             brand: o,
+            toggles: [o; 2],
+            grips: [o; 2],
+            plan: Plan { stacked: false, widths: [0.0; 2] },
+            panel_scrolls: [o; 2],
+            scroll_areas: Vec::new(),
             tools: [o; 2],
             ends: [o; 3],
             bar_buttons: Vec::new(),
@@ -479,8 +513,8 @@ fn world_row() -> Style {
 fn setting_row() -> Style {
     Style {
         display: Display::Grid,
-        cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto, Track::Px(57.6)]),
-        gap: Vec2::new(10.0, 0.0),
+        cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto, Track::Px(panels::SETTING_FIELD)]),
+        gap: Vec2::new(panels::SETTING_GAP, 0.0),
         align_items: Align::Center,
         pad: Edges::vh(2.0, 0.0),
         ..Style::default()
@@ -503,9 +537,26 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
         s.view = 0;
     }
 
+    // The panels' widths come first: the stage is what they leave. A hand's drag is applied before, so that the
+    // frame it happens in already shows it.
+    let open = s.panel_open;
+    let plan = panels::plan(size.x, open, s.panel_w);
+    if plan.stacked || s.mode != Mode::Preview {
+        s.grip = None;
+    }
+    drag_panel(ui, s, size.x);
+    let plan = panels::plan(size.x, open, s.panel_w);
+    ids.plan = plan;
+    let stacked = plan.stacked;
+    let (middle_w, column_h) = if stacked {
+        // The stage takes the half of the height under the bar, and its content starts under the bar's gap.
+        let gap = panels::GAP_STACKED;
+        (size.x - 2.0 * gap, ((size.y - BAR_H) / 2.0).floor() - cols.pad.top)
+    } else {
+        let beside = open.iter().filter(|o| **o).count();
+        (size.x - panels::gaps(beside) as f32 * panels::GAP - plan.widths[0] - plan.widths[1], size.y - BAR_H - cols.pad.top - cols.pad.bottom)
+    };
     // Line 227: `side = min(the column's width, its height - --under)`.
-    let middle_w = size.x - cols.pad.left - cols.pad.right - cols.left - cols.right - 2.0 * cols.gap;
-    let column_h = size.y - BAR_H - cols.pad.top - cols.pad.bottom;
     let side = middle_w.min(column_h - UNDER).max(0.0);
     // The section takes the square's place (line 283): the column's whole width, and its height less `--under`.
     let frame_size = if s.view == 5 { (middle_w.max(0.0), (column_h - UNDER).max(0.0)) } else { (side, side) };
@@ -529,28 +580,116 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
             ids.home_body = home_body;
             return;
         }
-        let page = Style {
-            display: Display::Grid,
-            cols: Tracks::new(&[Track::Px(cols.left), Track::MinMaxFr0(1.0), Track::Px(cols.right)]),
-            gap: Vec2::new(cols.gap, cols.gap),
-            pad: cols.pad,
-            w: Dim::Pct(100.0),
-            ..fills()
-        };
-        ids.page = ui.node("page", page, |ui| {
-            ids.left = ui.node("left", column(), |ui| left_column(ui, s, &mut ids, &t));
-            ids.middle = ui.node("middle", column(), |ui| middle_column(ui, s, &mut ids, &t, frame_size, world, shown));
-            ids.right = ui.node("right", column(), |ui| right_column(ui, s, &mut ids, &t, &cols, world, shown));
-        });
+        let panel = |w: f32| Style { w: Dim::Px(w), shrink: 0.0, ..column() };
+        if !stacked {
+            // Beside: the settings panel, the stage and the figures panel in a row. A closed panel is not built and
+            // takes no room; the stage grows into it. Each open panel has a grip in the gap between it and the stage.
+            let page = Style { pad: cols.pad, w: Dim::Pct(100.0), ..fills() };
+            let stage = Style { grow: 1.0, shrink: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..column() };
+            ids.page = ui.node("page", page, |ui| {
+                if open[0] {
+                    ids.left = ui.node("left", panel(plan.widths[0]), |ui| left_column(ui, s, &mut ids, &t, false));
+                    grip_gap(ui, s, &mut ids, &t, 0);
+                }
+                ids.middle = ui.node("middle", stage, |ui| middle_column(ui, s, &mut ids, &t, frame_size, world, shown));
+                if open[1] {
+                    grip_gap(ui, s, &mut ids, &t, 1);
+                    ids.right = ui.node("right", panel(plan.widths[1]), |ui| right_column(ui, s, &mut ids, &t, &cols, world, shown, false));
+                }
+            });
+        } else {
+            // Stacked: the stage on top, the open panels under it in equal columns, no line between any of them.
+            let gap = panels::GAP_STACKED;
+            let page = Style { column: true, pad: Edges::new(cols.pad.top, gap, cols.pad.bottom, gap), gap: Vec2::new(0.0, gap), w: Dim::Pct(100.0), ..fills() };
+            let stage = Style { h: Dim::Px(column_h), shrink: 0.0, ..column() };
+            ids.page = ui.node("page", page, |ui| {
+                ids.middle = ui.node("middle", stage, |ui| middle_column(ui, s, &mut ids, &t, frame_size, world, shown));
+                ui.node("panels", Style { gap: Vec2::new(gap, 0.0), ..fills() }, |ui| {
+                    if open[0] {
+                        ids.left = ui.node("left", panel(plan.widths[0]), |ui| {
+                            let mut y = s.panel_y[0];
+                            let id = panel_scroll(ui, &mut y, |ui| left_column(ui, s, &mut ids, &t, true));
+                            s.panel_y[0] = y;
+                            ids.panel_scrolls[0] = id;
+                            ids.scroll_areas.push(id);
+                        });
+                    }
+                    if open[1] {
+                        ids.right = ui.node("right", panel(plan.widths[1]), |ui| {
+                            let mut y = s.panel_y[1];
+                            let id = panel_scroll(ui, &mut y, |ui| right_column(ui, s, &mut ids, &t, &cols, world, shown, true));
+                            s.panel_y[1] = y;
+                            ids.panel_scrolls[1] = id;
+                            ids.scroll_areas.push(id);
+                        });
+                    }
+                });
+            });
+        }
     });
     ids
 }
 
-/// The left column (lines 370-400): the world, the settings, and the run block under them.
-fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme) {
+/// A panel as one whole that scrolls, when the panels are stacked: the kit's scrollbar in a gutter of its own at the
+/// panel's right edge, no fade, and nothing inside it scrolls by itself.
+fn panel_scroll(ui: &mut Ui, y: &mut f32, body: impl FnOnce(&mut Ui)) -> Id {
+    let style = Style { margin: Margin::default(), pad: Edges::new(0.0, 0.0, 12.0, 0.0), ..scroll_style() };
+    ui.scroll("panel", y, style, ScrollOpts { fade: 0.0 }, body).id
+}
+
+/// Moves a panel with the grip being dragged: its width is where the press began plus the pointer's travel, between
+/// the panel's minimum and what leaves the stage its own. The press is read until it is over, not only while held,
+/// so the last movement before the release is not lost.
+fn drag_panel(ui: &Ui, s: &mut PreviewState, width: f32) {
+    let (Some(g), Some(p)) = (s.grip, ui.pointer()) else { return };
+    if p.x == g.from {
+        return;
+    }
+    let travel = if g.side == 0 { p.x - g.from } else { g.from - p.x };
+    s.panel_w[g.side] = Some(panels::clamp_drag(width, s.panel_open, g.other, g.start + travel));
+}
+
+/// The gap between a panel and the stage, with the grip in its middle: `GRIP_W` wide and as tall as the panel. Nothing
+/// is drawn at rest; the pointer over it draws a line of 1 px in the muted colour, and a press held draws it in the
+/// text colour. A double click puts the panel back to its natural width.
+fn grip_gap(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, side: usize) {
+    let plan = ids.plan;
+    let gap = Style { w: Dim::Px(panels::GAP), shrink: 0.0, justify: Justify::Center, ..Style::default() };
+    let (muted, text_colour) = (t.muted, t.text);
+    ui.node(&format!("gap{side}"), gap, |ui| {
+        let grip = Style { w: Dim::Px(panels::GRIP_W), shrink: 0.0, ..Style::default() };
+        let resp = ui.canvas(&format!("grip{side}"), grip, |ui, resp| {
+            if resp.pressed {
+                if ui.clicks() >= 2 {
+                    s.panel_w[side] = None;
+                    s.grip = None;
+                } else if let Some(p) = ui.pointer() {
+                    s.grip = Some(Grip { side, from: p.x, start: plan.widths[side], other: plan.widths[1 - side] });
+                }
+            }
+            if !resp.held && s.grip.is_some_and(|g| g.side == side) {
+                s.grip = None;
+            }
+            if resp.hovered || resp.held {
+                ui.want_cursor(Cursor::ResizeEW);
+            }
+            let colour = if resp.held { Some(text_colour) } else if resp.hovered { Some(muted) } else { None };
+            match (colour, resp.rect) {
+                (Some(color), Some(r)) => vec![Cmd::Fill { rect: Rect::new((r.w / 2.0).floor(), 0.0, 1.0, r.h), color }],
+                _ => Vec::new(),
+            }
+        });
+        ui.title(resp.id, text::RESIZE_PANEL);
+        ids.grips[side] = resp.id;
+    });
+}
+
+/// The left column (lines 370-400): the world, the settings, and the run block under them. `stacked`: the whole
+/// column is one scroll area (the caller's), so the settings list shows its rows in it instead of scrolling by itself.
+fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, stacked: bool) {
     let muted = TextLook::body(Tone::Muted);
 
-    let r = ui.fold("world", text::WORLD, &mut s.world_open, |ui| {
+    let r = ui.fold_with("world", text::WORLD, &mut s.world_open, nui_ui::FoldOpts { bare: stacked, ..Default::default() }, |ui| {
         ui.node("seedRow", world_row(), |ui| {
             ui.text(text::SEED, muted);
             let opts = FieldOpts { look: FieldLook::Text, placeholder: text::SEED_RANDOM, max_chars: 64, width: Dim::Pct(100.0), focus: false, ..FieldOpts::default() };
@@ -578,7 +717,7 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme)
     });
     ids.world_head = r.id;
 
-    let r = ui.fold_with("settings", text::PROFILES, &mut s.settings_open, nui_ui::FoldOpts { grow: true }, |ui| {
+    let r = ui.fold_with("settings", text::PROFILES, &mut s.settings_open, nui_ui::FoldOpts { grow: !stacked, ..Default::default() }, |ui| {
         // Line 153: `#profiles` pulls its first word 6 px left, under the padding of its button.
         let style = Style { wrap: true, margin: Margin { left: Side::Px(-6.0), ..Margin::default() }, ..choice_style() };
         ids.profiles = ui.node("profiles", style, |ui| {
@@ -589,7 +728,7 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme)
                 s.values = pack_values();
             }
         });
-        settings_scroll(ui, &mut s.settings_y, &mut s.values, ids, t);
+        settings_scroll(ui, &mut s.settings_y, &mut s.values, ids, t, stacked);
     });
     ids.settings_head = r.id;
 
@@ -597,10 +736,10 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme)
 }
 
 /// `#settings` (lines 157-164): five groups, each a title over its rows, then the reset hint.
-fn settings_scroll(ui: &mut Ui, y: &mut f32, values: &mut [f64; 43], ids: &mut ShellIds, t: &Theme) {
+fn settings_scroll(ui: &mut Ui, y: &mut f32, values: &mut [f64; 43], ids: &mut ShellIds, t: &Theme, stacked: bool) {
     let groups = grouped();
     let body = TextLook::body(Tone::Text);
-    let r = ui.scroll("settings", y, scroll_style(), ScrollOpts::LIST, |ui| {
+    let mut rows = |ui: &mut Ui, ids: &mut ShellIds| {
         for (g, members) in groups.iter().enumerate() {
             ui.node(&format!("g{g}"), Style { column: true, shrink: 0.0, ..Style::default() }, |ui| {
                 // The group title (lines 105, 157): 4 px above (14 px between groups), 4 px under, then the
@@ -620,7 +759,8 @@ fn settings_scroll(ui: &mut Ui, y: &mut f32, values: &mut [f64; 43], ids: &mut S
                     for &i in members {
                         let set = &SETTINGS[i];
                         ids.rows[i] = ui.node(set.key, setting_row(), |ui| {
-                            ui.ellipsis(set.label, body);
+                            // A label wider than its cell wraps onto more lines instead of being cut.
+                            ui.paragraph(set.label, body);
                             // The output, empty until a value differs from the pack's.
                             ui.text("", TextLook::body(Tone::Muted));
                             match set.kind {
@@ -643,8 +783,15 @@ fn settings_scroll(ui: &mut Ui, y: &mut f32, values: &mut [f64; 43], ids: &mut S
         ids.reset = ui.node("reset", Style { column: true, shrink: 0.0, pad: Edges::new(12.0, 0.0, 0.0, 0.0), ..Style::default() }, |ui| {
             ui.paragraph(text::RESET_HINT, TextLook::small(Tone::Muted));
         });
-    });
-    ids.settings_scroll = r.id;
+    };
+    if stacked {
+        // The column's one scroll holds the rows: a plain box here, so that no scroll area is inside another.
+        ids.settings_scroll = ui.node("settings", Style { column: true, shrink: 0.0, ..Style::default() }, |ui| rows(ui, ids));
+    } else {
+        let r = ui.scroll("settings", y, scroll_style(), ScrollOpts::LIST, |ui| rows(ui, ids));
+        ids.settings_scroll = r.id;
+        ids.scroll_areas.push(r.id);
+    }
 }
 
 /// What `#status` says (`showButton`, lines 799-802, and `tick`, 2610-2615): the clock while a run is followed, else
@@ -1126,31 +1273,46 @@ enum Pick {
 
 /// The right column (lines 429-449): the figures and the history, then the list of what the view shows. In the
 /// section the figures are not built (line 2533: they would describe the map) and the list is the ores of the cut.
-fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>, shown: Option<&Shown>) {
+fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>, shown: Option<&Shown>, stacked: bool) {
     let cut = s.view == 5;
+    // The history's plots are as wide as the panel; stacked, the panel's scrollbar keeps its gutter.
+    let plot_w = ids.plan.widths[1] - if stacked { nui_ui::GUTTER } else { 0.0 };
     if !cut {
-        figures_block(ui, s, ids, t, cols, world);
+        figures_block(ui, s, ids, t, cols, world, plot_w, stacked);
     }
 
     // `#listBlock.rule` (lines 295-296, 440): a hairline on top, 9 px of padding, a gap of 6. In the section
-    // the rule and the padding go (line 294).
-    ids.list_block = ui.node("listBlock", Style { column: true, ..fills() }, |ui| {
+    // the rule and the padding go (line 294). Stacked, the panel is one scroll and the block is as tall as its
+    // rows: it takes no free height.
+    let block = if stacked { Style { column: true, shrink: 0.0, ..Style::default() } } else { Style { column: true, ..fills() } };
+    ids.list_block = ui.node("listBlock", block, |ui| {
         if !cut {
             ui.fill(rule(), t.edge);
         }
-        let inner = Style { column: true, pad: Edges::new(if cut { 0.0 } else { 9.0 }, 0.0, 0.0, 0.0), gap: Vec2::new(0.0, 6.0), ..fills() };
+        let pad = Edges::new(if cut { 0.0 } else { 9.0 }, 0.0, 0.0, 0.0);
+        let inner = if stacked { Style { column: true, pad, gap: Vec2::new(0.0, 6.0), shrink: 0.0, ..Style::default() } } else { Style { column: true, pad, gap: Vec2::new(0.0, 6.0), ..fills() } };
         ui.node("listBody", inner, |ui| {
             if cut {
-                ore_list(ui, s, ids, world, shown);
+                ore_list(ui, s, ids, world, shown, stacked);
             } else {
-                view_list(ui, s, ids, world);
+                view_list(ui, s, ids, world, stacked);
             }
         });
     });
 }
 
+/// A list's rows: in a scroll area of their own beside the stage, or, stacked, as plain content of the panel's one
+/// scroll area. Returns the box's id and whether it scrolls.
+fn list_area(ui: &mut Ui, stacked: bool, y: &mut f32, body: impl FnOnce(&mut Ui)) -> (Id, bool) {
+    if stacked {
+        (ui.node("list", Style { column: true, shrink: 0.0, ..Style::default() }, body), false)
+    } else {
+        (ui.scroll("list", y, scroll_style(), ScrollOpts::LIST, body).id, true)
+    }
+}
+
 /// The section's list: its ores, with what the cut played of each (lines 2370-2385).
-fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>, shown: Option<&Shown>) {
+fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>, shown: Option<&Shown>, stacked: bool) {
     let title = text::ORE_LIST[0].to_uppercase();
     let section = world.and_then(|w| w.section.as_ref());
     // Names and figures of the ore rows, in `ORE_KINDS` order; empty without a cut.
@@ -1185,7 +1347,7 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option
         ui.title(head[0], &hint);
         ui.title(head[1], &hint);
     }
-    let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
+    let (list, scrolls) = list_area(ui, stacked, &mut s.list_y, |ui| {
         for (k, low, high, from) in &figures {
             let name = ORE_KINDS[*k];
             let row = ListRow { swatch: rgb(ORE_COLOURS[*k]), name: text::ORES[*k], width: low, share: high };
@@ -1199,12 +1361,15 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option
             }
         }
     });
-    ids.list_scroll = r.id;
+    ids.list_scroll = list;
+    if scrolls {
+        ids.scroll_areas.push(list);
+    }
 }
 
 /// The list beside the map in the five map views (`showList` and `showChoice`, lines 1639-1758): its title, the
 /// filter, what the choice weighs, the legend and the rows.
-fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>) {
+fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&World>, stacked: bool) {
     let view = View::from_index(s.view).expect("the map views are 0 to 4");
     let counted = view == View::Structures;
     let list: Option<&List> = world.and_then(|w| w.measured.lists[view.index()].as_ref());
@@ -1305,7 +1470,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
 
     // The filter reads the id too, so the name of a mod finds its biomes. A chosen row stays in sight.
     let visible = |id: &str| chosen.contains(id) || asked.is_empty() || id.replace('_', " ").contains(&asked);
-    let r = ui.scroll("list", &mut s.list_y, scroll_style(), ScrollOpts::LIST, |ui| {
+    let (list_box, scrolls) = list_area(ui, stacked, &mut s.list_y, |ui| {
         let Some(l) = list else { return };
         let total = world.map_or(1.0, |w| (w.samples * w.samples) as f64);
         let choosing = !lit.is_empty();
@@ -1379,7 +1544,10 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             }
         }
     });
-    ids.list_scroll = r.id;
+    ids.list_scroll = list_box;
+    if scrolls {
+        ids.scroll_areas.push(list_box);
+    }
 
     let picked = &mut s.chosen[view.index()];
     for press in presses {
@@ -1402,11 +1570,12 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
 }
 
 /// `#figuresBlock` (lines 430-439): the figures of the map and the history.
-fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>) {
+fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>, plot_w: f32, stacked: bool) {
     let body = TextLook::body(Tone::Text);
     let muted = TextLook::body(Tone::Muted);
-    ui.node("figuresBlock", column(), |ui| {
-        let r = ui.fold("figures", text::FIGURES, &mut s.figures_open, |ui| {
+    // It keeps its height whatever the room: stacked, the panel is a scroll area and what does not fit scrolls.
+    ui.node("figuresBlock", Style { shrink: 0.0, ..column() }, |ui| {
+        let r = ui.fold_with("figures", text::FIGURES, &mut s.figures_open, nui_ui::FoldOpts { bare: stacked, ..Default::default() }, |ui| {
             // Line 297: name, value and change; the rule before "Sea" spans all three.
             let grid = Style {
                 display: Display::Grid,
@@ -1472,14 +1641,14 @@ fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
         });
         ids.figures_head = r.id;
         // Closed at the start (the page's `data-closed`): the body is drawn to its width, so it is built when open.
-        let r = ui.fold("history", text::HISTORY, &mut s.history_open, |ui| history_body(ui, s.history.as_slice(), ids, t, cols, world, s.made.as_ref()));
+        let r = ui.fold("history", text::HISTORY, &mut s.history_open, |ui| history_body(ui, s.history.as_slice(), ids, t, plot_w, world, s.made.as_ref()));
         ids.history_head = r.id;
     });
 }
 
 /// `#history` (lines 1569-1637): one small line per figure, oldest run left, and under them what the run pointed at
 /// changed. The page only draws with a map on screen.
-fn history_body(ui: &mut Ui, history: &[Entry], ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>, made: Option<&Ask>) {
+fn history_body(ui: &mut Ui, history: &[Entry], ids: &mut ShellIds, t: &Theme, plot_w: f32, world: Option<&World>, made: Option<&Ask>) {
     let (Some(world), Some(made)) = (world, made) else { return };
     let f = &world.measured.figures;
     let runs = here(history, &made.seed, f.span, f.step);
@@ -1491,7 +1660,7 @@ fn history_body(ui: &mut Ui, history: &[Entry], ids: &mut ShellIds, t: &Theme, c
             ui.want_cursor(Cursor::Crosshair);
         }
         let pointed = at.filter(|_| len >= 2).map(|a| (js_round(a as f64 * (len - 1) as f64).max(0.0) as usize).min(len - 1));
-        let trend = trend(&runs, pointed, cols.right as f64);
+        let trend = trend(&runs, pointed, plot_w as f64);
         for (n, row) in trend.rows.iter().enumerate() {
             let p = |x: f64, y: f64| Vec2::new(x as f32, y as f32);
             // Lines 314-316: the mark of the run pointed at, the line, and the dot on it.

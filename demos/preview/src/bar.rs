@@ -48,6 +48,10 @@ pub const PLAY: &str = "M15 11h-2V9h2zm0 4h-2v-2h2zm-2 2h-2v-2h2zm0-8h-2V7h2zm-2
 pub const STOP: &str = "M6 6h12v12H6z";
 /// Line 420.
 pub const SETTINGS: &str = "M8 14H7v6H5v-6H2v-2h6v2Zm5 6h-2V10h2v10Zm9-2h-3v2h-2v-2h-1v-2h6v2Zm-3-4h-2V4h2v10ZM7 10H5V4h2v6Zm6-4h2v2H9V6h2V4h2v2Z";
+/// The two panels' buttons, in the same 24 unit grid and 2 px strokes as the icons above: a frame (3 to 21 across,
+/// 5 to 19 down) split by a bar near its left edge (the settings panel) or near its right edge (the figures panel).
+pub const PANEL_LEFT: &str = "M3 5h18v2H3zm0 12h18v2H3zM3 7h2v10H3zm16 0h2v10h-2zM8 7h2v10H8z";
+pub const PANEL_RIGHT: &str = "M3 5h18v2H3zm0 12h18v2H3zM3 7h2v10H3zm16 0h2v10h-2zM14 7h2v10h-2z";
 /// Line 223: the pack's cube, in a 32 unit grid, each face in its own colour (`fill`).
 pub const PACK: [(&str, u32); 3] = [("M16 2l14 7-14 7L2 9z", 0x7fb850), ("M2 9l14 7v14L2 23z", 0x8b6344), ("M30 9l-14 7v14l14-7z", 0x6b4b33)];
 
@@ -63,6 +67,8 @@ pub struct Icons {
     pub play: Icon,
     pub stop: Icon,
     pub settings: Icon,
+    /// The buttons of the settings panel and of the figures panel.
+    pub panels: [Icon; 2],
     /// The three faces of the pack's cube with their colours.
     pub pack: Vec<(Icon, Color)>,
 }
@@ -89,6 +95,7 @@ pub fn icons() -> &'static Icons {
         play: parse(PLAY, 24.0),
         stop: parse(STOP, 24.0),
         settings: parse(SETTINGS, 24.0),
+        panels: [parse(PANEL_LEFT, 24.0), parse(PANEL_RIGHT, 24.0)],
         pack: PACK.iter().map(|(d, c)| (parse(d, 32.0), Color::hex(*c))).collect(),
     })
 }
@@ -127,7 +134,7 @@ fn greyed(world: Option<&World>) -> [bool; VIEW_COUNT] {
 /// tool open, whatever tool is on, so the views do not shuffle while they slide; the brand's parts follow the
 /// tool on show, so Home, which has the room, keeps the account and the word.
 pub fn form_for(s: &PreviewState, world: Option<&World>, width: f32) -> (Form, Form) {
-    let inputs = |preview_open| overflow::Inputs { width, ends: overflow::ENDS_W, account: s.account.as_deref(), preview_open, pressed: s.view, disabled: greyed(world), shapes: s.view != 5 };
+    let inputs = |preview_open| overflow::Inputs { width, account: s.account.as_deref(), preview_open, pressed: s.view, disabled: greyed(world), shapes: s.view != 5 };
     let open = overflow::plan(&inputs(true));
     let on_show = if s.mode == Mode::Preview { open.clone() } else { overflow::plan(&inputs(false)) };
     (open, on_show)
@@ -148,15 +155,19 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
     let now = ui.clock();
     let value = s.options.value(now, s.reduce_motion);
     let (views_form, form) = form_for(s, world, width);
-    ids.form = Form { more: views_form.more.clone(), ..form.clone() };
+    ids.form = Form { more: views_form.more.clone(), shapes_in_more: views_form.shapes_in_more, ..form.clone() };
+    let preview = s.mode == Mode::Preview;
     // The bar is a grid of three columns with a free space on each side of the tools, so the tools stay in the
-    // middle whatever the width (line 76). The launcher page has a 1 px border-bottom on #titlebar (line 77); the
-    // native bar drops it by the maintainer's choice (2026-11-15: the header should float, no separating line), a
-    // deliberate departure from the page (the wry page in the pack's repository is not changed). The 1 px bottom padding
-    // is kept so the parts stay where the page centres them above its border: removing it would move them 0.5 px.
+    // middle whatever the width (line 76); when the bar is too narrow to centre them they sit left, after the
+    // settings button, and the middle column takes what is left. The launcher page has a 1 px border-bottom on
+    // #titlebar (line 77); the native bar drops it by the maintainer's choice (2026-11-15: the header should float,
+    // no separating line), a deliberate departure from the page (the wry page in the pack's repository is not changed).
+    // The 1 px bottom padding is kept so the parts stay where the page centres them above its border: removing it
+    // would move them 0.5 px.
+    let cols = if form.centred { [Track::MinMaxFr0(1.0), Track::Auto, Track::MinMaxFr0(1.0)] } else { [Track::Auto, Track::MinMaxFr0(1.0), Track::Auto] };
     let bar = Style {
         display: Display::Grid,
-        cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto, Track::MinMaxFr0(1.0)]),
+        cols: Tracks::new(&cols),
         align_items: Align::Center,
         h: Dim::Px(BAR_H),
         shrink: 0.0,
@@ -165,26 +176,36 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
         ..Style::default()
     };
     ids.bar = ui.node("bar", bar, |ui| {
+        if preview {
+            // In the preview tool the settings panel's button is where the brand is in Home. When the tools sit left
+            // the cell keeps `TOOLS_GAP` after the button, and the tools start there.
+            let lead = Style { pad: Edges::new(0.0, if form.centred { 0.0 } else { overflow::TOOLS_GAP }, 0.0, overflow::TOGGLE_EDGE), justify_self: Some(Align::Start), ..Style::default() };
+            ui.node("lead", lead, |ui| panel_toggle(ui, s, ids, 0));
+        }
         // `.brand` (lines 81-82): the cube and the name in capitals, 12 px in from the left, 10 px apart.
         // Its own width, not the column's: the page's stretches it over the free space, which nothing can see.
         let brand = Style { align_items: Align::Center, gap: Vec2::new(10.0, 0.0), pad: Edges::new(0.0, 0.0, 0.0, 12.0), min_w: Dim::Px(0.0), max_w: Dim::Pct(100.0), justify_self: Some(Align::Start), ..Style::default() };
-        ids.brand = ui.node("brand", brand, |ui| {
-            let cube = Style { w: Dim::Px(16.0), h: Dim::Px(16.0), shrink: 0.0, ..Style::default() };
-            ui.canvas("pack", cube, |_, _| {
-                icons.pack.iter().map(|(i, c)| Cmd::Shape { rect: Rect::new(0.0, 0.0, 16.0, 16.0), grid: i.grid, figures: i.figures.clone(), color: *c, crisp: false }).collect()
+        if !preview {
+            ids.brand = ui.node("brand", brand, |ui| {
+                let cube = Style { w: Dim::Px(16.0), h: Dim::Px(16.0), shrink: 0.0, ..Style::default() };
+                ui.canvas("pack", cube, |_, _| {
+                    icons.pack.iter().map(|(i, c)| Cmd::Shape { rect: Rect::new(0.0, 0.0, 16.0, 16.0), grid: i.grid, figures: i.figures.clone(), color: *c, crisp: false }).collect()
+                });
+                if form.word {
+                    ui.text(&text::BAR_TITLE.to_uppercase(), TextLook::heading());
+                }
+                // `#account` (line 84): muted, cut with an ellipsis when the free space left of the tools is narrower
+                // than it, and gone whole when even a short stub no longer fits (`overflow.rs`).
+                if let (true, Some(a)) = (form.account, &s.account) {
+                    ui.ellipsis(a, TextLook::body(Tone::Muted));
+                }
             });
-            if form.word {
-                ui.text(&text::BAR_TITLE.to_uppercase(), TextLook::heading());
-            }
-            // `#account` (line 84): muted, cut with an ellipsis when the free space left of the tools is narrower
-            // than it, and gone whole when even a short stub no longer fits (`overflow.rs`).
-            if let (true, Some(a)) = (form.account, &s.account) {
-                ui.ellipsis(a, TextLook::body(Tone::Muted));
-            }
-        });
+        }
 
-        // `.strip` (line 109): the tools, one box wide each, then the preview's tabs after its own tool.
-        ids.strip = ui.node("tools", strip_style(), |ui| {
+        // `.strip` (line 109): the tools, one box wide each, then the preview's tabs after its own tool. Sat left
+        // when the bar cannot centre them.
+        let strip = Style { justify_self: if form.centred { None } else { Some(Align::Start) }, ..strip_style() };
+        ids.strip = ui.node("tools", strip, |ui| {
             let tool = |ui: &mut Ui, ids: &mut ShellIds, s: &mut PreviewState, which: usize| {
                 let (mode, icon) = if which == 0 { (Mode::Home, &icons.home) } else { (Mode::Preview, &icons.preview) };
                 let word = if which == 1 { marker.map(|m| text::PREVIEW_STATE[m]) } else { None };
@@ -227,31 +248,51 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             });
         });
 
-        // `.ends` (line 89): the window's buttons, as tall as the bar and flush with its corner.
-        let ends = Style { justify_self: Some(Align::End), align_self: Some(Align::Stretch), ..Style::default() };
-        ui.node("ends", ends, |ui| {
-            let r = ui.icon_button("minimize", &icons.minimize, IconLook::Caption, IconOpts::default());
-            ids.ends[0] = r.id;
-            ui.title(r.id, text::MINIMIZE);
-            if r.clicked {
-                s.want = Some(Want::Minimize);
+        // The right cell: in the preview tool the figures panel's button, 8 px before the window's buttons, which are
+        // `.ends` (line 89), as tall as the bar and flush with its corner.
+        let right = Style { justify_self: Some(Align::End), align_self: Some(Align::Stretch), align_items: Align::Center, gap: Vec2::new(overflow::TOGGLE_GAP, 0.0), ..Style::default() };
+        ui.node("right", right, |ui| {
+            if preview {
+                panel_toggle(ui, s, ids, 1);
             }
-            let (icon, word) = if s.maximized { (&icons.restore, text::RESTORE) } else { (&icons.maximize, text::MAXIMIZE) };
-            let r = ui.icon_button("maximize", icon, IconLook::Caption, IconOpts::default());
-            ids.ends[1] = r.id;
-            ui.title(r.id, word);
-            if r.clicked {
-                s.want = Some(Want::Maximize);
-            }
-            let r = ui.icon_button("close", &icons.close, IconLook::Close, IconOpts::default());
-            ids.ends[2] = r.id;
-            ui.title(r.id, text::CLOSE_WINDOW);
-            if r.clicked {
-                s.want = Some(Want::Close);
-            }
-            ids.bar_buttons.extend(ids.ends);
+            let ends = Style { align_self: Some(Align::Stretch), ..Style::default() };
+            ui.node("ends", ends, |ui| {
+                let r = ui.icon_button("minimize", &icons.minimize, IconLook::Caption, IconOpts::default());
+                ids.ends[0] = r.id;
+                ui.title(r.id, text::MINIMIZE);
+                if r.clicked {
+                    s.want = Some(Want::Minimize);
+                }
+                let (icon, word) = if s.maximized { (&icons.restore, text::RESTORE) } else { (&icons.maximize, text::MAXIMIZE) };
+                let r = ui.icon_button("maximize", icon, IconLook::Caption, IconOpts::default());
+                ids.ends[1] = r.id;
+                ui.title(r.id, word);
+                if r.clicked {
+                    s.want = Some(Want::Maximize);
+                }
+                let r = ui.icon_button("close", &icons.close, IconLook::Close, IconOpts::default());
+                ids.ends[2] = r.id;
+                ui.title(r.id, text::CLOSE_WINDOW);
+                if r.clicked {
+                    s.want = Some(Want::Close);
+                }
+                ids.bar_buttons.extend(ids.ends);
+            });
         });
     });
+}
+
+/// The button that opens and closes a side panel (0: settings, 1: figures): pressed while its panel is open, and
+/// toggling its own panel only.
+fn panel_toggle(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, which: usize) {
+    let name = if which == 0 { text::SETTINGS_PANEL } else { text::FIGURES_PANEL };
+    let r = ui.icon_button(&format!("panel{which}"), &icons().panels[which], IconLook::Tool, IconOpts { pressed: s.panel_open[which], ..IconOpts::default() });
+    ids.toggles[which] = r.id;
+    ids.bar_buttons.push(r.id);
+    ui.title(r.id, name);
+    if r.clicked {
+        s.panel_open[which] = !s.panel_open[which];
+    }
 }
 
 /// The preview's tabs as the page sends them to its host (lines 749-754): the six views, then, outside the section,
@@ -271,18 +312,25 @@ fn tabs(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option<&Wo
             s.view = i;
         }
     }
-    if !form.more.is_empty() {
-        let rows: Vec<MenuRow> = form.more.iter().map(|&v| MenuRow { text: overflow::view_word(v).to_string(), disabled: off[v] }).collect();
+    if form.has_more() {
+        // The views the strip lacks room for, then, when the bar is narrower still, 2D and 3D.
+        let mut rows: Vec<MenuRow> = form.more.iter().map(|&v| MenuRow { text: overflow::view_word(v).to_string(), disabled: off[v] }).collect();
+        if form.shapes_in_more {
+            rows.extend(text::SHAPES.iter().map(|w| MenuRow { text: w.to_string(), disabled: false }));
+        }
         let r = ui.tab_menu("more", text::MORE, &rows);
         ids.more = r.resp.id;
         ids.bar_buttons.push(r.resp.id);
         ui.title(r.resp.id, text::MORE_TITLE);
         if let (Some(row), true) = (r.picked, s.mode == Mode::Preview) {
-            s.view = form.more[row];
+            match form.more.get(row) {
+                Some(&view) => s.view = view,
+                None => s.in3d = row - form.more.len() == 1,
+            }
         }
     }
     // The section has no 2D or 3D (line 2540): the tabs and the gap before them are not built.
-    if s.view != 5 {
+    if s.view != 5 && !form.shapes_in_more {
         ui.strip_gap();
         for (i, word) in text::SHAPES.iter().enumerate() {
             let r = ui.tab(&format!("shape{i}"), word, TabLook::Strip, TabOpts { pressed: (i == 1) == s.in3d, disabled: false });
