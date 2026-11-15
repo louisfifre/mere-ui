@@ -122,8 +122,10 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
     let icons = icons();
     let marker = marker(s);
     // The bar is a grid of three columns with a free space on each side of the tools, so the tools stay in the
-    // middle whatever the width (line 76). The hairline is its last row (box-sizing: border-box), so what it
-    // holds is 39 high.
+    // middle whatever the width (line 76). The launcher page has a 1 px border-bottom on #titlebar (line 77); the
+    // native bar drops it by the maintainer's choice (2026-11-15: the header should float, no separating line), a
+    // deliberate departure from the page (the wry page in the pack's repository is not changed). The 1 px bottom padding
+    // is kept so the parts stay where the page centres them above its border: removing it would move them 0.5 px.
     let bar = Style {
         display: Display::Grid,
         cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto, Track::MinMaxFr0(1.0)]),
@@ -135,14 +137,6 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
         ..Style::default()
     };
     ids.bar = ui.node("bar", bar, |ui| {
-        let hairline = Style {
-            position: Position::Absolute,
-            inset: Insets { left: Dim::Px(0.0), right: Dim::Px(0.0), bottom: Dim::Px(0.0), top: Dim::Auto },
-            h: Dim::Px(1.0),
-            ..Style::default()
-        };
-        ui.fill(hairline, t.line);
-
         // `.brand` (lines 81-82): the cube and the name in capitals, 12 px in from the left, 10 px apart.
         // Its own width, not the column's: the page's stretches it over the free space, which nothing can see.
         let brand = Style { align_items: Align::Center, gap: Vec2::new(10.0, 0.0), pad: Edges::new(0.0, 0.0, 0.0, 12.0), min_w: Dim::Px(0.0), justify_self: Some(Align::Start), ..Style::default() };
