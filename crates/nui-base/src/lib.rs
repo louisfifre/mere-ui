@@ -74,8 +74,23 @@ pub trait Gfx {
     fn end(&mut self);
 }
 
+/// What the system's input method (IME, the tool that turns keystrokes into characters a keyboard does not
+/// have: kana, kanji, pinyin) does to the focused text field. Each variant is one message of the system, so each
+/// can be tested alone.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Ime {
+    /// A composition (preedit: the text the input method is still building) begins.
+    Start,
+    /// Replaces the whole composition. An empty 	ext means nothing is shown. cursor is in chars into 	ext.
+    Update { text: String, cursor: usize },
+    /// The finished text, which the field inserts as part of its value.
+    Commit { text: String },
+    /// Closes the composition, whether it was committed or cancelled.
+    End,
+}
+
 /// What the system tells an application.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum Event {
     Resized { width_px: u32, height_px: u32, scale: f32 },
     PointerMoved { pos: Vec2 },
@@ -94,6 +109,8 @@ pub enum Event {
     Window { maximized: bool },
     /// The pointer left the window, so nothing is hovered any more.
     PointerLeft,
+    /// The input method's work on the focused text field; only sent while App::ime_spot is Some.
+    Ime(Ime),
 }
 
 /// Where a point of a window with its own frame falls: what the system does with a press there.
@@ -223,5 +240,10 @@ pub trait App {
     /// is then wanted.
     fn tick(&mut self) -> bool {
         false
+    }
+    /// Where the input method may write, as of the last frame: the caret of a focused text field, in DIP
+    /// (x, top, 1, glyph height). None turns the input method off.
+    fn ime_spot(&self) -> Option<Rect> {
+        None
     }
 }

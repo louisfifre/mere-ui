@@ -37,7 +37,7 @@ pub enum Event {
     Resized { w_px: u32, h_px: u32, scale: f32 },
     PointerMoved(Vec2), PointerDown { pos: Vec2, button: u8, clicks: u8 }, PointerUp { pos: Vec2, button: u8 },
     Wheel { pos: Vec2, dy: f32 }, KeyDown { key: Key, mods: Mods }, Char(char),
-    Ime { preedit: String, commit: Option<String> },   // phase 2
+    Ime(Ime),   // step 20: Ime::{Start, Update { text, cursor }, Commit { text }, End}, one per IMM message
     Timer, Wake, CloseRequested,
 }
 
