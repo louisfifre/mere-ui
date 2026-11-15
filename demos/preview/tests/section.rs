@@ -157,10 +157,10 @@ fn c1_layout_of_the_section_at_1400() {
     let mut rig = Rig::new(&world, false, state(), W, H);
     let rgba = rig.write("section_1400.png");
     let ids = rig.app.ids().clone();
-    assert_eq!(rig.rect(ids.frame), Rect::new(376.0, BAR_H + CONTENT_TOP, 638.0, 804.0));
-    assert_eq!(rig.rect(ids.nav), Rect::new(376.0, BAR_H + CONTENT_TOP, 638.0, 56.0));
+    assert_eq!(rig.rect(ids.frame), Rect::new(375.0, BAR_H + CONTENT_TOP, 648.0, 804.0));
+    assert_eq!(rig.rect(ids.nav), Rect::new(375.0, BAR_H + CONTENT_TOP, 648.0, 56.0));
     let cv = rig.rect(ids.cut_view);
-    assert_eq!((cv.x, cv.w, cv.y), (376.0, 638.0, ARITH_TOP));
+    assert_eq!((cv.x, cv.w, cv.y), (375.0, 648.0, ARITH_TOP));
     assert_eq!((cv.w as f64, cv.h as f64), ids.cut_box, "the laid-out box is the arithmetic one");
     assert_eq!(cv.y + cv.h, BAR_H + CONTENT_TOP + 804.0, "the cut view ends with the frame");
     assert_eq!(rig.rect(ids.under).y, 864.0);
@@ -221,7 +221,7 @@ fn c2_the_pixels_are_the_pictures() {
 
     // The strip, away from the frame: a texel of the small picture or a neighbour.
     let nav = rig.rect(ids.nav);
-    let (nav_rgba, range) = cut::nav_image(section, &shown.ground, 638);
+    let (nav_rgba, range) = cut::nav_image(section, &shown.ground, 648);
     let frame = cut::nav_frame(look, bw, bh, section.length, &shown.ground, section, range, bw);
     let fr = frame.rect();
     let mut checked = 0;
@@ -232,7 +232,7 @@ fn c2_the_pixels_are_the_pictures() {
         }
         let (col, row) = (lx.floor() as i64, (((ly + 0.5) * NAV_H / 55.0) - 0.5).round() as i64);
         let got = rig.px(&rgba, x, y);
-        let allowed: BTreeSet<[u8; 3]> = (-1..=1).flat_map(|dr| (-1..=1).map(move |dc| (dc, dr))).map(|(dc, dr)| texel(&nav_rgba, 638, 56, col + dc, row + dr, DARK_GROUND)).collect();
+        let allowed: BTreeSet<[u8; 3]> = (-1..=1).flat_map(|dr| (-1..=1).map(move |dc| (dc, dr))).map(|(dc, dr)| texel(&nav_rgba, 648, 56, col + dc, row + dr, DARK_GROUND)).collect();
         assert!(allowed.contains(&got), "strip pixel ({x}, {y}) is {got:?}, allowed {allowed:?}");
         checked += 1;
     }
@@ -247,7 +247,7 @@ fn c2_the_pixels_are_the_pictures() {
     println!("C2: frame {fr:?}: {left_hits} and {right_hits} --text pixels at its edges");
 
     // The hairlines: under the strip, and the cut view's last row.
-    for x in (376..1014).step_by(7) {
+    for x in (375..1023).step_by(7) {
         assert_eq!(rig.px(&rgba, x, (BAR_H + CONTENT_TOP) as usize + 55), LINE, "the strip's hairline at x {x}");
         assert_eq!(rig.px(&rgba, x, (cv.y + cv.h) as usize - 1), LINE, "the cut view's hairline at x {x}");
     }
@@ -554,7 +554,7 @@ fn c10_light_and_narrow() {
     let hits = (nav.x as usize + fr.x as usize - 1..=nav.x as usize + (fr.x + fr.w) as usize + 1).filter(|&x| rig.px(&rgba, x, mid) == text).count();
     assert!(hits >= 2, "the frame is #171717 in the light theme ({hits})");
 
-    // 1000 px: the middle column is 238 wide, so the note wraps on three lines and the cut view starts 36 px lower.
+    // 1000 px: the middle column is 248 wide (the panels at their natural width), so the note wraps on three lines and the cut view starts 36 px lower.
     let mut narrow = Rig::new(&world, false, state(), 1000, 800);
     narrow.write("section_1000.png");
     let ids = narrow.app.ids().clone();
