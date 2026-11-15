@@ -406,7 +406,7 @@ All screenshots are produced by `nui-shot <view-name> <w>x<h> [--scale 1.5] [--t
 | 19 | Launcher bar on an own frame, fixed panels, polish: cursor shapes, tooltips, device loss, DPI change, occlusion, errors, export.json | Pictures of the bar at 100/150/200 %, the fixed layout at 1000..1920 and the errors; manual checks of the live window | 4 |
 | 19.5 | The bar floats: no hairline under it, content 10 px under the bar (preview and Home) | bar-1400.png without the line, the fixed-layout sweep with the panels at y 50 | 1 |
 | 20 | IME (IMM32) in the text field | Done: composition inline with one underline, the candidate window at the caret, commit through the edit model as one undo step, IME off outside text fields; offscreen `docs/shots/ime-dark.png`, `ime-light.png`; live path manual only (UNVERIFIED) | 6 |
-| 21 | Launcher migration (custom frame, tabs, collapse animation) in the pack's repository | PNGs of Home and preview tabs | later |
+| 21 | The native launcher: outpost-tools/native (PreviewApp with a Home, the api of launcher/app as a library), the tools' 220 ms slide with reduced motion, #account, one switch at 860 | Home and the World preview tool over 800..1920 and 1400x600, dark and light; the controls sheet; the bar half-slid | 8 |
 
 Subtotal steps 0-19 ~ 80 h by my own table here, higher than my earlier ~55 h because this includes the toolkit crate boundaries, golden-image harness and first-class DPI. The earlier figure assumed no separate crates and less testing (INTERPRETATION).
 
@@ -450,7 +450,7 @@ R1. Font: IBM Plex Mono may not be installed; private font loading into DirectWr
 R2. `windows` crate version/feature names changed between 0.58 (classic `Win32_*`) and master (short names). Pin a version; first compile in step 2 will reveal missing features. The list in 2.8 beyond the 0.58 sample is UNVERIFIED.
 R3. Inline text flow: `<small>`, `<output>` inside paragraphs, wrapped paragraphs with mixed styles. The reduced layout supports one text run per leaf. I did not read the whole page; check the HTML body (lines 370-440 and JS-built nodes) for mixed inline content before step 13.
 R4. Baseline alignment (8 uses in preview). Needs a baseline passed through nested containers; wrong baselines look subtly misaligned. Test with number rows early (step 7).
-R5. Launcher `0fr -> 1fr` transition and `prefers-reduced-motion`: needs an animation clock and continuous redraw only while animating (`want_redraw`). Not designed in detail.
+R5. Launcher `0fr -> 1fr` transition and `prefers-reduced-motion`: needs an animation clock and continuous redraw only while animating (`want_redraw`). Settled in step 21: nui-ui `Slide` with CSS ease, frames requested only while it moves, none with reduced motion.
 R6. D2D `DrawBitmap` nearest-neighbour exactness at fractional scales; fallback is drawing the map as a D3D textured quad (step 14).
 R7. Flip-model + D2D: the sample uses `FLIP_SEQUENTIAL` and works (ESTABLISHED); `FLIP_DISCARD` and MSAA through resolve are UNVERIFIED. Device loss/occlusion handling must be copied from the sample (ESTABLISHED there).
 R8. Offscreen readback code is my own composition of documented APIs; no Rust reference found (searches returned only C++ docs and crates not showing it). Budget extra time in step 2.

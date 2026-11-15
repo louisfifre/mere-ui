@@ -5,7 +5,7 @@ a Workflow (the maintainer asked for one in words: "le mieux, ce serait de lance
 is explicit). Read `AGENTS.md` and `docs/design.md` first; this file says where the work stands and how to
 finish steps 0 to 6.
 
-## Status: steps 0 to 20 done (2026-11-15)
+## Status: steps 0 to 21 done (2026-11-15)
 
 The build run finished. `relief <data-dir>` draws `C:\Games\preview\out` in 3D in a window and as `--shot`; the
 shots in `docs/shots` were compared with a capture of the page's 3D view (`world-preview/scripts/capture.ps1`,
@@ -469,7 +469,91 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   9. Optionally, Microsoft Pinyin: type "zhongwen", Space, then 1.
   10. Logs at Debug show "ime on" / "ime off" and the commit counts.
 
-Next: step 21 (the launcher's own migration, in the pack's repository).
+### Step 21: the native launcher (2026-11-15)
+
+- Built, in this repository (branch `feat/native-launcher`):
+  - `nui-ui`: the launcher's icon looks (`IconLook::Square`, `Filled`, `Bare`, joined squares), `hover_box`,
+    disabled text and number fields (`FieldOpts`, `number_with`), `ButtonLook::Underlined`, `toggle_with`, `Ui::clock`,
+    the select with its menu (`menu.rs`, `select_menu`: 25 px box, 20 px rows, painted last and outside every clip,
+    Escape closes it), and `anim.rs` (`ease` = CSS `cubic-bezier(.25,.1,.25,1)`, `Slide`, 220 ms).
+  - `nui-win32`: `reduced_motion()` (`SPI_GETCLIENTAREAANIMATION`, read once by the app).
+  - `demos/widgets`: the launcher controls sheet (`--launcher`, `launcher_controls_<theme>.png`).
+  - `demos/preview`: `home.rs` (the `Home` trait: build, act, poll, wake_in, shown, account, as_any; hosted by
+    `PreviewApp::with_home`, drawn by `picture_with_home`), the bar's account (`#account`, ellipsis beside the pack's
+    name) and the 220 ms slide of the preview tool's views (the options box clips at width = value x natural while it
+    moves, Auto when settled or when reduced motion is on), and `Runs::server_dir`, `out_dir`, `exports_dir`.
+  - In the pack's repository (branch `feat/native-launcher`): `launcher/app` is now a library (`api`, `system`) plus a
+    binary behind the `window` feature (so `launcher/native` pulls no tao or wry); `launcher/native` is the new
+    package (`LauncherHome`, a bridge to `launcher::api::Api` in process with origin `native://launcher`, a fake api for
+    tests and pictures, `main.rs` with the window and `--shot`); `scripts/launcher.ps1 -Native`; docs.
+  - The one switch of the Home is at 860: the two parts stack when the window is 860 wide or less. The window never
+    reaches it (the least size is 1000), so the stacked form appears only in the 800 and 860 pictures.
+  - Page rules dropped on purpose: the 1120 cap, the padding change at 860, and `@media (max-width: 640px)` hiding the
+    account.
+- PLACEHOLDER: `HOME_LATER` stays only in the standalone `preview` binary's Home. The launcher's Home is real.
+- UNVERIFIED:
+  - the live window as a whole (nothing was opened by an agent);
+  - the select popup's look and the 25 px height of the select against Chrome;
+  - the timing of the reversed slide (a slide reversed half way);
+  - `SPI_GETCLIENTAREAANIMATION` as the equivalent of Chrome's `prefers-reduced-motion`;
+  - the startup delay of the two `pwsh` calls and of the world's load before the window shows;
+  - the real api through the native interface (tests use the fake; `api_smoke` only builds the `Api`);
+  - a real preview run from the launcher (it writes into `C:\Games\preview`; no agent ran it);
+  - a display scale of 150%;
+  - the stand-in icon shapes in the widgets sheet (they are not the launcher's real icons).
+- Not built:
+  - `condense()` (the views turning into icons when the bar is narrow);
+  - the marker's blink;
+  - the confirmation on closing while a run computes;
+  - the window's remembered place and size;
+  - the taskbar's cube icon;
+  - focus rings;
+  - the Ctrl+wheel guard and the context menu;
+  - keyboard in the select's menu beyond Escape;
+  - a multi-line text area (the Java field is one line in a 52 px box);
+  - the page's "empty number = min";
+  - a live change of reduced motion (read once at start);
+  - bringing a running native window to the front (no `hwnd.txt`);
+  - the page's `@media 640`, the 1120 cap, the 860 padding change.
+- Choices where the brief was silent:
+  - the bar normalises a state that names a tool without its slide (Home with the views open becomes closed, and the
+    reverse); `options_w` lives in `PreviewState`; `ShellIds.options` was added;
+  - the select's width is the parent's (`Pct(100)`) and its menu is `20 n + 2` tall;
+  - icon tests read draw-list colours (nui-ui has no renderer);
+  - disabled number fields show 0 when the server has no properties;
+  - Home's first poll asks both endpoints whatever the tool;
+  - `Rig` in `demos/preview/tests/bar.rs` sets `reduce_motion` true, so the older tests do not animate;
+  - `launcher/native` keeps its own `Cargo.lock` (copied from `launcher/app`); its toolkit paths name this worktree,
+    written in one place, to be repointed at `../../../rust-native-ui` after the merge;
+  - `main.rs` opens 1280x880 raised to the least size; `--shot` defaults to the dark theme;
+  - at 1400x600 the two parts never overflow with the preview's 10 px top (they end at 582 of 600), so the test and the
+    picture of the overflow use a long server note (a 412 EULA error on start); a deviation from the brief;
+  - "PlayerOne" is ellipsised in the preview tool at 1000 (179 px left of the strip), so the account tests check a
+    prefix and that the right edge stays left of the strip;
+  - `FIXED_NOW_MS` is 1_795_262_400_000 as the brief says; it is 2026-11-21 12:00 UTC, which only matters in
+    differences.
+- Evidence: `cargo test --offline --workspace` 438 passed, 0 failed, no warning (36 new, 402 before). In
+  `outpost-tools/native`: 37 tests (6 lib, 1 `api_smoke`, 14 `home`, 10 `layout`, 6 `pictures`; the first
+  picture test checks that the native frame is byte-equal to `picture_with_home`); `launcher/app` builds with
+  `--locked` and has 2 lib tests; `cargo build --release` of `launcher/native` passes (not run). Pictures in
+  `docs/shots`: `launcher-controls-dark.png`, `launcher-controls-light.png`, `bar-slide-mid.png`,
+  `launcher-home-{800,1000,1400,1920,1400x600,light,settings,launch}.png`,
+  `launcher-preview-{800,1000,1400,1920,light}.png`.
+- The manual check, by the maintainer (the same twelve points are in the pack's setup notes, "Native launcher"):
+  1. Close the page launcher. In the pack's repository: `$env:WORLD_PREVIEW_DIR = '..\world-preview'; .\scripts\launcher.ps1 -Native`.
+  2. Home: the profiles with their lines, the account after MINECRAFT; a row lights under the pointer.
+  3. Resize from the narrowest to full screen: the two parts widen smoothly, nothing jumps or is cut.
+  4. A profile's Settings: Opens on > a server, type an address, Enter: "Saved."; Prism's instance shows it; set it back.
+  5. Memory above the maximum, Enter: clamped. Game folder > Open: Explorer.
+  6. Play a profile: Starting..., Syncing the pack..., Loading the game... N s, Running.
+  7. Dev server: the settings icon unfolds the fields; Start opens its console; Running, localhost:port; Stop: Saving and stopping..., then stopped.
+  8. World preview: the views slide open in about 0.2 s, Home slides them shut; with Animation effects off and the launcher restarted, they switch at once.
+  9. Generate: the real `preview.ps1` runs into `C:\Games\preview`; the tool says computing, then ready. Export writes under `C:\Games\exports\world-preview`.
+  10. Switch Windows to light: the window follows.
+  11. Close: the window and a run under way stop; `run\launcher.log` has "started (native)" and "stopped: the window was closed".
+  12. `.\scripts\launcher.ps1` with no switch still opens the page launcher.
+
+Next: the maintainer's manual check of the native launcher (above); then the orchestrator merges `feat/native-launcher` of both repositories and repoints `launcher/native`'s paths at `../../../rust-native-ui`. The build plan has no step after 21.
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
