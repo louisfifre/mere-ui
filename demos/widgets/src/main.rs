@@ -1,4 +1,4 @@
-//! widgets [--controls | --fields | --lists] [--light] [--shot out.png]
+//! widgets [--controls | --fields | --lists | --launcher] [--light] [--shot out.png]
 //!
 //! Without --shot, opens a window with the live widgets (--controls: the folds, tabs and number fields;
 //! --fields: the text and number fields, typed into for real; --lists: the biome list with its scrollbar,
@@ -7,7 +7,7 @@
 
 use nui_base::{App, DrawList, Event, Gfx, Rect, Vec2, log};
 use nui_ui::{Theme, Ui};
-use widgets::{CONTROLS, ControlsState, FIELDS, FieldsState, LISTS, ListsState, SHEET, controls_live, fields_live, live, lists_live, lists_marks, text};
+use widgets::{CONTROLS, ControlsState, FIELDS, FieldsState, LAUNCHER, LISTS, LauncherState, ListsState, launcher_live, SHEET, controls_live, fields_live, live, lists_live, lists_marks, text};
 
 struct Widgets {
     ui: Ui,
@@ -17,6 +17,7 @@ struct Widgets {
     controls: Option<ControlsState>,
     fields: Option<FieldsState>,
     lists: Option<ListsState>,
+    launcher: Option<LauncherState>,
 }
 
 impl App for Widgets {
@@ -41,10 +42,11 @@ impl App for Widgets {
         let mut list = DrawList::default();
         for _ in 0..3 {
             self.ui.begin_frame(self.size);
-            match (&mut self.controls, &mut self.fields, &mut self.lists) {
-                (Some(s), _, _) => controls_live(&mut self.ui, s),
-                (_, Some(s), _) => fields_live(&mut self.ui, s),
-                (_, _, Some(s)) => lists_live(&mut self.ui, s),
+            match (&mut self.controls, &mut self.fields, &mut self.lists, &mut self.launcher) {
+                (Some(s), _, _, _) => controls_live(&mut self.ui, s),
+                (_, Some(s), _, _) => fields_live(&mut self.ui, s),
+                (_, _, Some(s), _) => lists_live(&mut self.ui, s),
+                (_, _, _, Some(s)) => launcher_live(&mut self.ui, s),
                 _ => live(&mut self.ui, &mut self.ons),
             }
             list = self.ui.end_frame().clone();
@@ -63,13 +65,13 @@ impl App for Widgets {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: widgets [--controls | --fields | --lists] [--light] [--shot out.png]");
+    eprintln!("usage: widgets [--controls | --fields | --lists | --launcher] [--light] [--shot out.png]");
     std::process::exit(2);
 }
 
 fn main() {
     log::add_sink(log::stderr_sink(log::Level::Info));
-    let (mut light, mut shot, mut controls, mut fields, mut lists) = (false, None, false, false, false);
+    let (mut light, mut shot, mut controls, mut fields, mut lists, mut launcher) = (false, None, false, false, false, false);
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -77,11 +79,12 @@ fn main() {
             "--controls" => controls = true,
             "--fields" => fields = true,
             "--lists" => lists = true,
+            "--launcher" => launcher = true,
             "--shot" => shot = Some(args.next().unwrap_or_else(|| usage())),
             _ => usage(),
         }
     }
-    if [controls, fields, lists].iter().filter(|b| **b).count() > 1 {
+    if [controls, fields, lists, launcher].iter().filter(|b| **b).count() > 1 {
         usage();
     }
     let theme = if light { Theme::light() } else { Theme::dark() };
@@ -91,6 +94,8 @@ fn main() {
         FIELDS
     } else if lists {
         LISTS
+    } else if launcher {
+        LAUNCHER
     } else {
         SHEET
     };
@@ -104,6 +109,7 @@ fn main() {
         controls: controls.then(ControlsState::default),
         fields: fields.then(FieldsState::default),
         lists: lists.then(ListsState::default),
+        launcher: launcher.then(LauncherState::default),
     };
     match shot {
         Some(path) => {
