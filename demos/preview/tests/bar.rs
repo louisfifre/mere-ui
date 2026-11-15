@@ -363,9 +363,30 @@ fn b6_the_bar_is_whole_device_pixels_at_every_scale() {
             assert!(inked >= 8, "scale {scale}: the {what} icon is drawn ({inked} pixels)");
         }
 
+        // The panels' buttons are pressed (both panels are open): the icon is the ground on the text colour's fill, and
+        // each pixel of it is one or the other.
+        for (what, id) in [("settings panel", ids.toggles[0]), ("figures panel", ids.toggles[1])] {
+            let c = centre(rig.rect(id));
+            let (x0, y0) = (((c.x - 8.0) * scale).floor() as u32, ((c.y - 8.0) * scale).floor() as u32);
+            let (x1, y1) = (((c.x + 8.0) * scale).ceil() as u32, ((c.y + 8.0) * scale).ceil() as u32);
+            let mut inked = 0;
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let p = rig.px(&rgba, x, y);
+                    assert!(p == rgb(t.ground) || p == rgb(t.text), "scale {scale}: the {what} icon has {p:?} at ({x}, {y})");
+                    inked += (p == rgb(t.ground)) as usize;
+                }
+            }
+            assert!(inked >= 8, "scale {scale}: the {what} icon is drawn ({inked} pixels)");
+        }
+
         // The tabs' frames: along the top edge of each, from just inside its corners, the pixels are exactly the
         // frame's colour (a blurred line would have a mix).
         for (i, tab) in ids.tabs.iter().enumerate() {
+            // A greyed tab (the loaded world is a coarse one) is drawn faded: its frame is not the plain edge.
+            if world.coarse() && matches!(i, 1 | 4 | 5) {
+                continue;
+            }
             let r = rig.rect(*tab);
             let want = if i == 2 || i == 6 { rgb(t.text) } else { rgb(t.edge) };
             let y = (r.y * scale).round() as u32;
@@ -426,7 +447,8 @@ fn b3_the_cursor_follows_what_is_under_the_pointer() {
     use nui_base::Cursor;
     let Some(world) = load() else { return };
     let mut rig = Rig::standard(&world);
-    let tab = centre(rig.rect(rig.app.ids().tabs[1]));
+    // Biomes: a greyed tab (the loaded world is a coarse one) asks for no hand.
+    let tab = centre(rig.rect(rig.app.ids().tabs[0]));
     rig.hover(tab);
     assert_eq!(rig.app.cursor(), Cursor::Hand, "over a tab");
     let map = centre(rig.rect(rig.app.ids().stage));

@@ -252,7 +252,7 @@ fn picture(world: &World, state: PreviewState, w: u32, h: u32, name: &str) {
 }
 
 /// The pictures: both panels open at 1920 x 1040, 1280 x 880, 1000 x 700, the stacking width and ten pixels under
-/// it, 700 x 700 and the least window; the settings panel dragged wider; the figures panel closed; the section.
+/// it, 700 x 700 and the least window; the settings panel dragged wider; the figures panel closed. (The section's\n/// picture needs a world with one: `--data C:\\Games\\preview\\out-section --view section` makes it.)
 #[test]
 fn pictures_over_the_sweep() {
     let Some(world) = load() else { return };
@@ -265,9 +265,6 @@ fn pictures_over_the_sweep() {
     picture(&world, PreviewState { panel_w: [Some(420.0), None], ..state(2) }, 1400, 800, "fluid_settings_dragged.png");
     picture(&world, PreviewState { panel_open: [true, false], ..state(2) }, 1280, 880, "fluid_figures_closed.png");
     picture(&world, PreviewState { panel_open: [false, true], ..state(2) }, 1280, 880, "fluid_settings_closed.png");
-    for w in [1000, 1920] {
-        picture(&world, state(5), w, 940, &format!("fluid_section_{w}.png"));
-    }
 }
 
 #[test]
