@@ -12,6 +12,7 @@
 //! The colours (step 18): the window follows the system's light or dark setting and switches live, as the page does
 //! with `prefers-color-scheme`; `--theme dark` or `light` fixes them (`--light` is `--theme light`). A picture is dark
 //! unless asked, so that it does not depend on the machine; `--theme system` reads the setting once.
+//! With --pack, the settings panel's Apply to pack writes its values into the pack's config/tectonic.json (only the\n//! values that differ, comments kept); nothing else is written there.
 //! The history and the run before (`history.json`, `before.json`) are kept in --runs, the page's localStorage as files.
 //! The view keys, --biome and --structure are the page's own `?view=`, `&biome=` and `&structure=`; --camera is its
 //! `?camera=`, the 3D view's start in widths of the area (step 15). In the section view (`--view section`, step 16),

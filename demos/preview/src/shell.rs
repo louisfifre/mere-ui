@@ -94,6 +94,8 @@ pub enum Want {
     Stop,
     Export,
     OpenFolder,
+    /// Write the panel's values into the pack's config.
+    Apply,
     /// The window's buttons: the app turns them into requests to the window.
     Minimize,
     Maximize,
@@ -148,6 +150,13 @@ pub struct PreviewState {
     pub history_open: bool,
     /// The settings' values, in `SETTINGS` order.
     pub values: [f64; 43],
+    /// What the pack's config holds: the values `pack` puts back, and what Apply is compared to. The pack's own,
+    /// copied from `settings`, until an Apply writes the panel's.
+    pub baseline: [f64; 43],
+    /// A pack is known (`--pack`), so Apply can write.
+    pub pack_known: bool,
+    /// What the last Apply said.
+    pub apply: crate::apply::Notice,
     /// The pressed detail: an index in `text::DETAILS`.
     pub detail: usize,
     pub settings_y: f32,
@@ -240,6 +249,9 @@ impl Default for PreviewState {
             figures_open: true,
             history_open: false,
             values: pack_values(),
+            baseline: pack_values(),
+            pack_known: false,
+            apply: Default::default(),
             detail: 2,
             settings_y: 0.0,
             list_y: 0.0,
@@ -326,6 +338,10 @@ pub struct ShellIds {
     /// In `SETTINGS` order.
     pub rows: Vec<Id>,
     pub reset: Id,
+    /// The Apply button and the words under it (Id::ROOT when not built), and what they say.
+    pub apply: Id,
+    pub apply_note: Id,
+    pub apply_text: String,
     pub run: Id,
     pub status: Id,
     pub details: Id,
@@ -432,6 +448,9 @@ impl Default for ShellIds {
             group_heads: Vec::new(),
             rows: vec![o; SETTINGS.len()],
             reset: o,
+            apply: o,
+            apply_note: o,
+            apply_text: String::new(),
             run: o,
             status: o,
             details: o,
@@ -721,14 +740,15 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
         // Line 153: `#profiles` pulls its first word 6 px left, under the padding of its button.
         let style = Style { wrap: true, margin: Margin { left: Side::Px(-6.0), ..Margin::default() }, ..choice_style() };
         ids.profiles = ui.node("profiles", style, |ui| {
-            let at_pack = s.values == pack_values();
+            let at_pack = s.values == s.baseline;
             let r = ui.tab("pack", text::PACK, TabLook::Choice, TabOpts { pressed: at_pack, disabled: false });
             ui.title(r.id, text::PROFILE_PACK_HINT);
             if r.clicked {
-                s.values = pack_values();
+                s.values = s.baseline;
             }
         });
         settings_scroll(ui, &mut s.settings_y, &mut s.values, ids, t, stacked);
+        crate::apply_ui::apply_block(ui, crate::apply_ui::Apply { values: &s.values, baseline: &s.baseline, pack_known: s.pack_known, notice: &s.apply, want: &mut s.want }, ids);
     });
     ids.settings_head = r.id;
 

@@ -23,6 +23,7 @@ use crate::home::Home;
 use crate::json::Json;
 use crate::map::MAP_IMAGE;
 use crate::paint::{View, paint};
+use crate::apply::{self, Fail, Host, Notice, Outcome, SystemHost, Target};
 use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Runs, Steps};
 use crate::scene;
 use crate::section::Shown;
@@ -91,6 +92,9 @@ pub struct PreviewApp {
     upload_pending: bool,
     /// The launcher's Home, when the host gave one.
     home: Option<Box<dyn Home>>,
+    /// Apply to pack: the machine it asks (given with a pack), and the write under way with the values it writes.
+    apply_host: Option<Arc<dyn Host>>,
+    applying: Option<(JoinHandle<Outcome>, [f64; 43])>,
 }
 
 type CutKey = (usize, usize, usize, usize, usize, bool, BTreeSet<String>, u32);
@@ -128,6 +132,8 @@ impl PreviewApp {
             ended: None,
             upload_pending: false,
             home: None,
+            apply_host: None,
+            applying: None,
         };
         // Line 2815: the map that opens the page is kept like any other (in memory until there are runs).
         app.remember();
@@ -141,9 +147,25 @@ impl PreviewApp {
         self.state.pace = self.pace.clone();
         self.state.history = history::load(&runs.history());
         self.state.before = std::fs::read_to_string(runs.before()).ok().and_then(|t| Json::parse(&t).ok()).and_then(|j| Figures::from_json(&j));
+        // A pack is a place Apply can write to; the real machine is asked about what runs on it.
+        self.state.pack_known = runs.pack.is_some();
+        if self.apply_host.is_none() {
+            self.apply_host = Some(Arc::new(SystemHost));
+        }
         self.runs = Some(runs);
         self.remember();
         self
+    }
+
+    /// Puts another machine under Apply (a test's).
+    pub fn with_apply_host(mut self, host: Arc<dyn Host>) -> PreviewApp {
+        self.apply_host = Some(host);
+        self
+    }
+
+    /// Whether a write to the pack is under way.
+    pub fn applying(&self) -> bool {
+        self.applying.is_some()
     }
 
     /// Gives the app the Home of its host (the launcher's): the pane under the bar while that tool is on.
@@ -348,6 +370,7 @@ impl PreviewApp {
     /// Before the frame is built, so the frame shows what was found.
     fn poll(&mut self, gfx: &mut dyn Gfx) {
         self.look();
+        self.look_apply();
         if let Some(status) = self.ended.take() {
             self.finish(status, Some(&mut *gfx));
         }
@@ -500,6 +523,7 @@ impl PreviewApp {
             Want::Maximize => self.requests.push_back(WindowRequest::ToggleMaximize),
             Want::Close => self.requests.push_back(WindowRequest::Close),
             Want::Export => self.export(),
+            Want::Apply => self.apply(),
             Want::OpenFolder => {
                 if let (Steps::Saved { folder }, Some(runs)) = (&self.state.steps, &self.runs) {
                     if let Err(e) = runs.launcher.open_folder(&PathBuf::from(folder)) {
@@ -572,6 +596,34 @@ impl PreviewApp {
                 self.state.trouble = text::FAILED.to_string();
             }
         }
+    }
+
+    /// Apply to pack: the write goes to a thread of its own, since looking at the machine takes a moment. The values
+    /// are kept with it, for they become the pack's if it works.
+    fn apply(&mut self) {
+        let (Some(runs), Some(host)) = (self.runs.as_ref(), self.apply_host.clone()) else { return };
+        let (Some(pack), None) = (runs.pack.clone(), self.applying.as_ref()) else { return };
+        let target = Target { pack, own_server: Some(runs.server()) };
+        let values = self.state.values;
+        self.state.apply = Notice::Working;
+        self.applying = Some((std::thread::spawn(move || apply::apply(&*host, &target, &values)), values));
+    }
+
+    /// The write ended: its words, and the pack's values become the ones written.
+    fn look_apply(&mut self) -> bool {
+        if !self.applying.as_ref().is_some_and(|(t, _)| t.is_finished()) {
+            return false;
+        }
+        let Some((thread, values)) = self.applying.take() else { return false };
+        match thread.join() {
+            Ok(Outcome::Applied(_, running)) => {
+                self.state.baseline = values;
+                self.state.apply = Notice::Done { running };
+            }
+            Ok(Outcome::Failed(f)) => self.state.apply = Notice::Failed(f),
+            Err(_) => self.state.apply = Notice::Failed(Fail::Write),
+        }
+        true
     }
 
     /// The square beside the button (lines 2712-2715): the run ends a moment later and the wait for it says so.
@@ -752,13 +804,14 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
 
     fn wake_in(&self) -> Option<f32> {
         // The status shows whole seconds and the end of the run is looked for four times a second.
-        let run = self.running.is_some().then_some(0.25);
+        let run = (self.running.is_some() || self.applying.is_some()).then_some(0.25);
         let home = self.home.as_ref().and_then(|h| h.wake_in(self.now()));
         [self.ui.wake_in(), run, home].into_iter().flatten().reduce(f32::min)
     }
 
     fn tick(&mut self) -> bool {
         self.look();
+        let applied = self.look_apply();
         // The end is told at once, title included: no frame comes while the window is hidden. Only the meshes wait.
         let ended = match self.ended.take() {
             Some(status) => {
@@ -769,7 +822,7 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
         };
         let clock = self.now();
         let home = self.home.as_mut().is_some_and(|h| h.poll(clock, false));
-        ended || home
+        ended || home || applied
     }
 
     fn hit(&self, pos: Vec2) -> Hit {
