@@ -120,7 +120,7 @@ fn l5_settings_groups_and_rows() {
     let groups = grouped();
     // What a label has beside its "?" (16 px, 4 after the label): the row less the two gaps and the field.
     let body = nui_ui::TextLook::body(nui_ui::Tone::Text);
-    let room = r(&ui, ids.rows[0]).w - 2.0 * panels::SETTING_GAP - panels::SETTING_FIELD - 4.0 - 16.0;
+    let room = r(&ui, ids.rows[0]).w - 2.0 * panels::SETTING_GAP - panels::setting_field() - 4.0 - 16.0;
     for (g, members) in groups.iter().enumerate() {
         for (k, &i) in members.iter().enumerate() {
             // 2 + 24 + 2: the field is 18 + 2 x 3 + 2 x 1 high. A label that wraps beside its "?" is 18 a line.

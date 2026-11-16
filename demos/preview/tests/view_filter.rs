@@ -1,0 +1,155 @@
+//! The settings panel's "This view only" filter: which settings are listed for each view, with the filter on
+//! and off, and that the panel follows a change of view.
+
+use nui_base::Vec2;
+use nui_ui::{Theme, Ui};
+use preview::settings::SETTINGS;
+use preview::view_filter::{groups_for, visible};
+use preview::{PreviewState, ShellIds, build, picture_with};
+
+const GROUP_BIOMES: usize = 0;
+const GROUP_RELIEF: usize = 1;
+const GROUP_CONTINENTS: usize = 2;
+const GROUP_CAVES: usize = 3;
+const GROUP_OTHER: usize = 4;
+
+fn listed(only: bool, view: usize) -> Vec<usize> {
+    // As a set: the panel lists Tectonic (37) last of its group, so the order is not the index order.
+    let mut all: Vec<usize> = visible(only, view).into_iter().flatten().collect();
+    all.sort_unstable();
+    all
+}
+
+fn groups_listed(only: bool, view: usize) -> Vec<usize> {
+    let mut g: Vec<usize> = listed(only, view).iter().map(|&i| SETTINGS[i].group).collect();
+    g.dedup();
+    g.sort_unstable();
+    g.dedup();
+    g
+}
+
+/// The shell at 1400 x 940 with the filter as given and the view pressed; the rows that were built.
+fn built(only: bool, view: usize) -> (Vec<usize>, usize, ShellIds) {
+    let mut state = PreviewState::for_world(None);
+    state.view = view;
+    state.view_only = only;
+    let (_, ui, ids) = picture_with(Theme::dark(), Vec2::new(1400.0, 940.0), None, state);
+    let rows: Vec<usize> = (0..SETTINGS.len()).filter(|&i| ui.rect(ids.rows[i]).is_some()).collect();
+    let heads = ids.group_heads.len();
+    (rows, heads, ids)
+}
+
+#[test]
+fn filter_off_lists_every_setting_for_every_view() {
+    for view in 0..6 {
+        assert_eq!(listed(false, view), (0..43).collect::<Vec<_>>(), "view {view}");
+    }
+}
+#[test]
+fn filter_on_lists_the_groups_of_the_view() {
+    // The page's `opensFor` (preview.html 880-881), with the ores group left out: it is not built here.
+    let expect: [(usize, &[usize]); 6] = [
+        (0, &[GROUP_BIOMES, GROUP_CONTINENTS]),
+        (1, &[GROUP_RELIEF]),
+        (2, &[GROUP_RELIEF, GROUP_CONTINENTS]),
+        (3, &[GROUP_BIOMES]),
+        (4, &[GROUP_BIOMES]),
+        (5, &[GROUP_RELIEF, GROUP_CAVES]),
+    ];
+    for (view, groups) in expect {
+        assert_eq!(groups_listed(true, view), groups, "groups listed for view {view}");
+        assert_eq!(groups_for(view), groups, "groups_for view {view}");
+        let want: Vec<usize> = (0..43).filter(|&i| groups.contains(&SETTINGS[i].group)).collect();
+        assert_eq!(listed(true, view), want, "settings listed for view {view}");
+    }
+}
+
+#[test]
+fn the_group_nobody_draws_is_never_listed_with_the_filter_on() {
+    for view in 0..6 {
+        assert!(!groups_listed(true, view).contains(&GROUP_OTHER), "view {view}");
+        assert!(groups_listed(false, view).contains(&GROUP_OTHER), "view {view}");
+    }
+}
+
+#[test]
+fn the_panel_builds_only_the_listed_rows_and_headers() {
+    for view in 0..6 {
+        let (rows, heads, _) = built(false, view);
+        assert_eq!(rows.len(), 43, "filter off, view {view}");
+        assert_eq!(heads, 5, "filter off, view {view}");
+
+        let (rows, heads, _) = built(true, view);
+        assert_eq!(rows, listed(true, view), "filter on, view {view}");
+        assert_eq!(heads, groups_listed(true, view).len(), "a header per group on show, view {view}");
+    }
+}
+
+/// One shell on one state, built again after each change as the window does.
+struct Session {
+    ui: Ui,
+    state: PreviewState,
+    ids: ShellIds,
+}
+
+impl Session {
+    fn new(view: usize, only: bool) -> Session {
+        let mut state = PreviewState::for_world(None);
+        state.view = view;
+        state.view_only = only;
+        let mut s = Session { ui: Ui::new(Theme::dark()), state, ids: ShellIds::default() };
+        s.frame();
+        s
+    }
+
+    fn frame(&mut self) {
+        let size = Vec2::new(1400.0, 940.0);
+        for _ in 0..2 {
+            self.ui.begin_frame(size);
+            self.ids = build(&mut self.ui, &mut self.state, size, None, None, None);
+            self.ui.end_frame();
+        }
+    }
+
+    fn rows(&self) -> Vec<usize> {
+        (0..SETTINGS.len()).filter(|&i| self.ui.rect(self.ids.rows[i]).is_some()).collect()
+    }
+}
+
+#[test]
+fn changing_the_view_updates_the_list_at_once_and_keeps_the_filter() {
+    let mut s = Session::new(1, true);
+    assert_eq!(s.rows(), listed(true, 1));
+    s.state.view = 3;
+    s.frame();
+    assert_eq!(s.rows(), listed(true, 3));
+    assert!(s.state.view_only, "the filter survives the view change");
+    s.state.view = 5;
+    s.frame();
+    assert_eq!(s.rows(), listed(true, 5));
+}
+
+#[test]
+fn switching_the_filter_off_brings_every_setting_back() {
+    let mut s = Session::new(1, true);
+    assert!(s.rows().len() < 43);
+    s.state.view_only = false;
+    s.frame();
+    assert_eq!(s.rows().len(), 43);
+}
+
+#[test]
+fn a_new_cut_of_the_list_starts_at_the_top_but_a_view_change_with_the_filter_off_keeps_the_scroll() {
+    let mut s = Session::new(0, false);
+    s.state.settings_y = 60.0;
+    s.state.view = 2;
+    s.frame();
+    assert!(s.state.settings_y > 0.0, "the whole list does not change with the view, so the scroll stays");
+    s.state.view_only = true;
+    s.frame();
+    assert_eq!(s.state.settings_y, 0.0, "a shorter list starts at its first group");
+    s.state.settings_y = 10.0;
+    s.state.view = 0;
+    s.frame();
+    assert_eq!(s.state.settings_y, 0.0, "another view's list starts at its first group");
+}
