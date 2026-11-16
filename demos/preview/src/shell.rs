@@ -836,14 +836,15 @@ fn settings_scroll(ui: &mut Ui, cut: (bool, usize), list: &mut Option<usize>, y:
                 ui.node("body", Style { column: true, pad: Edges::new(4.0, 0.0, 0.0, 0.0), ..Style::default() }, |ui| {
                     for &i in members {
                         let set = &SETTINGS[i];
-                        ids.rows[i] = ui.node(set.key, setting_row(), |ui| {
-                            // The label, then the mark that opens its help. A label wider than its cell wraps onto
-                            // more lines instead of being cut, and the mark follows its last word.
+                        ids.rows[i] = ui.hover_area(set.key, setting_row(), |ui, over| {
+                            // The label, then the mark that opens its help, shown while the pointer is on the row.
+                            // A label wider than its cell wraps onto more lines instead of being cut, and the mark
+                            // follows its last word.
                             let name = Style { position: Position::Relative, min_w: Dim::Px(0.0), ..Style::default() };
                             let (label, mark) = label_place(set.label, label_room);
                             ui.node("name", name, |ui| {
                                 ui.node("label", label, |ui| ui.paragraph(set.label, body));
-                                let r = help_mark(ui, mark, *help.open == Some(i));
+                                let r = help_mark(ui, mark, over.is_some(), *help.open == Some(i));
                                 ids.help_marks[i] = r.id;
                                 if r.clicked {
                                     // The same mark again closes it; another one moves it to its own setting.
@@ -931,10 +932,10 @@ fn glyph_top(look: TextLook) -> f32 {
     (look.line - (ASCENT_EM + DESCENT_EM) * look.size) / 2.0
 }
 
-/// The "?" after a setting's label: muted at rest, in the text colour under the pointer and while its help is open
-/// (brighter on the dark theme, darker on the light one), with the hand of what can be clicked. `at` is its place in
-/// the label's box.
-fn help_mark(ui: &mut Ui, at: Vec2, open: bool) -> nui_ui::Resp {
+/// The "?" after a setting's label: hidden until the pointer is on its row (`row`), then muted; in the text colour
+/// under the pointer and while its help is open (brighter on the dark theme, darker on the light one), with the hand
+/// of what can be clicked. `at` is its place in the label's box. Hidden, it keeps its place, so nothing moves.
+fn help_mark(ui: &mut Ui, at: Vec2, row: bool, open: bool) -> nui_ui::Resp {
     let look = TextLook::body(Tone::Muted);
     let t = *ui.theme();
     let style = Style {
@@ -948,6 +949,9 @@ fn help_mark(ui: &mut Ui, at: Vec2, open: bool) -> nui_ui::Resp {
         let lit = r.hovered || r.held;
         if lit {
             ui.want_cursor(Cursor::Hand);
+        }
+        if !(row || lit || open) {
+            return Vec::new();
         }
         let color = if lit || open { t.text } else { t.muted };
         vec![Cmd::Text { at: Vec2::new(MARK_IN, glyph_top(look)), text: text::HELP_MARK.to_string(), size: look.size, color, weight: look.weight }]

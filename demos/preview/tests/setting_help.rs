@@ -187,8 +187,13 @@ fn h6_the_mark_lights_under_the_pointer_and_while_open() {
     let t = Theme::dark();
     let mut r = Rig::new(t, SIZE, PreviewState::default());
     let i = index("temperature_multiplier");
-    // At rest every mark is muted and the pointer an arrow.
-    assert!(!r.marks().is_empty() && r.marks().iter().all(|&c| c == t.muted), "muted at rest");
+    // At rest no mark shows.
+    assert!(r.marks().is_empty(), "hidden at rest");
+    // The pointer on a row shows its mark only, muted.
+    let row = r.centre(r.ids.rows[i]);
+    r.moved(row);
+    r.frame();
+    assert_eq!(r.marks(), vec![t.muted], "the row's mark shows, muted");
     let at = r.centre(r.ids.help_marks[i]);
     r.moved(at);
     r.frame();
