@@ -148,7 +148,7 @@ fn the_natural_widths_are_the_widest_rows_under_the_maximum() {
     let [left, right] = panels::natural();
     assert!((PANEL_MIN..=PANEL_MAX).contains(&left) && (PANEL_MIN..=PANEL_MAX).contains(&right), "{left} {right}");
     // "Lanterns over underground rivers": 32 cells of 7.2 px, the two gaps and the field, and the scrollbar's gutter.
-    let widest = nui_ui::TextLook::body(nui_ui::Tone::Text).width("Lanterns over underground rivers") + 2.0 * panels::SETTING_GAP + panels::SETTING_FIELD + nui_ui::GUTTER;
+    let widest = nui_ui::TextLook::body(nui_ui::Tone::Text).width("Lanterns over underground rivers") + 2.0 * panels::SETTING_GAP + panels::setting_field() + nui_ui::GUTTER;
     assert_eq!(left, widest.ceil());
     // That row is the widest label of the settings.
     for s in preview::settings::SETTINGS.iter() {

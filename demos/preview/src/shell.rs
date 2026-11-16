@@ -513,7 +513,7 @@ fn world_row() -> Style {
 fn setting_row() -> Style {
     Style {
         display: Display::Grid,
-        cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto, Track::Px(panels::SETTING_FIELD)]),
+        cols: Tracks::new(&[Track::MinMaxFr0(1.0), Track::Auto, Track::Px(panels::setting_field())]),
         gap: Vec2::new(panels::SETTING_GAP, 0.0),
         align_items: Align::Center,
         pad: Edges::vh(2.0, 0.0),

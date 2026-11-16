@@ -8,11 +8,12 @@
 
 use std::sync::OnceLock;
 
+use nui_ui::tokens;
 use nui_ui::{GUTTER, ROW_GAP, SHARE_MIN, SWATCH_W, TextLook, Tone, WIDTH_MIN};
 
 use crate::bands::{HEIGHT_STEPS, SEA, SEA_DEPTHS, band_names};
 use crate::overflow::NARROW_BAR;
-use crate::settings::SETTINGS;
+use crate::settings::{SETTINGS, widest_number_text};
 use crate::text;
 
 // ---- the values set by hand ----
@@ -31,9 +32,8 @@ pub const MIN_HEIGHT: f32 = 600.0;
 pub const GRIP_W: f32 = 8.0;
 
 // The content's own measures: the rows are built with these same names (shell.rs, nui-ui's list), so the natural widths follow them.
-/// `.setting`: the gap between its three columns, and the field's width (8 ch of 12 px).
+/// `.setting`: the gap between its three columns. The field's width is `setting_field()`.
 pub const SETTING_GAP: f32 = 10.0;
-pub const SETTING_FIELD: f32 = WIDTH_MIN;
 /// The gap between the columns of the figures grid, and the least widths of its value and change columns (the
 /// list rows' own, so that a figures row and a list row of one panel read alike).
 pub const FIG_GAP: f32 = 14.0;
@@ -78,6 +78,14 @@ fn body() -> TextLook {
     TextLook::body(Tone::Text)
 }
 
+/// The settings' field column: the widest text a number field shows (`widest_number_text`) plus the field's
+/// border and padding on both sides, so that no value of the 43 settings is cut. Worked out from the data, not
+/// typed: a setting with a longer range widens it.
+pub fn setting_field() -> f32 {
+    static FIELD: OnceLock<f32> = OnceLock::new();
+    *FIELD.get_or_init(|| body().width(&widest_number_text()) + 2.0 * (tokens::FRAME + tokens::INSET))
+}
+
 /// The widest row that fits under the maximum, rounded up to a whole pixel, and at least the minimum. A row wider
 /// than the maximum does not count: its label wraps instead.
 fn natural_of(rows: impl Iterator<Item = f32>) -> f32 {
@@ -94,7 +102,7 @@ pub fn natural() -> [f32; 2] {
     static NATURAL: OnceLock<[f32; 2]> = OnceLock::new();
     *NATURAL.get_or_init(|| {
         let b = body();
-        let settings = SETTINGS.iter().map(|s| b.width(s.label) + 2.0 * SETTING_GAP + SETTING_FIELD);
+        let settings = SETTINGS.iter().map(|s| b.width(s.label) + 2.0 * SETTING_GAP + setting_field());
         let figures = text::FIGURE_NAMES.iter().map(|n| b.width(n) + 2.0 * FIG_GAP + FIG_CELLS);
         let bands = band_names(SEA, &HEIGHT_STEPS, &SEA_DEPTHS).into_iter().map(|n| b.width(&n) + b.width(LIST_WIDTH) + LIST_CHROME);
         [natural_of(settings), natural_of(figures.chain(bands))]
