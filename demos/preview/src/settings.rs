@@ -90,3 +90,35 @@ pub fn pack_values() -> [f64; 43] {
     }
     v
 }
+
+/// A value as a number field writes it (`nui-ui`'s `js_number`: Rust's shortest round trip, -0 as "0").
+fn shown(v: f64) -> String {
+    format!("{}", if v == 0.0 { 0.0 } else { v })
+}
+
+/// The longest text a number field of these settings can show: the pack's value, the two ends of the range, and
+/// every value the arrow keys reach from `min` by `step` (rounded to the digits `step` and `min` have, as the
+/// field does, so that 0.025 steps do not print float dust). A typed value can be longer; it scrolls.
+pub fn widest_number_text() -> String {
+    let digits = |x: f64| shown(x).split_once('.').map_or(0, |(_, d)| d.len());
+    let mut widest = String::new();
+    let mut take = |v: f64| {
+        let s = shown(v);
+        if s.chars().count() > widest.chars().count() {
+            widest = s;
+        }
+    };
+    for s in &SETTINGS {
+        if let Kind::Number(spec) = s.kind {
+            take(s.pack);
+            take(spec.min);
+            take(spec.max);
+            let scale = 10f64.powi(digits(spec.step).max(digits(spec.min)) as i32);
+            let n = ((spec.max - spec.min) / spec.step + 1e-9).floor() as usize;
+            for k in 0..=n {
+                take(((spec.min + k as f64 * spec.step) * scale).round() / scale);
+            }
+        }
+    }
+    widest
+}
