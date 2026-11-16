@@ -49,9 +49,12 @@ pub const STOP: &str = "M6 6h12v12H6z";
 /// Line 420.
 pub const SETTINGS: &str = "M8 14H7v6H5v-6H2v-2h6v2Zm5 6h-2V10h2v10Zm9-2h-3v2h-2v-2h-1v-2h6v2Zm-3-4h-2V4h2v10ZM7 10H5V4h2v6Zm6-4h2v2H9V6h2V4h2v2Z";
 /// The two panels' buttons, in the same 24 unit grid and 2 px strokes as the icons above: a frame (3 to 21 across,
-/// 5 to 19 down) split by a bar near its left edge (the settings panel) or near its right edge (the figures panel).
+/// 5 to 19 down) split by a bar near its left edge (the settings panel) or near its right edge (the figures panel):
+/// the panel's place drawn empty while it is hidden, and filled while it is shown, so the icon says the state.
 pub const PANEL_LEFT: &str = "M3 5h18v2H3zm0 12h18v2H3zM3 7h2v10H3zm16 0h2v10h-2zM8 7h2v10H8z";
 pub const PANEL_RIGHT: &str = "M3 5h18v2H3zm0 12h18v2H3zM3 7h2v10H3zm16 0h2v10h-2zM14 7h2v10h-2z";
+pub const PANEL_LEFT_SHOWN: &str = "M3 5h18v2H3zm0 12h18v2H3zM3 7h2v10H3zm16 0h2v10h-2zM5 7h5v10H5z";
+pub const PANEL_RIGHT_SHOWN: &str = "M3 5h18v2H3zm0 12h18v2H3zM3 7h2v10H3zm16 0h2v10h-2zM14 7h5v10h-5z";
 /// Line 223: the pack's cube, in a 32 unit grid, each face in its own colour (`fill`).
 pub const PACK: [(&str, u32); 3] = [("M16 2l14 7-14 7L2 9z", 0x7fb850), ("M2 9l14 7v14L2 23z", 0x8b6344), ("M30 9l-14 7v14l14-7z", 0x6b4b33)];
 
@@ -67,8 +70,8 @@ pub struct Icons {
     pub play: Icon,
     pub stop: Icon,
     pub settings: Icon,
-    /// The buttons of the settings panel and of the figures panel.
-    pub panels: [Icon; 2],
+    /// The buttons of the settings panel and of the figures panel, each hidden then shown.
+    pub panels: [[Icon; 2]; 2],
     /// The three faces of the pack's cube with their colours.
     pub pack: Vec<(Icon, Color)>,
 }
@@ -95,7 +98,7 @@ pub fn icons() -> &'static Icons {
         play: parse(PLAY, 24.0),
         stop: parse(STOP, 24.0),
         settings: parse(SETTINGS, 24.0),
-        panels: [parse(PANEL_LEFT, 24.0), parse(PANEL_RIGHT, 24.0)],
+        panels: [[parse(PANEL_LEFT, 24.0), parse(PANEL_LEFT_SHOWN, 24.0)], [parse(PANEL_RIGHT, 24.0), parse(PANEL_RIGHT_SHOWN, 24.0)]],
         pack: PACK.iter().map(|(d, c)| (parse(d, 32.0), Color::hex(*c))).collect(),
     })
 }
@@ -239,7 +242,10 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
                     };
                     let mut inner = None;
                     ids.options = ui.node("options", outer, |ui| {
-                        inner = Some(ui.node("inner", Style { pad: Edges::new(0.0, 0.0, 0.0, 1.0), shrink: 0.0, ..Style::default() }, |ui| tabs(ui, s, ids, world, &views_form)));
+                        // `gap-tight` after the tool: the tool and a pressed first view are both filled, and touching
+                        // they would read as one box with the view's word off its centre.
+                        let pad = Edges::new(0.0, 0.0, 0.0, 1.0 + overflow::TOOL_VIEWS_GAP);
+                        inner = Some(ui.node("inner", Style { pad, shrink: 0.0, ..Style::default() }, |ui| tabs(ui, s, ids, world, &views_form)));
                     });
                     if let Some(r) = inner.and_then(|id| ui.rect(id)) {
                         s.options_w = r.w;
@@ -255,7 +261,7 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             if preview {
                 panel_toggle(ui, s, ids, 1);
             }
-            let ends = Style { align_self: Some(Align::Stretch), ..Style::default() };
+            let ends = Style { align_items: Align::Center, pad: Edges::new(0.0, overflow::EDGE, 0.0, 0.0), ..Style::default() };
             ui.node("ends", ends, |ui| {
                 let r = ui.icon_button("minimize", &icons.minimize, IconLook::Caption, IconOpts::default());
                 ids.ends[0] = r.id;
@@ -286,7 +292,9 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
 /// toggling its own panel only.
 fn panel_toggle(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, which: usize) {
     let name = if which == 0 { text::SETTINGS_PANEL } else { text::FIGURES_PANEL };
-    let r = ui.icon_button(&format!("panel{which}"), &icons().panels[which], IconLook::Tool, IconOpts { pressed: s.panel_open[which], ..IconOpts::default() });
+    // The window buttons' look, unframed; the icon, not a reversed box, says whether the panel is shown.
+    let icon = &icons().panels[which][s.panel_open[which] as usize];
+    let r = ui.icon_button(&format!("panel{which}"), icon, IconLook::Caption, IconOpts::default());
     ids.toggles[which] = r.id;
     ids.bar_buttons.push(r.id);
     ui.title(r.id, name);
