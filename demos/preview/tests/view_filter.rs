@@ -106,14 +106,17 @@ fn the_count_shows_only_while_the_filter_is_on_and_matches_the_rows() {
 }
 
 #[test]
-fn the_filter_has_its_own_help_that_opens_under_it() {
+fn the_filter_has_its_own_help_that_opens_over_it() {
     let mut state = PreviewState::for_world(None);
     state.help = Some(FILTER_HELP);
     let (_, ui, ids) = picture_with(Theme::dark(), Vec2::new(1400.0, 940.0), None, state);
     let (row, panel) = (ui.rect(ids.view_only).expect("filter row"), ui.rect(ids.help).expect("help panel"));
-    assert!(panel.y >= row.y + row.h, "the panel is under the filter's row");
+    assert!((panel.y - row.y).abs() < 0.01, "the panel starts at the filter's row");
+    // It takes no room: the list starts right under the filter's row, as with no help open.
     let list = ui.rect(ids.settings_scroll).expect("list");
-    assert!(panel.y + panel.h <= list.y + 0.5, "and above the list");
+    let (_, closed, closed_ids) = picture_with(Theme::dark(), Vec2::new(1400.0, 940.0), None, PreviewState::for_world(None));
+    assert_eq!(Some(list), closed.rect(closed_ids.settings_scroll), "the list did not move");
+    assert_eq!(ids.help_facts, Id::ROOT, "the filter has no values to say");
 }
 
 #[test]

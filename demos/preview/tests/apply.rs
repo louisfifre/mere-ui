@@ -70,6 +70,8 @@ fn a1_without_a_pack_or_a_change_the_button_does_nothing() {
     assert!(!none.app.applying());
     assert_eq!(none.app.state().apply, Notice::None);
 
+    // Another folder: the first window kept the value typed in its own (`draft.json`).
+    let root = pack("apply_a1_same");
     let mut same = rig(&root, true, vec![]);
     let id = same.app.ids().apply;
     same.click_on(id);
@@ -108,4 +110,34 @@ fn a3_pictures_of_the_block() {
     let mut on = rig(&root, true, vec![]);
     on.app.state_mut().values[index("ocean_offset")] = -0.5;
     on.shot("apply_enabled.png");
+}
+
+#[test]
+fn a4_the_pack_s_values_are_the_ones_its_file_holds() {
+    // The file was edited since the copy in the code was made: the form and "Pack" follow the file.
+    let root = pack("apply_a4");
+    let file = root.join("pack/config/tectonic.json");
+    let text = std::fs::read_to_string(&file).unwrap();
+    assert!(text.contains("\"vertical_scale\": 1.5,"));
+    std::fs::write(&file, text.replace("\"vertical_scale\": 1.5,", "\"vertical_scale\": 1.75,")).unwrap();
+    let rig = rig(&root, true, vec![]);
+    let i = index("vertical_scale");
+    assert_eq!(rig.app.state().baseline[i], 1.75, "the pack's value is the file's");
+    assert_eq!(rig.app.state().values, rig.app.state().baseline, "a form with no run behind it opens on the pack");
+    assert_eq!(rig.app.ids().pack_marks[i], nui_ui::Id::ROOT, "nothing differs, nothing is marked");
+}
+
+#[test]
+fn a5_a_value_typed_and_not_generated_is_there_at_the_next_start() {
+    let root = pack("apply_a5");
+    let i = index("ocean_depth");
+    {
+        let mut first = rig(&root, true, vec![]);
+        first.app.state_mut().values[i] = -0.3;
+        first.frame();
+    }
+    let second = rig(&root, true, vec![]);
+    assert_eq!(second.app.state().values[i], -0.3, "what was typed came back");
+    assert_eq!(second.app.state().baseline[i], SETTINGS[i].pack, "and the pack's value is still the pack's");
+    assert_ne!(second.app.ids().pack_marks[i], nui_ui::Id::ROOT, "the field says it differs from the pack");
 }

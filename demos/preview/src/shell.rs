@@ -5,8 +5,8 @@
 //! and the map's minimum side by side the panels stack under the stage.
 //!
 //! The right column follows the view with the page's own figures, lists and history (step 18). Each setting has its
-//! help: a "?" after its label opens a panel under the row with its hint (`text::SETTING_HINTS`), until closed. Not
-//! built: changed marks, the select's menu, the ores group; in 3D, the structure marks, the right-drag pan, keys
+//! help: a "?" after its label opens a panel over the row with its hint (`text::SETTING_HINTS`), until closed. A
+//! field that differs from the pack's value has that value beside it. Not built: the select's menu, the ores group; in 3D, the structure marks, the right-drag pan, keys
 //! and touch, and the no3d note.
 
 use std::collections::BTreeSet;
@@ -14,8 +14,8 @@ use std::collections::BTreeSet;
 use nui_base::{Cmd, Color, Cursor, DrawList, Orbit, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
 use nui_ui::{
-    ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, SelectOpts, Slide, TabLook, TabOpts, TextLook, Theme, Tone, Ui,
-    choice_style, details_style, scroll_style, wrap_lines, ASCENT_EM, DESCENT_EM, Icon,
+    ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, SelectOpts, Slide, TabOpts, TextLook, Theme, Tone, Ui,
+    details_style, scroll_style, wrap_lines, ASCENT_EM, DESCENT_EM, Icon,
 };
 use nui_ui::tokens::GAP_TIGHT;
 
@@ -227,10 +227,8 @@ pub struct PreviewState {
     pub options_w: f32,
     /// The system asks for no animation (read once at start): the slide then jumps.
     pub reduce_motion: bool,
-    /// The setting whose help is open under its row, as an index in `SETTINGS`. It stays open until it is closed.
+    /// The setting whose help is open over its row, as an index in `SETTINGS`. It stays open until it is closed.
     pub help: Option<usize>,
-    /// The help was just opened and the settings list has yet to scroll it into sight.
-    pub help_reveal: bool,
     /// The settings list showed its scrollbar last frame: the filter above it keeps the same gap on the right.
     pub settings_bar: bool,
 }
@@ -301,7 +299,6 @@ impl Default for PreviewState {
             options_w: 0.0,
             reduce_motion: false,
             help: None,
-            help_reveal: false,
             settings_bar: false,
         }
     }
@@ -351,7 +348,14 @@ pub struct ShellIds {
     pub select: Id,
     /// `#areaHint`, built only past the widest fine area.
     pub area_hint: Id,
+    /// The two choices beside Apply that put every value back, then each of them: the pack's, Tectonic's own.
     pub profiles: Id,
+    pub back_pack: Id,
+    pub original: Id,
+    /// The arrow in each group's title that puts the group back to the pack's (Id::ROOT while the group is the pack's),
+    /// and the pack's value beside each field that differs from it (Id::ROOT beside the others), in `SETTINGS` order.
+    pub group_resets: [Id; 5],
+    pub pack_marks: Vec<Id>,
     pub settings_scroll: Id,
     pub group_heads: Vec<Id>,
     /// In `SETTINGS` order.
@@ -363,6 +367,8 @@ pub struct ShellIds {
     pub help_title: Id,
     pub help_text: Id,
     pub help_close: Id,
+    /// The help's last line, a setting's values and range (Id::ROOT for the filter's help).
+    pub help_facts: Id,
     /// The filter's row, its label, its count of settings on show (Id::ROOT while the filter is off) and its "?".
     pub view_only: Id,
     pub filter_label: Id,
@@ -475,6 +481,10 @@ impl Default for ShellIds {
             select: o,
             area_hint: o,
             profiles: o,
+            back_pack: o,
+            original: o,
+            group_resets: [o; 5],
+            pack_marks: vec![o; SETTINGS.len()],
             settings_scroll: o,
             group_heads: Vec::new(),
             rows: vec![o; SETTINGS.len()],
@@ -483,6 +493,7 @@ impl Default for ShellIds {
             help_title: o,
             help_text: o,
             help_close: o,
+            help_facts: o,
             view_only: o,
             filter_label: o,
             filter_count: o,
@@ -668,7 +679,6 @@ pub fn build(ui: &mut Ui, s: &mut PreviewState, size: Vec2, world: Option<&World
                         ids.left = ui.node("left", panel(plan.widths[0]), |ui| {
                             let mut y = s.panel_y[0];
                             let id = panel_scroll(ui, &mut y, |ui| left_column(ui, s, &mut ids, &t, true));
-                            reveal_help(ui, &mut y, id, 0.0, ids.help, &mut s.help_reveal);
                             s.panel_y[0] = y;
                             ids.panel_scrolls[0] = id;
                             ids.scroll_areas.push(id);
@@ -778,22 +788,12 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
     ids.world_head = r.id;
 
     let r = ui.fold_with("settings", text::PROFILES, &mut s.settings_open, nui_ui::FoldOpts { grow: !stacked, ..Default::default() }, |ui| {
-        // Line 153: `#profiles` pulls its first word 6 px left, under the padding of its button.
-        let style = Style { wrap: true, margin: Margin { left: Side::Px(-6.0), ..Margin::default() }, ..choice_style() };
-        ids.profiles = ui.node("profiles", style, |ui| {
-            let at_pack = s.values == s.baseline;
-            let r = ui.tab("pack", text::PACK, TabLook::Choice, TabOpts { pressed: at_pack, disabled: false });
-            ui.title(r.id, text::PROFILE_PACK_HINT);
-            if r.clicked {
-                s.values = s.baseline;
-            }
-        });
-        let mut help = Help { open: &mut s.help, reveal: &mut s.help_reveal };
+        let mut help = Help { open: &mut s.help };
         // Stacked, the list has no bar of its own: the column's scroll serves the filter and the list alike.
         let gutter = if s.settings_bar && !stacked { nui_ui::GUTTER } else { 0.0 };
-        view_only_row(ui, (&mut s.view_only, s.view), gutter, &mut help, ids, t);
-        s.settings_bar = settings_scroll(ui, (s.view_only, s.view), &mut s.settings_list, &mut s.settings_y, &mut s.values, &mut help, ids, t, stacked);
-        crate::apply_ui::apply_block(ui, crate::apply_ui::Apply { values: &s.values, baseline: &s.baseline, pack_known: s.pack_known, notice: &s.apply, want: &mut s.want }, ids);
+        view_only_row(ui, (&mut s.view_only, s.view), gutter, &mut help, ids);
+        s.settings_bar = settings_scroll(ui, (s.view_only, s.view), &mut s.settings_list, &mut s.settings_y, (&mut s.values, &s.baseline), &mut help, ids, t, stacked);
+        crate::apply_ui::apply_block(ui, crate::apply_ui::Apply { values: &mut s.values, baseline: &s.baseline, pack_known: s.pack_known, notice: &s.apply, want: &mut s.want }, ids);
     });
     ids.settings_head = r.id;
 
@@ -812,7 +812,7 @@ fn label_room(ids: &ShellIds) -> f32 {
 /// The filter, on the grid of the settings' rows so that its toggle sits above their fields: a label that names the
 /// pressed map with its "?" as the settings have, while on how many settings are left on show, then the toggle.
 /// `filter` is the toggle's value and the pressed view; `gutter` the gap the list's scrollbar keeps on the right.
-fn view_only_row(ui: &mut Ui, filter: (&mut bool, usize), gutter: f32, help: &mut Help, ids: &mut ShellIds, t: &Theme) {
+fn view_only_row(ui: &mut Ui, filter: (&mut bool, usize), gutter: f32, help: &mut Help, ids: &mut ShellIds) {
     let (only, view) = filter;
     let body = TextLook::body(Tone::Text);
     let muted = TextLook::body(Tone::Muted);
@@ -828,7 +828,8 @@ fn view_only_row(ui: &mut Ui, filter: (&mut bool, usize), gutter: f32, help: &mu
     let mut row = setting_row();
     row.pad.right = gutter;
     let open = *help.open == Some(FILTER_HELP);
-    ids.view_only = ui.hover_area("view_only", row, |ui, over| {
+    ui.node("view_only_place", help_place(), |ui| {
+    let row_id = ui.hover_area("view_only", row, |ui, over| {
         let name = Style { position: Position::Relative, min_w: Dim::Px(0.0), ..Style::default() };
         let (place, mark) = label_place(&label, room);
         ui.node("name", name, |ui| {
@@ -837,8 +838,6 @@ fn view_only_row(ui: &mut Ui, filter: (&mut bool, usize), gutter: f32, help: &mu
             ids.filter_mark = r.id;
             if r.clicked {
                 *help.open = if open { None } else { Some(FILTER_HELP) };
-                // The panel opens above the list, always in sight.
-                *help.reveal = false;
             }
         });
         // Off, the column keeps an empty text, as a setting's row does.
@@ -846,8 +845,39 @@ fn view_only_row(ui: &mut Ui, filter: (&mut bool, usize), gutter: f32, help: &mu
         ids.filter_count = if count.is_some() { r } else { Id::ROOT };
         ui.toggle("field", only, text::ON, text::OFF);
     });
+    ids.view_only = row_id;
     if *help.open == Some(FILTER_HELP) {
-        help_panel(ui, ids, t, ("view_only", text::VIEW_ONLY_TITLE, text::VIEW_ONLY_HINT), help.open);
+        help_panel(ui, ids, row_id, ("view_only", text::VIEW_ONLY_TITLE, text::VIEW_ONLY_HINT, ""), help.open);
+    }
+    });
+}
+
+/// What holds a row and the help that opens over it: the help is placed against this box and takes no room in it,
+/// so opening it moves nothing.
+fn help_place() -> Style {
+    Style { column: true, shrink: 0.0, position: Position::Relative, ..Style::default() }
+}
+
+/// A value as its field shows it: a number as the number field writes it, a switch as on or off.
+fn value_words(kind: Kind, v: f64) -> String {
+    match kind {
+        Kind::Number(_) => crate::settings::shown(v),
+        Kind::Switch => if v != 0.0 { text::ON } else { text::OFF }.to_string(),
+    }
+}
+
+/// Two values of a setting are the same one (the float noise of a field's arithmetic apart).
+fn same_value(a: f64, b: f64) -> bool {
+    (a - b).abs() < 1e-9
+}
+
+/// The last line of a setting's help: Tectonic's own value, the pack's, and the range of a number.
+fn setting_facts(i: usize, baseline: &[f64; 43]) -> String {
+    let set = &SETTINGS[i];
+    let (original, pack) = (value_words(set.kind, set.original), value_words(set.kind, baseline[i]));
+    match set.kind {
+        Kind::Number(spec) => text::help_facts(&original, &pack, Some((&crate::settings::shown(spec.min), &crate::settings::shown(spec.max)))),
+        Kind::Switch => text::help_facts(&original, &pack, None),
     }
 }
 
@@ -855,7 +885,8 @@ fn view_only_row(ui: &mut Ui, filter: (&mut bool, usize), gutter: f32, help: &mu
 /// cut is the filter and the pressed view; list what the list was cut to last frame. True when the list shows its
 /// scrollbar.
 #[allow(clippy::too_many_arguments)]
-fn settings_scroll(ui: &mut Ui, cut: (bool, usize), list: &mut Option<usize>, y: &mut f32, values: &mut [f64; 43], help: &mut Help, ids: &mut ShellIds, t: &Theme, stacked: bool) -> bool {
+fn settings_scroll(ui: &mut Ui, cut: (bool, usize), list: &mut Option<usize>, y: &mut f32, held: (&mut [f64; 43], &[f64; 43]), help: &mut Help, ids: &mut ShellIds, t: &Theme, stacked: bool) -> bool {
+    let (values, baseline) = held;
     // The list is cut to the pressed view when the filter is on; a new cut starts at the top, where the first group is.
     let key = view_filter::list_key(cut.0, cut.1);
     if *list != key {
@@ -873,19 +904,42 @@ fn settings_scroll(ui: &mut Ui, cut: (bool, usize), list: &mut Option<usize>, y:
                 // The group title (lines 105, 157): 4 px above (14 px between groups), 4 px under, then the
                 // hairline of `--line`.
                 let head = Style { column: true, ..Style::default() };
-                ids.group_heads.push(ui.node("head", head, |ui| {
+                // The whole group, shown or filtered out: the arrow puts back what the title names.
+                let whole: Vec<usize> = (0..SETTINGS.len()).filter(|&i| SETTINGS[i].group == g).collect();
+                let moved = whole.iter().any(|&i| !same_value(values[i], baseline[i]));
+                ids.group_resets[g] = Id::ROOT;
+                let head_id = ui.node("head", head, |ui| {
                     let row = Style {
-                        align_items: Align::Baseline,
+                        // Centred: the arrow is as tall as the title's line, so it adds no height.
+                        align_items: Align::Center,
                         gap: Vec2::new(10.0, 0.0),
                         pad: Edges::new(if Some(g) == first { 4.0 } else { 14.0 }, 0.0, 4.0, 0.0),
                         ..Style::default()
                     };
-                    ui.node("title", row, |ui| ui.text(&text::GROUPS[g].to_uppercase(), TextLook::label()));
+                    ui.node("title", row, |ui| {
+                        ui.text(&text::GROUPS[g].to_uppercase(), TextLook::label());
+                        if moved {
+                            let r = small_icon(ui, "reset", back_icon(), TextLook::label().line, Margin { left: Side::Auto, ..Margin::default() });
+                            ui.title(r.id, text::GROUP_RESET_HINT);
+                            ids.group_resets[g] = r.id;
+                            if r.clicked {
+                                for &i in &whole {
+                                    values[i] = baseline[i];
+                                }
+                            }
+                        }
+                    });
                     ui.fill(rule(), t.line);
-                }));
+                });
+                ids.group_heads.push(head_id);
                 ui.node("body", Style { column: true, pad: Edges::new(4.0, 0.0, 0.0, 0.0), ..Style::default() }, |ui| {
                     for &i in members {
                         let set = &SETTINGS[i];
+                        // The pack's value, said beside a field that differs from it; the label has that much less room.
+                        let muted = TextLook::body(Tone::Muted);
+                        let pack = (!same_value(values[i], baseline[i])).then(|| value_words(set.kind, baseline[i]));
+                        let label_room = label_room - pack.as_ref().map_or(0.0, |p| muted.width(p));
+                        ui.node(&format!("{}Place", set.key), help_place(), |ui| {
                         ids.rows[i] = ui.hover_area(set.key, setting_row(), |ui, over| {
                             // The label, then the mark that opens its help, shown while the pointer is on the row.
                             // A label wider than its cell wraps onto more lines instead of being cut, and the mark
@@ -899,11 +953,14 @@ fn settings_scroll(ui: &mut Ui, cut: (bool, usize), list: &mut Option<usize>, y:
                                 if r.clicked {
                                     // The same mark again closes it; another one moves it to its own setting.
                                     *help.open = if *help.open == Some(i) { None } else { Some(i) };
-                                    *help.reveal = help.open.is_some();
                                 }
                             });
-                            // The output, empty until a value differs from the pack's.
-                            ui.text("", TextLook::body(Tone::Muted));
+                            // The output: empty until the value differs from the pack's, then the pack's.
+                            let out = ui.node("pack", Style::default(), |ui| ui.text(pack.as_deref().unwrap_or(""), muted));
+                            ids.pack_marks[i] = if pack.is_some() { out } else { Id::ROOT };
+                            if pack.is_some() {
+                                ui.title(out, text::PACK_VALUE_HINT);
+                            }
                             match set.kind {
                                 Kind::Number(spec) => {
                                     ui.number("field", &mut values[i], spec);
@@ -917,15 +974,16 @@ fn settings_scroll(ui: &mut Ui, cut: (bool, usize), list: &mut Option<usize>, y:
                             }
                         });
                         if *help.open == Some(i) {
-                            help_panel(ui, ids, t, (set.key, set.label, text::setting_hint(set.key)), help.open);
+                            help_panel(ui, ids, ids.rows[i], (set.key, set.label, text::setting_hint(set.key), &setting_facts(i, baseline)), help.open);
                         }
+                        });
                     }
                 });
             });
         }
         // Line 161.
         ids.reset = ui.node("reset", Style { column: true, shrink: 0.0, pad: Edges::new(12.0, 0.0, 0.0, 0.0), ..Style::default() }, |ui| {
-            ui.paragraph(text::RESET_HINT, TextLook::small(Tone::Muted));
+            ui.paragraph(text::PACK_NOTE, TextLook::small(Tone::Muted));
         });
     };
     if stacked {
@@ -936,25 +994,8 @@ fn settings_scroll(ui: &mut Ui, cut: (bool, usize), list: &mut Option<usize>, y:
         let r = ui.scroll("settings", y, scroll_style(), ScrollOpts::LIST, |ui| rows(ui, ids));
         ids.settings_scroll = r.id;
         ids.scroll_areas.push(r.id);
-        reveal_help(ui, y, r.id, ScrollOpts::LIST.fade, ids.help, help.reveal);
         r.overflow
     }
-}
-
-/// A help just opened under a row low in the list would open out of sight: the scroll area `view` moves its offset
-/// `y` just enough to show the panel above the area's bottom fade. It reads the panel's place in the last frame, so
-/// it acts on the build after the one that opened it, and only once.
-fn reveal_help(ui: &Ui, y: &mut f32, view: Id, fade: f32, panel: Id, reveal: &mut bool) {
-    if !*reveal || panel == Id::ROOT {
-        return;
-    }
-    let (Some(p), Some(v)) = (ui.rect(panel), ui.rect(view)) else { return };
-    let below = p.y + p.h - (v.y + v.h - fade);
-    if below > 0.0 {
-        // A panel taller than the area keeps its top in sight.
-        *y += below.min(p.y - v.y).max(0.0);
-    }
-    *reveal = false;
 }
 
 /// The box of a setting's label and where its "?" goes. The label wraps in `room` and its box is held to its widest
@@ -969,10 +1010,9 @@ fn label_place(label: &str, room: f32) -> (Style, Vec2) {
     (Style { column: true, w: Dim::Px(w), shrink: 0.0, ..Style::default() }, mark)
 }
 
-/// The setting whose help is open, and whether the list has yet to show it.
+/// The setting whose help is open.
 struct Help<'a> {
     open: &'a mut Option<usize>,
-    reveal: &'a mut bool,
 }
 
 /// The hit box of the "?" after a label, and how far in its glyph sits: a few pixels each side of the glyph to aim at.
@@ -1015,6 +1055,19 @@ const CROSS: &str = "M2 2h1v1h-1zM9 2h1v1h-1zM3 3h1v1h-1zM8 3h1v1h-1zM4 4h1v1h-1
 M6 6h1v1h-1zM5 6h1v1h-1zM7 7h1v1h-1zM4 7h1v1h-1zM8 8h1v1h-1zM3 8h1v1h-1zM9 9h1v1h-1zM2 9h1v1h-1z";
 const CROSS_SIZE: f32 = 12.0;
 
+/// The arrow that puts a group back: a stroke that comes round and points left, in the same 12 pixel square.
+const BACK: &str = "M4 2h1v1h-1zM3 3h1v1h-1zM2 4h7v1h-7zM3 5h1v1h-1zM4 6h1v1h-1zM9 5h1v3h-1zM4 8h5v1h-5z";
+
+fn back_icon() -> &'static Icon {
+    static ICON: std::sync::OnceLock<Icon> = std::sync::OnceLock::new();
+    ICON.get_or_init(|| {
+        Icon::parse(BACK, CROSS_SIZE).unwrap_or_else(|e| {
+            nui_base::observe!(Error, "the group's arrow: {e}");
+            Icon { grid: CROSS_SIZE, figures: Vec::new() }
+        })
+    })
+}
+
 fn cross_icon() -> &'static Icon {
     static ICON: std::sync::OnceLock<Icon> = std::sync::OnceLock::new();
     ICON.get_or_init(|| {
@@ -1025,64 +1078,62 @@ fn cross_icon() -> &'static Icon {
     })
 }
 
-/// The cross that closes the help: as wide as the "?" and one text line tall, the X centred, with the mark's colours.
-fn help_cross(ui: &mut Ui) -> nui_ui::Resp {
-    let line = TextLook::body(Tone::Text).line;
+/// A small icon to click (the cross that closes the help, the arrow that puts a group back): as wide as the "?" and
+/// `line` tall (the line of the text it sits beside, so that it adds no height), the icon centred, with the mark's
+/// colours.
+fn small_icon(ui: &mut Ui, key: &str, icon: &'static Icon, line: f32, margin: Margin) -> nui_ui::Resp {
     let t = *ui.theme();
-    let style = Style { w: Dim::Px(MARK_W), h: Dim::Px(line), shrink: 0.0, ..Style::default() };
-    ui.canvas("close", style, |ui, r| {
+    let style = Style { w: Dim::Px(MARK_W), h: Dim::Px(line), shrink: 0.0, margin, ..Style::default() };
+    ui.canvas(key, style, |ui, r| {
         let lit = r.hovered || r.held;
         if lit {
             ui.want_cursor(Cursor::Hand);
         }
-        let icon = cross_icon();
         let at = Rect::new(((MARK_W - CROSS_SIZE) / 2.0).floor(), ((line - CROSS_SIZE) / 2.0).floor(), CROSS_SIZE, CROSS_SIZE);
         vec![Cmd::Shape { rect: at, grid: icon.grid, figures: icon.figures.clone(), color: if lit { t.text } else { t.muted }, crisp: true }]
     })
 }
 
-/// A help open under its row until it is closed: a frame of hairlines, the title (a setting's label) with the close
-/// cross on the same first line at the top right, and the hint under them. The title wraps in the room the cross
-/// leaves; the hint takes the panel's whole width, below the cross. `about` is the key, title and hint.
-fn help_panel(ui: &mut Ui, ids: &mut ShellIds, t: &Theme, about: (&str, &str, &str), open: &mut Option<usize>) {
+/// A help open over its row until it is closed: a framed box on the ground colour that covers the row and what
+/// follows it without moving anything (`Ui::overlay`), from the row's top down, or from its bottom up for a row in the
+/// lower half of the window, where there is more room above. The title (a setting's label) has the close cross on its
+/// first line at the top right and wraps in the room the cross leaves; the hint and the facts (Tectonic's own value,
+/// the pack's, the range; none for the filter) take the panel's whole width under them. `about` is the key, title,
+/// hint and facts.
+fn help_panel(ui: &mut Ui, ids: &mut ShellIds, row: Id, about: (&str, &str, &str, &str), open: &mut Option<usize>) {
     use nui_ui::tokens::{FRAME, GAP, INSET};
-    let (key, title_text, hint) = about;
-    let edge = t.edge;
+    let (key, title_text, hint, facts) = about;
     let title_look = TextLook { weight: Weight::SemiBold, ..TextLook::body(Tone::Text) };
     let hint_look = TextLook::body(Tone::Muted);
-    let hair = |w: bool| if w { Style { w: Dim::Px(FRAME), shrink: 0.0, ..Style::default() } } else { rule() };
-    // 2 px under the row (its own padding gives 2 more), and the row pitch's 4 under the panel.
-    let outer = Style { column: true, shrink: 0.0, margin: Margin { top: Side::Px(2.0), bottom: Side::Px(GAP_TIGHT), ..Margin::default() }, ..Style::default() };
-    ids.help = ui.node(&format!("{key}Help"), outer, |ui| {
-        ui.fill(hair(false), edge);
-        ui.node("sides", Style::default(), |ui| {
-            ui.fill(hair(true), edge);
-            let inner = Style { column: true, grow: 1.0, shrink: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), pad: Edges::new(INSET, INSET, INSET, INSET), gap: Vec2::new(0.0, GAP_TIGHT), ..Style::default() };
-            ui.node("inner", inner, |ui| {
-                ui.node("head", Style { align_items: Align::Start, gap: Vec2::new(GAP, 0.0), ..Style::default() }, |ui| {
-                    let title = Style { column: true, grow: 1.0, shrink: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..Style::default() };
-                    ids.help_title = ui.node("title", title, |ui| ui.paragraph(title_text, title_look));
-                    let r = help_cross(ui);
-                    ids.help_close = r.id;
-                    if r.clicked {
-                        *open = None;
-                    }
-                });
-                ids.help_text = ui.node("text", Style { column: true, ..Style::default() }, |ui| ui.paragraph(hint, hint_look));
-            });
-            ui.fill(hair(true), edge);
+    // Judged on where the row stood in the last frame, which is where it was clicked.
+    let low = ui.rect(row).is_some_and(|r| r.y + r.h / 2.0 > ui.size().y / 2.0);
+    let zero = Dim::Px(0.0);
+    let inset = if low { Insets { left: zero, right: zero, bottom: zero, ..Insets::default() } } else { Insets { left: zero, right: zero, top: zero, ..Insets::default() } };
+    let pad = FRAME + INSET;
+    let style = Style { position: Position::Absolute, inset, column: true, pad: Edges::new(pad, pad, pad, pad), gap: Vec2::new(0.0, GAP_TIGHT), ..Style::default() };
+    ids.help_facts = Id::ROOT;
+    ids.help = ui.overlay(&format!("{key}Help"), style, |ui| {
+        ui.node("head", Style { align_items: Align::Start, gap: Vec2::new(GAP, 0.0), ..Style::default() }, |ui| {
+            let title = Style { column: true, grow: 1.0, shrink: 1.0, basis: Dim::Px(0.0), min_w: Dim::Px(0.0), ..Style::default() };
+            ids.help_title = ui.node("title", title, |ui| ui.paragraph(title_text, title_look));
+            let r = small_icon(ui, "close", cross_icon(), TextLook::body(Tone::Text).line, Margin::default());
+            ids.help_close = r.id;
+            if r.clicked {
+                *open = None;
+            }
         });
-        ui.fill(hair(false), edge);
+        ids.help_text = ui.node("text", Style { column: true, ..Style::default() }, |ui| ui.paragraph(hint, hint_look));
+        if !facts.is_empty() {
+            ids.help_facts = ui.node("facts", Style { column: true, ..Style::default() }, |ui| ui.paragraph(facts, TextLook::small(Tone::Muted)));
+        }
     });
 }
-
 /// Escape closes the open help, after an open menu and a focused field have had theirs (they take it first). True
 /// when it did, and the event goes no further.
 pub fn help_escape(s: &mut PreviewState, ui: &Ui, e: &nui_base::Event) -> bool {
     let escape = matches!(e, nui_base::Event::Key { key: nui_base::Key::Escape, .. });
     if escape && s.help.is_some() && !ui.menu_open() && ui.focused().is_none() {
         s.help = None;
-        s.help_reveal = false;
         return true;
     }
     false

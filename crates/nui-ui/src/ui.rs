@@ -104,6 +104,11 @@ pub struct Ui {
     pub(crate) menu: Option<Menu>,
     pub(crate) menu_pick: Option<(Id, usize)>,
     pub(crate) menu_node: Option<NodeId>,
+    /// The overlays built this frame (`Ui::overlay`), how deep the build is inside one, and where they were painted in
+    /// the last frame: what lies under one is not hovered.
+    lifts: Vec<NodeId>,
+    lift_depth: u32,
+    lift_rects: Vec<Rect>,
 }
 
 /// How long the pointer rests on a titled widget before its tip shows (the browsers' own is about this).
@@ -148,6 +153,9 @@ impl Ui {
             menu: None,
             menu_pick: None,
             menu_node: None,
+            lifts: Vec::new(),
+            lift_depth: 0,
+            lift_rects: Vec::new(),
         }
     }
 
@@ -231,6 +239,8 @@ impl Ui {
         self.list = DrawList::default();
         self.size = size;
         self.menu_node = None;
+        self.lifts.clear();
+        self.lift_depth = 0;
         self.menu_begin_frame();
     }
 
@@ -257,7 +267,7 @@ impl Ui {
         }
         // Judged on the last frame's visible rect, as the pointer is everywhere else.
         if let (Some(r), Some(p)) = (self.hits.get(&id), self.input.pos) {
-            if r.contains(p) {
+            if r.contains(p) && !self.covered() {
                 self.tip_candidate = Some((id, text.to_string()));
             }
         }
@@ -302,7 +312,7 @@ impl Ui {
     pub fn hover_area(&mut self, key: &str, style: Style, body: impl FnOnce(&mut Ui, Option<f32>)) -> Id {
         let id = self.key(key);
         let share = match (self.rects.get(&id), self.hits.get(&id), self.input.pos) {
-            (Some(r), Some(seen), Some(p)) if r.w > 0.0 && seen.contains(p) && self.active.is_none() => Some((p.x - r.x) / r.w),
+            (Some(r), Some(seen), Some(p)) if r.w > 0.0 && seen.contains(p) && self.active.is_none() && !self.covered() => Some((p.x - r.x) / r.w),
             _ => None,
         };
         self.open(key, id, style, Paint::None);
@@ -316,7 +326,7 @@ impl Ui {
     /// while a press is held, and like it takes no click: the widgets inside keep theirs.
     pub fn hover_box(&mut self, key: &str, style: Style, lit: Color, body: impl FnOnce(&mut Ui)) -> Id {
         let id = self.key(key);
-        let over = !self.under_menu() && matches!((self.hits.get(&id), self.input.pos), (Some(seen), Some(p)) if seen.contains(p));
+        let over = !self.covered() && matches!((self.hits.get(&id), self.input.pos), (Some(seen), Some(p)) if seen.contains(p));
         let paint = if over { Paint::Box { fill: Some(lit), frame: None } } else { Paint::None };
         self.open(key, id, style, paint);
         body(self);
@@ -324,9 +334,36 @@ impl Ui {
         id
     }
 
+    /// A framed box on the ground colour that is painted after the whole tree, outside every clip, so that it lies over
+    /// what follows it and over the edge of a scroll area it sits in. It is laid out where its style puts it (an
+    /// absolute box does not move its neighbours), and it is painted only while some of its parent is in sight. What it covers is not hovered and takes no press; the widgets
+    /// inside it are. An overlay inside another is painted with it.
+    pub fn overlay(&mut self, key: &str, style: Style, children: impl FnOnce(&mut Ui)) -> Id {
+        let id = self.key(key);
+        let t = self.theme;
+        let node = self.open(key, id, style, Paint::Box { fill: Some(t.ground), frame: Some(t.edge) });
+        self.lifts.push(node);
+        self.lift_depth += 1;
+        children(self);
+        self.lift_depth -= 1;
+        self.close();
+        id
+    }
+
+    /// The pointer is over an open menu, or over an overlay while building what is not inside one: the widget being
+    /// built lies under it.
+    fn covered(&self) -> bool {
+        self.under_menu() || (self.lift_depth == 0 && self.input.pos.is_some_and(|p| self.lift_rects.iter().any(|r| r.contains(p))))
+    }
+
     /// The application's time in seconds, as last given to `set_clock`.
     pub fn clock(&self) -> f64 {
         self.clock
+    }
+
+    /// The window's size, as given to `begin_frame`.
+    pub fn size(&self) -> Vec2 {
+        self.size
     }
 
     /// Where the pointer is, in window coordinates; None until it has been seen.
@@ -375,8 +412,20 @@ impl Ui {
             vis: &mut vis,
             scrolls: &mut self.scrolls,
             spot: &mut self.spot,
+            lifts: &self.lifts,
+            later: Vec::new(),
         };
         painter.node(self.root, Vec2::new(0.0, 0.0), window);
+        // The overlays, over the finished tree and cut by the window only.
+        let later = std::mem::take(&mut painter.later);
+        painter.lifts = &[];
+        for &(n, origin) in &later {
+            // On whole pixels, so that its frame stays one sharp line whatever the scroll offset under it.
+            let rel = painter.tree.rect(n);
+            let snap = |v: f32| v.round() - v;
+            painter.node(n, Vec2::new(origin.x + snap(origin.x + rel.x), origin.y + snap(origin.y + rel.y)), window);
+        }
+        self.lift_rects = later.iter().map(|(n, _)| abs[n.0]).collect();
         self.paint_menu(&abs);
         self.paint_tip();
         self.rects.clear();
@@ -618,7 +667,7 @@ impl Ui {
     pub(crate) fn interact(&mut self, id: Id, disabled: bool, cursor: Cursor) -> Resp {
         let rect = self.rects.get(&id).copied();
         let reach = self.hits.get(&id).copied();
-        let over = !disabled && !self.under_menu() && matches!((reach, self.input.pos), (Some(r), Some(p)) if r.contains(p));
+        let over = !disabled && !self.covered() && matches!((reach, self.input.pos), (Some(r), Some(p)) if r.contains(p));
         let pressed = over && self.input.pressed && self.active.is_none();
         if pressed {
             self.active = Some(id);
@@ -666,6 +715,9 @@ struct Painter<'a> {
     scrolls: &'a mut HashMap<Id, ScrollMetrics>,
     /// Set by the focused text field painted.
     spot: &'a mut Option<Rect>,
+    /// The overlays, which the walk skips, and those it met with the origin they are painted from afterwards.
+    lifts: &'a [NodeId],
+    later: Vec<(NodeId, Vec2)>,
 }
 
 impl Painter<'_> {
@@ -776,11 +828,16 @@ impl Painter<'_> {
         let tree = self.tree;
         let kids = tree.children(n);
         let flow = |c: &&NodeId| tree.style(**c).position == Position::Static;
-        for &c in kids.iter().filter(flow) {
-            self.node(c, kid_origin, child_clip);
-        }
-        for &c in kids.iter().filter(|c| !flow(c)) {
-            self.node(c, kid_origin, child_clip);
+        for &c in kids.iter().filter(flow).chain(kids.iter().filter(|c| !flow(c))) {
+            if self.lifts.contains(&c) {
+                // An overlay goes with the box it hangs from: none of that box in sight (scrolled away), no overlay.
+                let seen = self.vis[n.0];
+                if seen.w > 0.0 && seen.h > 0.0 {
+                    self.later.push((c, kid_origin));
+                }
+            } else {
+                self.node(c, kid_origin, child_clip);
+            }
         }
         if let Some((s, content_h, max, off)) = scrolled {
             let overflow = content_h > r.h + 0.5;

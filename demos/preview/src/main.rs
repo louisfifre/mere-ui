@@ -253,7 +253,6 @@ fn main() {
             preview::settings::SETTINGS.iter().position(|s| s.key == key).unwrap_or_else(|| usage())
         };
         state.help = Some(at);
-        state.help_reveal = true;
     }
     // Without a world there is nothing to look at: the page ignores it too.
     if let (Some(c), Some(w)) = (camera, world.as_ref()) {

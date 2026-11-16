@@ -342,6 +342,10 @@ impl Runs {
     pub fn history(&self) -> PathBuf {
         self.root.join("history.json")
     }
+    /// The form's values as last typed (`draft.rs`).
+    pub fn draft(&self) -> PathBuf {
+        self.root.join("draft.json")
+    }
     /// The page's localStorage `preview.before`: the figures of the run before the one on screen.
     pub fn before(&self) -> PathBuf {
         self.root.join("before.json")
