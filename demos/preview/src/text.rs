@@ -369,6 +369,66 @@ mod tests {
     }
 }
 
+// ---- the settings' help (lines 530-575, `text.settings`, the hint of each) ----
+
+/// The mark after a setting's label that opens its help.
+pub const HELP_MARK: &str = "?";
+
+/// What each setting shapes in the world and which way does what, keyed by the setting's key (`settings::SETTINGS`).
+/// Ported from the page's hints, which say what changes in the direction that grows it, then checked against the
+/// comments of the pack's `tectonic.json` and reworded where they were vague or said too little. Each is one or two
+/// short sentences.
+pub const SETTING_HINTS: [(&str, &str); 43] = [
+    ("temperature_scale", "How wide the warm and cold zones are. Lower: wider zones, so larger biomes."),
+    ("vegetation_scale", "How wide the dry and wet zones are. Lower: wider zones, so larger biomes."),
+    ("temperature_multiplier", "How far the climate swings between hot and cold. Lower: fewer deserts and frozen lands."),
+    ("vegetation_multiplier", "How far the land swings between dry and wet. Lower: fewer very dry and very wet biomes."),
+    ("temperature_offset", "Shifts the whole world's climate. Higher: a warmer world, with more hot biomes and fewer snowy ones."),
+    ("vegetation_offset", "Shifts the whole world's humidity. Higher: a wetter world, with more forests and jungles."),
+    ("vertical_scale", "Stretches the land above sea level. Higher: taller relief; doubling it doubles every height above the sea."),
+    ("elevation_boost", "Adds to the vertical scale on mountains and plateaus only. Higher: they rise faster than the lowlands."),
+    ("flat_terrain_skew", "Where plateaus give way to flat ground. Higher: more flat land, fewer plateaus."),
+    ("erosion_scale", "How wide the mountain ranges are. Lower: thicker ranges, with wider land between them."),
+    ("ridge_scale", "How wide rivers and the ground along them are, such as plateaus. Lower: wider rivers, broader valleys."),
+    ("rolling_hills", "On: some plains get very smooth, rolling hills."),
+    ("jungle_pillars", "On: some jungles get huge pillars, up to a hundred blocks tall."),
+    ("ultrasmooth", "On: much smoother ground with no staircase steps, but deep oceans and windswept biomes come out broken."),
+    ("alternate_erosion_scaling", "Experimental: another way for Tectonic to apply the erosion scale, which shapes mountain ranges."),
+    ("min_y", "The lowest height of the world, in steps of 16 blocks. Lower: a deeper world, with more room under the ground."),
+    ("max_y", "The highest height of the world, in steps of 16 blocks. Higher: room for taller mountains."),
+    ("continents_scale", "How large continents are. Lower: larger continents, with larger oceans between them."),
+    ("ocean_offset", "Higher: more land, less ocean. Above \u{2212}0.45 there is no deep ocean, so no islands."),
+    ("alternate_continents_scaling", "Experimental: another way for Tectonic to apply the continent scale."),
+    ("ocean_depth", "The height of the ocean floor. Lower: deeper oceans; 0 is sea level, \u{2212}0.5 is 64 blocks under it."),
+    ("deep_ocean_depth", "The height of the deep ocean floor. Lower: deeper deep oceans; 0 is sea level, \u{2212}0.5 is 64 blocks under it."),
+    ("enabled", "On: Tectonic raises islands out of the deep ocean, and nowhere else."),
+    ("noise_scale", "How large islands are. Lower: larger islands, further apart."),
+    ("noise_multiplier", "How strongly the island land swings up and down. Higher: more of the deep ocean rises into islands."),
+    ("noise_offset", "Raises the island land everywhere in the deep ocean. Higher: more islands."),
+    ("cheese_enabled", "On: the large, open caves, with wide halls and pillars of stone."),
+    ("cheese_additive", "How much rock fills the cheese caves. Lower: bigger cheese caves."),
+    ("spaghetti_enabled", "On: the long, winding tunnels of middle width."),
+    ("noodle_enabled", "On: the narrow, cramped tunnels."),
+    ("noodle_additive", "How much rock fills the noodle caves. Lower: bigger noodle caves."),
+    ("depth_cutoff_start", "How far under the ground caves stop. Higher: a thicker roof over the caves; 0.1 is about 12 blocks, 0.5 about 64."),
+    ("depth_cutoff_size", "Over how many blocks caves fade out under that roof. Higher: a slower close; 0.1 is about 12 blocks, 0 a sharp cut."),
+    ("lava_tunnels", "On: rare, deep tunnels of lava near the bottom of the world."),
+    ("underground_rivers", "On: rivers that reach a mountain range go on under it, so a boat can follow them."),
+    ("carvers_enabled", "On: the old caves and ravines, carved once the ground is made. The section does not show them."),
+    ("ore_fix", "On: ores are placed at better heights when the bottom of the world is lowered."),
+    ("mod_enabled", "Off: the world is made without Tectonic, to compare against."),
+    ("snow_start_offset", "Moves the height where snow starts in cold biomes such as taigas. Higher: snow starts higher up."),
+    ("monument_offset", "Moves ocean monuments down to sit on deeper ocean floors. Lower: deeper monuments."),
+    ("river_ice", "On: underground rivers under snowy biomes are covered with ice."),
+    ("river_lanterns", "On: lanterns hang, rarely, over underground rivers."),
+    ("remove_frozen_ocean_ice", "On: frozen oceans lose their ice, so they are as easy to sail as deep frozen oceans."),
+];
+
+/// The help of the setting `key`, or "" for a key with none.
+pub fn setting_hint(key: &str) -> &'static str {
+    SETTING_HINTS.iter().find(|(k, _)| *k == key).map_or("", |(_, h)| *h)
+}
+
 // ---- the launcher's bar (outpost-tools\index.html, `text`, lines 336-415) ----
 
 /// Line 337: the application's name, Outpost Tools (the launcher's spec), which the bar shows in

@@ -3,7 +3,7 @@
 
 use nui_base::{Rect, Vec2};
 use nui_ui::{GUTTER, Id, Theme, Ui};
-use preview::settings::grouped;
+use preview::settings::{SETTINGS, grouped};
 use preview::world::World;
 use preview::{BAR_H, Columns, PAGE, PreviewState, ShellIds, panels, picture, picture_with};
 
@@ -118,12 +118,18 @@ fn l5_settings_groups_and_rows() {
     }
     assert_eq!(ids.rows.len(), 43);
     let groups = grouped();
+    // What a label has beside its "?" (16 px, 4 after the label): the row less the two gaps and the field.
+    let body = nui_ui::TextLook::body(nui_ui::Tone::Text);
+    let room = r(&ui, ids.rows[0]).w - 2.0 * panels::SETTING_GAP - panels::SETTING_FIELD - 4.0 - 16.0;
     for (g, members) in groups.iter().enumerate() {
         for (k, &i) in members.iter().enumerate() {
-            // 2 + 24 + 2: the field is 18 + 2 x 3 + 2 x 1 high.
-            near(r(&ui, ids.rows[i]).h, 28.0, "row height");
+            // 2 + 24 + 2: the field is 18 + 2 x 3 + 2 x 1 high. A label that wraps beside its "?" is 18 a line.
+            let lines = nui_ui::wrap_lines(SETTINGS[i].label, body, room).len() as f32;
+            let h = (lines * 18.0).max(24.0) + 4.0;
+            near(r(&ui, ids.rows[i]).h, h, "row height");
             if k > 0 {
-                near(r(&ui, ids.rows[i]).y - r(&ui, ids.rows[members[k - 1]]).y, 28.0, "row pitch");
+                let above = r(&ui, ids.rows[members[k - 1]]);
+                near(r(&ui, ids.rows[i]).y - above.y, above.h, "row pitch");
             }
         }
         let first = r(&ui, ids.rows[members[0]]);

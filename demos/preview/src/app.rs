@@ -665,6 +665,9 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
             }
             return false;
         }
+        if crate::shell::help_escape(&mut self.state, &self.ui, &e) {
+            return true;
+        }
         self.ui.event(&e)
     }
 
