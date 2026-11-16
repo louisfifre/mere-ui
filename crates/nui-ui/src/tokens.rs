@@ -85,7 +85,6 @@ pub const CONTROL: f32 = 28.0;
 pub const ICON_SQUARE: f32 = 32.0;
 pub const CONTROL_LARGE: f32 = 36.0;
 pub const BAR: f32 = 40.0;
-pub const CAPTION_W: f32 = 48.0;
 /// The widest a tooltip grows, frame included, before its text wraps.
 pub const TIP_WIDTH: f32 = 384.0;
 
@@ -94,7 +93,8 @@ pub const TIP_WIDTH: f32 = 384.0;
 pub const FADE_LIT: f32 = 0.85;
 /// Rows set back while one is being chosen; an absent row's swatch.
 pub const FADE_DIM: f32 = 0.5;
-/// Every disabled control.
-pub const FADE_DISABLED: f32 = 0.4;
+/// Every disabled control. At 0.6 a disabled muted word keeps 3:1 on the dark ground (2.5:1 on the light one):
+/// set back, still readable.
+pub const FADE_DISABLED: f32 = 0.6;
 /// The light fill under the pointer of a window button or a hover box.
 pub const FADE_TINT: f32 = 0.08;

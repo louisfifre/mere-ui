@@ -17,9 +17,10 @@ pub const WHEEL_STEP: f32 = 100.0;
 /// The room of one arrow at an end of the track; the gutter's width stays `GUTTER`.
 pub const ARROW: f32 = 12.0;
 /// The thumb's width; the track is 1 px.
-pub const THUMB_W: f32 = 4.0;
-/// Where the thumb starts in the gutter, and where the 1 px track runs: on whole pixels, the track inside the thumb.
-const THUMB_X: f32 = 4.0;
+pub const THUMB_W: f32 = 3.0;
+/// Where the thumb starts in the gutter, and where the 1 px track runs: on whole pixels, the track in the thumb's
+/// middle column.
+const THUMB_X: f32 = 5.0;
 const TRACK_X: f32 = 6.0;
 
 #[derive(Copy, Clone, Debug, Default)]

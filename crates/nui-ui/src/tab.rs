@@ -42,7 +42,8 @@ pub fn details_style() -> Style {
         cols: Tracks::new(&[Track::MinMaxFr0(1.0); 3]),
         pad: Edges::new(0.0, 0.0, 0.0, 1.0),
         gap: Vec2::new(GAP_TIGHT, GAP_TIGHT),
-        align_items: Align::Baseline,
+        // Every option as tall as the tallest, so one with a second line does not stand out of the row.
+        align_items: Align::Stretch,
         ..Style::default()
     }
 }
@@ -73,13 +74,13 @@ impl Ui {
         // `[aria-pressed=true]` (0,2,1), so hovering the pressed strip tab paints its word in --text on a
         // --text ground and the word vanishes. We keep the pressed word on hover.
         let word = if opts.pressed {
-            t.ground
+            t.on_fill
         } else if lit {
             t.text
         } else {
             t.muted
         };
-        let fill = opts.pressed.then_some(fade(t.text));
+        let fill = opts.pressed.then_some(fade(t.fill));
         let (style, frame) = match look {
             TabLook::Strip => (
                 Style {
@@ -90,7 +91,7 @@ impl Ui {
                     position: if opts.pressed { Position::Relative } else { Position::Static },
                     ..Style::default()
                 },
-                Some(fade(if opts.pressed { t.text } else { t.edge })),
+                Some(fade(if opts.pressed { t.fill } else { t.edge })),
             ),
             TabLook::Choice => (Style { pad: Edges::vh(INSET_HAIR, INSET), ..Style::default() }, None),
         };
@@ -114,14 +115,14 @@ impl Ui {
             position: if opts.pressed { Position::Relative } else { Position::Static },
             ..Style::default()
         };
-        let fill = opts.pressed.then_some(fade(t.text));
-        let frame = fade(if opts.pressed { t.text } else { t.edge });
+        let fill = opts.pressed.then_some(fade(t.fill));
+        let frame = fade(if opts.pressed { t.fill } else { t.edge });
         self.open(key, id, style, Paint::Box { fill, frame: Some(frame) });
-        let word = if opts.pressed { t.ground } else { t.text };
+        let word = if opts.pressed { t.on_fill } else { t.text };
         self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
         // `small` inherits the unitless 1.5 line height; pressed, colour inherit at opacity .7 over the fill.
         let small = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Text) };
-        let sub_color = if opts.pressed { mix(t.ground, 0.7, t.text) } else { t.muted };
+        let sub_color = if opts.pressed { mix(t.on_fill, 0.7, t.fill) } else { t.muted };
         // An empty small block is 0 high, so the button has one line then: no leaf at all.
         if !sub.is_empty() {
             self.add_text(sub, small, fade(sub_color), false, Style::default());

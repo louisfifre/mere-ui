@@ -10,8 +10,13 @@ pub struct Theme {
     pub ground: Color,
     /// `border-line`: separators, the scrollbar's track, the running button's progress.
     pub line: Color,
-    /// `text-primary`: words and values, and the fill of a pressed or primary control.
+    /// `text-primary`: words and values.
     pub text: Color,
+    /// `bg-fill`: a pressed or primary control's fill. A step softer than `text`, so a large filled surface
+    /// does not glare against the ground.
+    pub fill: Color,
+    /// `text-on-fill`: the word or icon on `fill`.
+    pub on_fill: Color,
     /// `text-muted`: secondary words, resting tab words and icons.
     pub muted: Color,
     /// `text-warn`: a failure.
@@ -37,6 +42,8 @@ impl Theme {
             ground: Color::hex(GREY_1000),
             line: Color::hex(GREY_800),
             text,
+            fill: Color::hex(GREY_200),
+            on_fill: Color::hex(GREY_1000),
             muted: Color::hex(GREY_400),
             warn: Color::hex(AMBER_300),
             grid: Color::hex(GREY_0).with_alpha(0.16),
@@ -55,6 +62,8 @@ impl Theme {
             ground: Color::hex(GREY_50),
             line: Color::hex(GREY_200),
             text,
+            fill: Color::hex(GREY_800),
+            on_fill: Color::hex(GREY_50),
             muted: Color::hex(GREY_600),
             warn: Color::hex(AMBER_600),
             grid: Color::hex(GREY_1000).with_alpha(0.12),

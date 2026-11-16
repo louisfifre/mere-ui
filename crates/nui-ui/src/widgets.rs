@@ -136,11 +136,10 @@ impl Ui {
                 let (paint, word) = if opts.disabled {
                     (Paint::Box { fill: None, frame: Some(t.edge) }, t.muted)
                 } else if lit {
-                    // opacity .85 over the ground leaves the ground-coloured word unchanged.
-                    let c = t.faded(t.text, FADE_LIT);
-                    (Paint::Box { fill: Some(c), frame: Some(c) }, t.ground)
+                    let c = t.faded(t.fill, FADE_LIT);
+                    (Paint::Box { fill: Some(c), frame: Some(c) }, t.on_fill)
                 } else {
-                    (Paint::Box { fill: Some(t.text), frame: Some(t.text) }, t.ground)
+                    (Paint::Box { fill: Some(t.fill), frame: Some(t.fill) }, t.on_fill)
                 };
                 (style, paint, TextLook { weight: Weight::SemiBold, ..body }, word, false, false)
             }
