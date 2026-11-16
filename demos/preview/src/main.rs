@@ -1,4 +1,4 @@
-//! preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..]
+//! preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--view-only] [--biome id,..]
 //!         [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y]
 //!         [--runs DIR] [--engine DIR] [--pack DIR]
 //!
@@ -33,7 +33,7 @@ use preview::{MIN_SIZE, PreviewApp, PreviewState, text};
 
 fn usage() -> ! {
     eprintln!(
-        "usage: preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--engine DIR] [--pack DIR]"
+        "usage: preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--view-only] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--engine DIR] [--pack DIR]"
     );
     std::process::exit(2);
 }
@@ -144,6 +144,7 @@ fn runs_root(asked: Option<PathBuf>) -> PathBuf {
 fn main() {
     log::add_sink(log::stderr_sink(log::Level::Info));
     let (mut scheme, mut shot, mut size) = (None::<Scheme>, None, (1400u32, 940u32));
+    let mut view_only = false;
     let (mut data, mut views, mut biomes, mut structures, mut look) = (None::<PathBuf>, Vec::new(), String::new(), String::new(), None);
     let (mut camera, mut cut, mut ores, mut cut_look) = (None, None, String::new(), None);
     let (mut runs, mut engine_dir, mut pack) = (None::<PathBuf>, std::env::var_os("WORLD_PREVIEW_DIR").map(PathBuf::from), None::<PathBuf>);
@@ -164,6 +165,7 @@ fn main() {
             "--shot" => shot = Some(value()),
             "--data" => data = Some(PathBuf::from(value())),
             "--view" => views.extend(value().split(',').map(str::to_string)),
+            "--view-only" => view_only = true,
             "--biome" => biomes = value(),
             "--structure" => structures = value(),
             "--look" => look = Some(parse_look(&value()).unwrap_or_else(|| usage())),
@@ -197,6 +199,7 @@ fn main() {
 
     let mut state = PreviewState::for_world(world.as_ref());
     state.trouble = trouble;
+    state.view_only = view_only;
     for key in &views {
         apply_view(&mut state, key);
     }

@@ -18,6 +18,10 @@ pub fn span_value(blocks: f64) -> String {
 pub const PROFILES: &str = "Settings";
 /// Line 582.
 pub const PACK: &str = "Pack";
+/// The filter at the top of the settings panel: only the groups that relate to the view on the map. Not the page's.
+pub const VIEW_ONLY: &str = "This view only";
+/// Its tooltip.
+pub const VIEW_ONLY_HINT: &str = "List only the settings that change what this view shows";
 /// Line 467.
 pub const UP_TO_DATE: &str = "The map shows these settings.";
 /// Line 464, `detailValue` of 64, 32 and 16.

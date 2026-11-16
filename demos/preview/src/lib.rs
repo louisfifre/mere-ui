@@ -21,6 +21,7 @@ pub mod section;
 pub mod settings;
 pub mod shell;
 pub mod text;
+pub mod view_filter;
 pub mod world;
 
 pub use app::PreviewApp;

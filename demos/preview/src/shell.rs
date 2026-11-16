@@ -29,8 +29,9 @@ use crate::run::{self, Ask, DETAIL_BLOCKS, Follow, Pace, Steps, duration};
 use crate::scene;
 use crate::section::{ORE_COLOURS, ORE_KINDS, Shown};
 use crate::world::World;
-use crate::settings::{Kind, SETTINGS, grouped, pack_values};
+use crate::settings::{Kind, SETTINGS, pack_values};
 use crate::text;
+use crate::view_filter;
 
 /// Height of the top bar. The launcher's bar is 40 px (launcher line 77); natively it has no hairline (step 19.5),
 /// the 40 still holds.
@@ -151,6 +152,11 @@ pub struct PreviewState {
     /// The pressed detail: an index in `text::DETAILS`.
     pub detail: usize,
     pub settings_y: f32,
+    /// The filter above the settings: on, only the groups related to the pressed view are listed (iew_filter).
+    /// It stays on when the view changes.
+    pub view_only: bool,
+    /// What the settings list was cut to at the last frame (iew_filter::list_key), to reset the scroll when it changes.
+    pub settings_list: Option<usize>,
     pub list_y: f32,
     /// How the 2D map is looked at, and the press that may become a carry or a click.
     pub look: Look,
@@ -242,6 +248,8 @@ impl Default for PreviewState {
             values: pack_values(),
             detail: 2,
             settings_y: 0.0,
+            view_only: false,
+            settings_list: None,
             list_y: 0.0,
             look: Look::REST,
             carry: None,
@@ -728,19 +736,39 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
                 s.values = pack_values();
             }
         });
-        settings_scroll(ui, &mut s.settings_y, &mut s.values, ids, t, stacked);
+        view_only_row(ui, &mut s.view_only);
+        settings_scroll(ui, (s.view_only, s.view), &mut s.settings_list, &mut s.settings_y, &mut s.values, ids, t, stacked);
     });
     ids.settings_head = r.id;
 
     run_block(ui, s, ids, t);
 }
 
+/// The filter: its label and a toggle, on the grid of the settings' rows so that the toggle sits above their fields.
+fn view_only_row(ui: &mut Ui, only: &mut bool) {
+    let r = ui.node("view_only", setting_row(), |ui| {
+        ui.paragraph(text::VIEW_ONLY, TextLook::body(Tone::Text));
+        ui.text("", TextLook::body(Tone::Muted));
+        ui.toggle("field", only, text::ON, text::OFF);
+    });
+    ui.title(r, text::VIEW_ONLY_HINT);
+}
+
 /// `#settings` (lines 157-164): five groups, each a title over its rows, then the reset hint.
-fn settings_scroll(ui: &mut Ui, y: &mut f32, values: &mut [f64; 43], ids: &mut ShellIds, t: &Theme, stacked: bool) {
-    let groups = grouped();
+/// cut is the filter and the pressed view; list what the list was cut to last frame.
+fn settings_scroll(ui: &mut Ui, cut: (bool, usize), list: &mut Option<usize>, y: &mut f32, values: &mut [f64; 43], ids: &mut ShellIds, t: &Theme, stacked: bool) {
+    // The list is cut to the pressed view when the filter is on; a new cut starts at the top, where the first group is.
+    let key = view_filter::list_key(cut.0, cut.1);
+    if *list != key {
+        *list = key;
+        *y = 0.0;
+    }
+    let groups = view_filter::visible(cut.0, cut.1);
     let body = TextLook::body(Tone::Text);
     let mut rows = |ui: &mut Ui, ids: &mut ShellIds| {
-        for (g, members) in groups.iter().enumerate() {
+        // The first group on show gets the short top pad, not the one that separates two groups.
+        let first = groups.iter().position(|m| !m.is_empty());
+        for (g, members) in groups.iter().enumerate().filter(|(_, m)| !m.is_empty()) {
             ui.node(&format!("g{g}"), Style { column: true, shrink: 0.0, ..Style::default() }, |ui| {
                 // The group title (lines 105, 157): 4 px above (14 px between groups), 4 px under, then the
                 // hairline of `--line`.
@@ -749,7 +777,7 @@ fn settings_scroll(ui: &mut Ui, y: &mut f32, values: &mut [f64; 43], ids: &mut S
                     let row = Style {
                         align_items: Align::Baseline,
                         gap: Vec2::new(10.0, 0.0),
-                        pad: Edges::new(if g == 0 { 4.0 } else { 14.0 }, 0.0, 4.0, 0.0),
+                        pad: Edges::new(if Some(g) == first { 4.0 } else { 14.0 }, 0.0, 4.0, 0.0),
                         ..Style::default()
                     };
                     ui.node("title", row, |ui| ui.text(&text::GROUPS[g].to_uppercase(), TextLook::label()));
