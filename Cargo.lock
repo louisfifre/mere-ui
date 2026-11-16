@@ -177,22 +177,22 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "mere-base"
-version = "0.11.0"
+version = "0.12.0"
 
 [[package]]
 name = "mere-layout"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "mere-base",
 ]
 
 [[package]]
 name = "mere-png"
-version = "0.11.0"
+version = "0.12.0"
 
 [[package]]
 name = "mere-ui"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "mere-base",
  "mere-layout",
@@ -202,7 +202,7 @@ dependencies = [
 
 [[package]]
 name = "mere-win32"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "mere-base",
  "mere-png",
@@ -234,7 +234,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "preview"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "mere-base",
  "mere-layout",
@@ -293,7 +293,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "relief"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "mere-base",
  "mere-png",
@@ -405,7 +405,7 @@ dependencies = [
 
 [[package]]
 name = "shell-boxes"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "mere-base",
  "mere-layout",
@@ -523,7 +523,7 @@ dependencies = [
 
 [[package]]
 name = "widgets"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "mere-base",
  "mere-layout",
