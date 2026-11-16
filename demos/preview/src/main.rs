@@ -33,7 +33,7 @@ use preview::{MIN_SIZE, PreviewApp, PreviewState, text};
 
 fn usage() -> ! {
     eprintln!(
-        "usage: preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--engine DIR] [--pack DIR]"
+        "usage: preview [--data DIR] [--theme dark|light|system] [--light] [--size WxH] [--shot out.png] [--view k[,k]] [--biome id,..] [--structure surface|under|id,..] [--look k,x,y] [--camera cx,cy,cz] [--cut N] [--ore kind,..] [--cut-look k,x,y] [--runs DIR] [--engine DIR] [--pack DIR] [--setting-help KEY]"
     );
     std::process::exit(2);
 }
@@ -147,6 +147,7 @@ fn main() {
     let (mut data, mut views, mut biomes, mut structures, mut look) = (None::<PathBuf>, Vec::new(), String::new(), String::new(), None);
     let (mut camera, mut cut, mut ores, mut cut_look) = (None, None, String::new(), None);
     let (mut runs, mut engine_dir, mut pack) = (None::<PathBuf>, std::env::var_os("WORLD_PREVIEW_DIR").map(PathBuf::from), None::<PathBuf>);
+    let mut help = None::<String>;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         let mut value = || args.next().unwrap_or_else(|| usage());
@@ -174,6 +175,8 @@ fn main() {
             "--runs" => runs = Some(PathBuf::from(value())),
             "--engine" => engine_dir = Some(PathBuf::from(value())),
             "--pack" => pack = Some(PathBuf::from(value())),
+            // The help of one setting open under its row, by its key (`settings::SETTINGS`).
+            "--setting-help" => help = Some(value()),
             _ => usage(),
         }
     }
@@ -237,6 +240,11 @@ fn main() {
     }
     if let Some(l) = cut_look {
         state.cut_look = l;
+    }
+    if let Some(key) = help {
+        let at = preview::settings::SETTINGS.iter().position(|s| s.key == key).unwrap_or_else(|| usage());
+        state.help = Some(at);
+        state.help_reveal = true;
     }
     // Without a world there is nothing to look at: the page ignores it too.
     if let (Some(c), Some(w)) = (camera, world.as_ref()) {
