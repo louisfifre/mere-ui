@@ -22,8 +22,8 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use nui_base::{Vec2, Vec3, log};
-use nui_ui::Theme;
+use mere_base::{Vec2, Vec3, log};
+use mere_ui::Theme;
 use preview::cut::CutLook;
 use preview::map::Look;
 use preview::paint::View;
@@ -193,7 +193,7 @@ fn main() {
     let world = data.and_then(|dir| match World::load(&dir) {
         Ok(w) => Some(w),
         Err(e) => {
-            nui_base::observe!(Warn, "{}: {e}", dir.display());
+            mere_base::observe!(Warn, "{}: {e}", dir.display());
             if dir.join("preview.json").exists() {
                 trouble = text::UNREADABLE.to_string();
             }
@@ -265,32 +265,32 @@ fn main() {
     let (dark, follows) = match scheme {
         Scheme::Dark => (true, false),
         Scheme::Light => (false, false),
-        Scheme::System => (nui_win32::system_dark(), shot.is_none()),
+        Scheme::System => (mere_win32::system_dark(), shot.is_none()),
     };
     let theme = if dark { Theme::dark() } else { Theme::light() };
     // The window holds its minimum itself; a picture is raised to it too, so that it shows the layout the app has.
     let (w, h) = preview::min_size_px(size);
-    let runs = Runs { engine_dir, engine: preview::run::engine(), pack, root: runs_root(runs), mods: Vec::new(), launcher: Box::new(nui_win32::SystemLauncher), server_dir: None, out_dir: None, exports_dir: None };
+    let runs = Runs { engine_dir, engine: preview::run::engine(), pack, root: runs_root(runs), mods: Vec::new(), launcher: Box::new(mere_win32::SystemLauncher), server_dir: None, out_dir: None, exports_dir: None };
     let mut state = state;
-    state.reduce_motion = nui_win32::reduced_motion();
+    state.reduce_motion = mere_win32::reduced_motion();
     let mut app = PreviewApp::new(theme, dark, Vec2::new(w as f32, h as f32), state, world).follow_scheme(follows).with_runs(runs);
-    app.ui_mut().set_clipboard(Box::new(nui_win32::SystemClipboard));
+    app.ui_mut().set_clipboard(Box::new(mere_win32::SystemClipboard));
     match shot {
         Some(path) => {
-            let rgba = nui_win32::shot(&mut app, w, h, 1.0).unwrap_or_else(|e| {
+            let rgba = mere_win32::shot(&mut app, w, h, 1.0).unwrap_or_else(|e| {
                 eprintln!("preview: {e}");
                 std::process::exit(1);
             });
-            if let Err(e) = std::fs::write(&path, nui_png::encode(w, h, &rgba)) {
+            if let Err(e) = std::fs::write(&path, mere_png::encode(w, h, &rgba)) {
                 eprintln!("preview: {path}: {e}");
                 std::process::exit(1);
             }
-            nui_base::observe!(Info, "wrote {path}");
+            mere_base::observe!(Info, "wrote {path}");
         }
         None => {
             // The window draws its own bar (src/bar.rs) and holds the minimum size the layout needs.
-            let frame = nui_win32::Frame { own: true, min: MIN_SIZE, ..Default::default() };
-            if let Err(e) = nui_win32::run_with(text::BAR_TITLE, &mut app, frame) {
+            let frame = mere_win32::Frame { own: true, min: MIN_SIZE, ..Default::default() };
+            if let Err(e) = mere_win32::run_with(text::BAR_TITLE, &mut app, frame) {
                 eprintln!("preview: {e}");
                 std::process::exit(1);
             }

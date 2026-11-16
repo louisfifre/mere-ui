@@ -3,8 +3,8 @@
 //! Shows one card of the Design System (default: button), drawn once with its forced states: the window and
 //! `--shot` draw the same list. With --shot, draws one frame offscreen, writes the PNG and exits.
 
-use nui_base::{App, Event, Gfx, log};
-use nui_ui::Theme;
+use mere_base::{App, Event, Gfx, log};
+use mere_ui::Theme;
 use widgets::cards::{CARDS, Card};
 use widgets::text;
 
@@ -60,18 +60,18 @@ fn main() {
     let mut app = Showcase { theme, card };
     match shot {
         Some(path) => {
-            let rgba = nui_win32::shot(&mut app, w, h, 1.0).unwrap_or_else(|e| {
+            let rgba = mere_win32::shot(&mut app, w, h, 1.0).unwrap_or_else(|e| {
                 eprintln!("widgets: {e}");
                 std::process::exit(1);
             });
-            if let Err(e) = std::fs::write(&path, nui_png::encode(w, h, &rgba)) {
+            if let Err(e) = std::fs::write(&path, mere_png::encode(w, h, &rgba)) {
                 eprintln!("widgets: {path}: {e}");
                 std::process::exit(1);
             }
-            nui_base::observe!(Info, "wrote {path}");
+            mere_base::observe!(Info, "wrote {path}");
         }
         None => {
-            if let Err(e) = nui_win32::run(text::WINDOW_TITLE, &mut app) {
+            if let Err(e) = mere_win32::run(text::WINDOW_TITLE, &mut app) {
                 eprintln!("widgets: {e}");
                 std::process::exit(1);
             }

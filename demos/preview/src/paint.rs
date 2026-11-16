@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use nui_base::{Cmd, Color, Vec2};
+use mere_base::{Cmd, Color, Vec2};
 
 use crate::bands::{HEIGHT_STEPS, SEA_DEPTHS};
 use crate::colour::{SEA_VEIL, climate, flat_colour, flat_sea_colour, height_colour, steep_colour, temperature_colour};

@@ -1,4 +1,4 @@
-# native-ui design dossier (rust-native-ui, Windows first)
+# native-ui design dossier (mere-ui, Windows first)
 
 Status of claims: ESTABLISHED = read in a source or official doc (URL given). INTERPRETATION = my reading. UNVERIFIED = not checked. Line counts are my estimates, not measured.
 
@@ -7,21 +7,21 @@ Key idea that removes work: styles are built in Rust, not parsed from CSS. So `c
 ---------------------------------------------------------------------------
 ## 1. Crate / module tree and public API
 
-Repo `rust-native-ui`, one Cargo workspace. Only external dependency: `windows` (bindings), and only inside `nui-win32`. All other crates have an empty `[dependencies]`.
+Repo `mere-ui`, one Cargo workspace. Only external dependency: `windows` (bindings), and only inside `mere-win32`. All other crates have an empty `[dependencies]`.
 
 ```
-rust-native-ui/
-  nui-base/     geometry, colour, input events, platform traits. No OS code.   (~400 lines)
-  nui-png/      PNG encoder (stored deflate) + optional diff tool               (~120)
-  nui-layout/   style structs, tree, flex + grid + absolute, measure callback  (~900)
-  nui-ui/       Ui context, ids, draw list, widgets, theme, text field model    (~2200)
-  nui-win32/    Win32 window + D3D11 + D2D/DirectWrite implementing the traits (~1800)
-  nui-shot/     headless harness: render a View offscreen to PNG (uses a backend) (~150)
+mere-ui/
+  mere-base/     geometry, colour, input events, platform traits. No OS code.   (~400 lines)
+  mere-png/      PNG encoder (stored deflate) + optional diff tool               (~120)
+  mere-layout/   style structs, tree, flex + grid + absolute, measure callback  (~900)
+  mere-ui/       Ui context, ids, draw list, widgets, theme, text field model    (~2200)
+  mere-win32/    Win32 window + D3D11 + D2D/DirectWrite implementing the traits (~1800)
+  mere-shot/     headless harness: render a View offscreen to PNG (uses a backend) (~150)
   examples/     gallery (every widget), used for screenshots
 ```
-Later, a Linux backend is a sibling crate `nui-x11` (or wayland) implementing the same traits. `nui-ui` and above never name `windows`.
+Later, a Linux backend is a sibling crate `mere-x11` (or wayland) implementing the same traits. `mere-ui` and above never name `windows`.
 
-### 1.1 nui-base (platform contract)
+### 1.1 mere-base (platform contract)
 
 ```rust
 #[derive(Copy, Clone, Default, PartialEq)] pub struct Rect { pub x: f32, pub y: f32, pub w: f32, pub h: f32 }
@@ -86,7 +86,7 @@ pub trait Gfx {
 pub trait Backend {
     /// Runs the loop until close. `frame` is called only after an event/redraw request.
     fn run(self, app: &mut dyn App) -> !;
-    fn offscreen(w: u32, h: u32, scale: f32) -> Box<dyn Offscreen>;   // headless Gfx + Text, for nui-shot
+    fn offscreen(w: u32, h: u32, scale: f32) -> Box<dyn Offscreen>;   // headless Gfx + Text, for mere-shot
 }
 pub trait App {
     fn event(&mut self, win: &dyn Window, e: Event);
@@ -95,7 +95,7 @@ pub trait App {
 ```
 Design choices (INTERPRETATION): the draw list is plain data, so the same list can be drawn by D2D, by a Linux backend, or dumped as text for tests. `Cmd::Viewport` lets 3D sit between UI layers: the backend ends D2D, draws the mesh with a D3D viewport+scissor, then resumes D2D.
 
-### 1.2 nui-layout
+### 1.2 mere-layout
 
 ```rust
 pub enum Dim { Auto, Px(f32), Pct(f32) }                  // ch/em/cq are converted to Px by the caller
@@ -130,7 +130,7 @@ impl Tree {
 pub struct Measured { pub size: Vec2, pub baseline: f32 }
 ```
 
-### 1.3 nui-ui (immediate mode)
+### 1.3 mere-ui (immediate mode)
 
 ```rust
 pub struct Ui { /* ids, hot/active/focus, scroll offsets, fold states, tree, draw list, theme */ }
@@ -208,7 +208,7 @@ to the content box widened by 1 px, the selection fill, the text, the text again
 and the 1 px caret (hidden over a selection). Metrics: Text pad 3+1 / 6+1 (26 tall), Compact 1+1 / 6+1 (22), Number 2+1 /
 6+1 (24, right-aligned); the glyph box (ascent + descent, 15.6) sits 1.2 under the content top. Pointer: x to column by
 `round((x - text_x) / 7.2)`; click counts come from the backend (`PointerDown.clicks`, `GetDoubleClickTime` and
-`SM_CXDOUBLECLK`/`SM_CYDOUBLECLK` in `nui-win32`).
+`SM_CXDOUBLECLK`/`SM_CYDOUBLECLK` in `mere-win32`).
 **As built (step 12).** `ellipsize(s, look, w)` and `Ui::ellipsis(s, look)`: a text leaf with `min-width: 0` that, when its
 box is narrower than the text, paints the longest whole-glyph prefix plus U+2026 (one monospaced cell, Chrome's rule); a
 box narrower than the cell clips it. `Ui::scroll(key, &mut y, style, ScrollOpts, body) -> ScrollResp { id, max, overflow }`
@@ -231,12 +231,12 @@ Chrome: `GUTTER` 11, `THUMB_MIN` 18, `WHEEL_STEP` 100, and that Plex Mono's U+20
 horizontal scroll, smooth scrolling, track clicks, arrow buttons, keys, virtualisation, text wrapping (step 13), `.part`
 heads, the filter and `#pick`.
 
-**As built (step 13).** `demos/preview` (package `preview`) builds the page's shell with `nui-ui`: `shell::build(ui, &mut PreviewState, size) -> ShellIds` between the caller's `begin_frame` and `end_frame`, `picture(theme, size)` for tests and pictures, `preview [--light] [--size WxH] [--shot out.png]` for the window. It shows the page as it stands after a preview loads in the relief view, 2D, with no saved profiles and no timings: the toolbar strip (Relief and 2D pressed); the left column (World with the seed `94427382` and the scanned area, Settings with Pack pressed and the five groups of the page's 43 settings in the order of its `known` table, then the run block with the status, the three details and the disabled Generate); the middle column (a square map slot, then the probe line and Export); the right column (In figures with 7 figures, History closed, then the height list with its 8 bands). The settings table (`settings.rs`) holds each key, group, label, range, step and the pack's value, copied from the run "tectonic" of `run.json` and never read at runtime; `bands.rs` ports `hslToRgb`, `heightColour`, the band names and colours of the page and its 8 colours are asserted exactly. `nui-ui` gained `wrap_lines` and `paragraph` (greedy `white-space: normal`, a word wider than the column cut at whole glyphs), `fill` (a one-colour box for rules and slots), `select` (display only, 23 px high, the 8 x 5 arrow painted as five rows of 1 px), `TextLook::small` and `label`, and `detail_tab` drops its second line when empty (the button is then 26 px). Layout facts: the map's side is `min(middle width, column height - 64)` computed from the window before layout; `#under` is absolute in the square, so Export ends at the square's right edge (the column's, while the square fills it); the settings scroll box is 10 px wider than its column (margin -10), so its rows end 11 px inside the column's right edge and the thumb sits just outside it. Not built: changed marks (" *", "pack X", "N changed", Save and naming), hints and tooltips, the select's drop-down menu, the ores group, the note, the filter, the tabs that switch the list (only their pressed state changes), the map, runs and progress, and export. PLACEHOLDER: the map slot (step 14 paints the map), the seven figures, and the band widths and shares (step 18 computes them). UNVERIFIED: the select's value text (7 px from the left, centred; the reference capture's select was empty).
+**As built (step 13).** `demos/preview` (package `preview`) builds the page's shell with `mere-ui`: `shell::build(ui, &mut PreviewState, size) -> ShellIds` between the caller's `begin_frame` and `end_frame`, `picture(theme, size)` for tests and pictures, `preview [--light] [--size WxH] [--shot out.png]` for the window. It shows the page as it stands after a preview loads in the relief view, 2D, with no saved profiles and no timings: the toolbar strip (Relief and 2D pressed); the left column (World with the seed `94427382` and the scanned area, Settings with Pack pressed and the five groups of the page's 43 settings in the order of its `known` table, then the run block with the status, the three details and the disabled Generate); the middle column (a square map slot, then the probe line and Export); the right column (In figures with 7 figures, History closed, then the height list with its 8 bands). The settings table (`settings.rs`) holds each key, group, label, range, step and the pack's value, copied from the run "tectonic" of `run.json` and never read at runtime; `bands.rs` ports `hslToRgb`, `heightColour`, the band names and colours of the page and its 8 colours are asserted exactly. `mere-ui` gained `wrap_lines` and `paragraph` (greedy `white-space: normal`, a word wider than the column cut at whole glyphs), `fill` (a one-colour box for rules and slots), `select` (display only, 23 px high, the 8 x 5 arrow painted as five rows of 1 px), `TextLook::small` and `label`, and `detail_tab` drops its second line when empty (the button is then 26 px). Layout facts: the map's side is `min(middle width, column height - 64)` computed from the window before layout; `#under` is absolute in the square, so Export ends at the square's right edge (the column's, while the square fills it); the settings scroll box is 10 px wider than its column (margin -10), so its rows end 11 px inside the column's right edge and the thumb sits just outside it. Not built: changed marks (" *", "pack X", "N changed", Save and naming), hints and tooltips, the select's drop-down menu, the ores group, the note, the filter, the tabs that switch the list (only their pressed state changes), the map, runs and progress, and export. PLACEHOLDER: the map slot (step 14 paints the map), the seven figures, and the band widths and shares (step 18 computes them). UNVERIFIED: the select's value text (7 px from the left, centred; the reference capture's select was empty).
 
-### 1.4 nui-win32
+### 1.4 mere-win32
 Implements `Window`, `Text`, `Gfx`, `Backend`. Internals: `win.rs` (class, wndproc, loop, DPI, clipboard, IME later), `d3d.rs` (device, swap chain, pipelines, meshes, depth), `d2d.rs` (device context, brushes, bitmaps, clip), `dwrite.rs` (factory, text format, layout cache, font loading), `offscreen.rs` (texture + staging readback).
 
-### 1.5 nui-png
+### 1.5 mere-png
 ```rust
 pub fn encode_rgba(w: u32, h: u32, rgba: &[u8]) -> Vec<u8>;
 pub fn diff(a: &[u8], b: &[u8]) -> f32;   // mean abs difference, for golden tests
@@ -245,7 +245,7 @@ pub fn diff(a: &[u8], b: &[u8]) -> f32;   // mean abs difference, for golden tes
 ---------------------------------------------------------------------------
 ## 2. Per-module: need, how references do it, our approach, lines
 
-### 2.1 Window and event loop (nui-win32/win.rs, ~450 lines)
+### 2.1 Window and event loop (mere-win32/win.rs, ~450 lines)
 - Need: DPI-aware window, on-demand redraw, wake from worker thread.
 - References: windows-rs `direct2d` sample (WM_SIZE handling, `ResizeBuffers`, occlusion, device-loss recovery) https://github.com/microsoft/windows-rs/blob/master/crates/samples/windows/direct2d/src/main.rs (ESTABLISHED, read through summary). I found no windows-rs sample with `SetProcessDpiAwarenessContext`/`WM_DPICHANGED` (search returned none); Microsoft docs describe per-monitor v2 (https://learn.microsoft.com/en-us/windows/win32/hidpi/setting-the-default-dpi-awareness-for-a-process). The `pixelcoords` crate calls `SetProcessDpiAwarenessContext` (https://docs.rs/crate/pixelcoords/0.7.0/source/src/win.rs); a raw FFI binding there, not windows-rs.
 - Approach: call `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` before any window (or an application manifest: more robust, UNVERIFIED which is better for a cargo-built exe). `RegisterClassExW`, `CreateWindowExW`, wndproc stores a `*mut State` in `GWLP_USERDATA`. Loop: `GetMessageW` blocks (that gives on-demand for free); wake from other threads with `PostMessageW(hwnd, WM_APP, ..)`. `WM_DPICHANGED` -> `SetWindowPos` to the suggested rect, rebuild D2D target with new scale. Rendering on `WM_PAINT` via `InvalidateRect` (request_redraw). `SetTimer` for the blink. Keep the resize live: render inside `WM_SIZE` (the sample's note says unhandled messages must fall to DefWindowProc so the modal resize loop still sends WM_SIZE).
@@ -268,12 +268,12 @@ pub fn diff(a: &[u8], b: &[u8]) -> f32;   // mean abs difference, for golden tes
 - Approach: `DWriteCreateFactory`, one `IDWriteTextFormat` per size, `CreateTextLayout` cached by (string, size, wrap width) in a small LRU. `DrawTextLayout` with `D2D1_DRAW_TEXT_OPTIONS_NONE`. `caret_x` = `HitTestTextPosition`, `hit` = `HitTestPoint`. Since the font is monospace, `cell()` is measured once ("0" advance), and `caret_x` can be arithmetic for ASCII. Baseline from `IDWriteTextLayout::GetLineMetrics().baseline`. Font loading: IBM Plex Mono may not be installed; options are `IDWriteFontSetBuilder`/in-memory loader (DirectWrite 5, Windows 10 1803+: UNVERIFIED) or `AddFontResourceExW(FR_PRIVATE)` (UNVERIFIED that DirectWrite then sees it). Fall back to Consolas. Decide with a 20-line experiment (build step 3).
 - ClearType vs grayscale: set text antialias mode grayscale when drawing over transparent/3D (ClearType needs opaque background; INTERPRETATION).
 
-### 2.5 Layout (nui-layout, ~900 lines) - see section 3 for the algorithm
+### 2.5 Layout (mere-layout, ~900 lines) - see section 3 for the algorithm
 - References: Taffy `src/compute/flexbox.rs` https://github.com/DioxusLabs/taffy/blob/main/src/compute/flexbox.rs (MIT; ~175k characters, I estimate 3-4k lines, UNVERIFIED), Taffy grid https://github.com/DioxusLabs/taffy/tree/main/src/compute/grid (alignment.rs, explicit_grid.rs, implicit_grid.rs, placement.rs, track_sizing.rs, types/, util/), microui `mu_layout_row` https://github.com/rxi/microui/blob/master/src/microui.c (for contrast: a row model).
 - Established from the sources: Taffy's flexbox follows the W3C steps numbered 1..16 (`generate_anonymous_flex_items`, `determine_available_space`, `determine_flex_base_size` including the automatic minimum size, `collect_flex_lines`, `resolve_flexible_lengths`, `determine_hypothetical_cross_size`, `calculate_cross_size`, `determine_used_cross_size`, `distribute_remaining_free_space`, `resolve_cross_axis_auto_margins`, `align_flex_lines_per_align_content`, `final_layout_pass`); baseline via `calculate_children_base_lines`. Taffy's grid track sizing is 11.4-11.8 of the CSS Grid spec: initialize tracks, resolve intrinsic sizes (~230 lines alone), maximise tracks, expand flexible tracks (`find_size_of_fr`), stretch auto tracks. For `minmax(0,1fr)`: min 0 fixed, flexible max, growth limit infinite until step cleanup, final size = leftover / sum of fr factors (at least 1).
 - We keep roughly 25% of this (section 3).
 
-### 2.6 Widgets and ui core (nui-ui, ~2200 lines)
+### 2.6 Widgets and ui core (mere-ui, ~2200 lines)
 - References: microui `mu_update_control`, hover/focus rules (ESTABLISHED, microui.c): hover set when mouse is over and no button down; focus set on press; focus dropped on press elsewhere. egui for IDs and response objects (not read in detail, UNVERIFIED).
 - Approach: `Id = hash(parent id, label/index)` (FNV-1a, 10 lines). `Input` struct per frame (pointer, buttons, wheel, keys, chars). Widgets are plain functions building a styled node + emitting commands. Rough sizes: core+ids 300, button/toggle/label 200, fold 120, slider 150, number field 200 (reuses text field), tabs 120, list + scroll area 250, text field 450, viewport/canvas 80, theme 150.
 - ~~Slider: map pointer x to value, round by `step` (microui does exactly this).~~ Struck in step 10: neither application has a slider (preview.html has no `input type=range`, its settings are `input type=number`; the launcher has number inputs only; `--track` is defined but used by no rule, and the word "slider" survives only in stale comments). Number field: a text field with a filter (digits, `.`, `-`) that parses on Enter/blur, like microui's `number_textbox` (shift-click to type); we make the field always editable because the page's number inputs are.
@@ -384,7 +384,7 @@ Estimated 250 lines.
 
 **Overflow / scroll**
 - `Hidden`: push a clip rect for the node's padding box when drawing; the node's min-auto is 0.
-- `Scroll/Auto` (y only: 1 use in each file): node keeps `scroll_y` in `Ui` state, content height from `Tree::content_size`, wheel events adjust and clamp, thin scrollbar thumb drawn when content > viewport. ~80 lines in nui-ui.
+- `Scroll/Auto` (y only: 1 use in each file): node keeps `scroll_y` in `Ui` state, content height from `Tree::content_size`, wheel events adjust and clamp, thin scrollbar thumb drawn when content > viewport. ~80 lines in mere-ui.
 
 **Media / container queries**: no engine. The world preview has no media query: its panels are fluid (`demos/preview/src/panels.rs`, 2026-11-15): each is as wide as its widest row wants (between 220 and a natural cap of 330 px), the centre takes the rest, the panels shrink only once the map is at its 238 px minimum, and below the width where the minimums no longer fit (4 gaps of 28 + 2 x 220 + 238 = 790) they stack under the stage; the least window is derived (the narrow bar or the stacked panels, by 600); the three-way split below is how the first steps laid it out. The app function does: `let cols = if w < 1100 { A } else if w < 1250 { B } else { C }` (the three grid-template-columns of preview.html map to exactly these). `container-type: size` + `cqw/cqh`: the app reads the stage rect from the previous frame's layout or from a first small layout pass; simplest is to do two `compute` calls per frame when the stage rect changed (INTERPRETATION).
 
@@ -393,20 +393,20 @@ Total layout: about 900 lines including style types, tree, cache and tests.
 ---------------------------------------------------------------------------
 ## 4. Ordered build plan (each step compiles and ends in an offscreen PNG unless marked)
 
-All screenshots are produced by `nui-shot <view-name> <w>x<h> [--scale 1.5] [--theme dark] out.png`. Golden PNGs stored as files and compared with `nui-png::diff` in `cargo test`.
+All screenshots are produced by `mere-shot <view-name> <w>x<h> [--scale 1.5] [--theme dark] out.png`. Golden PNGs stored as files and compared with `mere-png::diff` in `cargo test`.
 
 | # | Step | Result checked by PNG (what it must show) | Est. h |
 |---|---|---|---|
-| 0 | Create workspace, `nui-base` types, CI-less `cargo test` | no PNG; compiles | 1 |
-| 1 | `nui-png` encoder + generated 256x256 test image | A gradient from black (left) to white (right) with a 16 px red/blue checker in the top-left quadrant; opens in any viewer; CRC errors would make viewers refuse it | 1.5 |
-| 2 | `nui-win32` headless: D3D11 device (hardware, WARP fallback), offscreen BGRA texture, clear colour, staging readback -> PNG | A 400x300 image of one flat colour `#101214`; check pixel (0,0) and B/R order with a second run that clears to pure red `#ff0000` | 2 |
+| 0 | Create workspace, `mere-base` types, CI-less `cargo test` | no PNG; compiles | 1 |
+| 1 | `mere-png` encoder + generated 256x256 test image | A gradient from black (left) to white (right) with a 16 px red/blue checker in the top-left quadrant; opens in any viewer; CRC errors would make viewers refuse it | 1.5 |
+| 2 | `mere-win32` headless: D3D11 device (hardware, WARP fallback), offscreen BGRA texture, clear colour, staging readback -> PNG | A 400x300 image of one flat colour `#101214`; check pixel (0,0) and B/R order with a second run that clears to pure red `#ff0000` | 2 |
 | 3 | D2D device context on that texture, DirectWrite text, font loading experiment | Dark ground, a 1 px hairline rectangle, the text `Seed 0123456789 abcXYZ` in IBM Plex Mono (or Consolas fallback, logged), at scale 1.0 and 2.0; the 2.0 image has 1 px hairlines in *physical* pixels | 3 |
 | 4 | Window + wndproc + DPI + flip swap chain + resize + on-demand redraw; same frame as step 3 on screen | Live window; `--shot` of the same frame via the window path vs offscreen path differ by < 1 % mean (diff test). Resizing does not leave stale frames | 3 |
 | 5 | 3D pipeline: HLSL, depth, one coloured triangle under D2D text | Triangle (red/green/blue vertices) overlapped by a rectangle drawn with `Cmd::Viewport` order: UI below, triangle, UI overlay on top, proving the segment flush | 3 |
 | 6 | Heightfield mesh + orbit camera + water plane from synthetic noise, then real `heights.bin`/`biomes.bin` | Fixed camera: terrain shaded by height, a translucent blue water plane covering low areas; same camera as the three.js page gives visually similar silhouette (compare to a browser screenshot) | 6 |
-| 7 | `nui-layout` pure crate: flex (steps 1-10), unit tests on rects; debug dump | No GPU: `cargo test` asserts. Then a debug PNG draws node boxes with names for the preview shell at 1400, 1200, 1000 px width: three columns 320/fluid/330, 296/fluid/280, 272/fluid/262; no overlap | 6 |
-| 8 | Grid + absolute + overflow in `nui-layout` | Debug PNG of the gallery (`demos/shell-boxes`, `target/tmp/gallery.png`): the page's own rows and boxes, not invented ones: three `.setting` rows (`minmax(0,1fr) auto 8ch`) with the hint, `#figures`, the ore head and rows (`12px 1fr 6ch 5ch 5ch 14px`), biome rows, `#details` (3 equal columns), `#generate` beside the 34 px `#stopRun`, and the `#frame` stack (`#flat` clipped, `#cutLine` out by 9 px, `#note` centred, `#under` below) and a 90 px scroll box | 5 |
-| 9 | `nui-ui` core: Ui, ids, input, draw list, theme dark/light; label, button, toggle | Gallery PNG: labels in text/muted/warn tones, buttons in normal/hover/active (hover injected by the harness), toggle on/off; dark and light variants | 5 |
+| 7 | `mere-layout` pure crate: flex (steps 1-10), unit tests on rects; debug dump | No GPU: `cargo test` asserts. Then a debug PNG draws node boxes with names for the preview shell at 1400, 1200, 1000 px width: three columns 320/fluid/330, 296/fluid/280, 272/fluid/262; no overlap | 6 |
+| 8 | Grid + absolute + overflow in `mere-layout` | Debug PNG of the gallery (`demos/shell-boxes`, `target/tmp/gallery.png`): the page's own rows and boxes, not invented ones: three `.setting` rows (`minmax(0,1fr) auto 8ch`) with the hint, `#figures`, the ore head and rows (`12px 1fr 6ch 5ch 5ch 14px`), biome rows, `#details` (3 equal columns), `#generate` beside the 34 px `#stopRun`, and the `#frame` stack (`#flat` clipped, `#cutLine` out by 9 px, `#note` centred, `#under` below) and a 90 px scroll box | 5 |
+| 9 | `mere-ui` core: Ui, ids, input, draw list, theme dark/light; label, button, toggle | Gallery PNG: labels in text/muted/warn tones, buttons in normal/hover/active (hover injected by the harness), toggle on/off; dark and light variants | 5 |
 | 10 | Fold, tabs (strip, choice, details), number field (without typing) | Controls sheet: a closed, a hovered and an open fold with its +/− sign, two strips (Flat and 2D pressed; a coarse map with three disabled), choice and details pressed, number fields right-aligned | 5 |
 | 11 | Text field: model + keys + caret + selection + clipboard (no IME) | Done: the fields sheet (`docs/shots/card-text-field-dark.png`, `card-text-field-light.png` (the sheet was retired for the cards; its editing script is `demos/widgets/tests/behaviour.rs`)): a 13-row script on the seed field (placeholder; click; `1234567890`; caret at 4; selection 2 to 6; copy and paste; deleting; a long text scrolled with the caret at the right edge; Ctrl+Backspace; select all; Escape), and cells for a double click, the profile name focused with all selected, a number stepped, clamped on Enter, and Tab between a seed and a setting | 7 |
 | 12 | List with scroll + ellipsis; history row layout | Done: the lists sheet (`docs/shots/card-list-row-dark.png`, `card-scroll-area-dark.png` and their light twins (the sheet was retired for the cards; its scrollbar and row checks are in `demos/widgets/tests/behaviour.rs`)): a biome list of 20 rows taller than its box with a scrollbar thumb at 30 % in the 11 px gutter, the bottom 28 px fading out, pressed rows against faded ones, a hovered row with its name underlined and names ending in an ellipsis; a narrower list with absent rows and no scrollbar; five history trend rows with their 30 px plot slots | 3 |
@@ -414,7 +414,7 @@ All screenshots are produced by `nui-shot <view-name> <w>x<h> [--scale 1.5] [--t
 | 14 | 2D map view: paint() port, image upload, pan/zoom, nav frame | Done (the nav frame of the section view is step 16's): the five 2D views of `C:\Games\preview\out` in `demos/preview` (`docs/shots/map-*.png`). `paint()` is compared with the page's own code, not a canvas dump: `demos/preview/tools/page_paint.mjs` cuts the colours, `measure`, `listOf`, `bands` and `paint` out of preview.html and runs them in Node on the folder, and `tests/page_paint.rs` finds all 12 cases (five views x dark and light, a chosen-biome case, a chosen-height case) byte-identical, with the biome and structure colours, the structure order and the flat count. Through the window path (`PreviewApp` into the offscreen renderer) every sampled pixel of the rest look is one of the 3 x 3 texels around its place; at 8x zoom 327,184 interior pixels equal their texel exactly and 929 boundaries between different texels are sharp, so `DrawBitmap` nearest-neighbour is exact at a fractional scale (risk R6 did not need its fallback). The tick, the grid, the cross and a structure's disc are checked by pixel; a click on a tab repaints | 5 |
 | 15 | 3D view in the stage (Viewport slot), mouse orbit, view switching | Done: the page's `refresh3d` as `demos/preview/src/scene.rs`, shared with `demos/relief` (which lost its copies of the world, json, mesh and paint code: `paint()` differed in 0 of 262,144 bytes before the copy was removed, and the relief shot equals `docs/shots/relief-1280.png` byte for byte). In the stage (`docs/shots/stage-3d-relief.png`, `stage-3d-zoom.png`, `stage-3d-relief-light.png`, `stage-3d-biomes.png`) the terrain sits in the 638 px square only: every pixel outside it equals the interface list drawn alone, also with the camera zoomed to its near limit (all four edge lines 1 px inside the square are terrain), so the D3D viewport clips and no scissor rect was needed. Relief and 3D are pressed, the corner is `--ground` (`#000`, `#fafaf8` light), the probe has no ticks, a drag of 100 px turns by `2 pi x 100 / 638`, one notch is 0.95 of the distance, a press outside the square does not turn, and a click on a view tab repaints the drape while the camera is kept; in Section the 2D/3D tabs are not built | 3 |
 | 16 | Cross-section view | Done: the Section tab (`docs/shots/section-1400.png`, `section-1400-light.png`, `section-zoom.png`, `section-iron.png`, `section-1000.png`): the whole cut as a strip with the frame of the part looked at, then the cut at true scale (one uploaded image of one texel a block: rock, caves, top layers, water, lava, ores played from the pack's rules), wheel, drag, strip click and drag, probe, "Another cut", and the ORES list whose rows pick an ore. `tools/page_section.mjs` runs the page's own section code in Node on `C:\Games\preview\out`: the rules, the ground of the 4 cuts, the per-chunk figures, the drawn layer (27,934 and 32,501 ore cells), the strip and the sheets are equal to the byte (numbers to 1e-9) in `tests/page_section.rs`; `tests/section.rs` checks the layout (frame 638 x 798 at 1400 x 940) and the interactions through the offscreen renderer | 4 |
-| 17 | Data and runs: read `out` folder, spawn the PowerShell script, poll progress, run button with progress bar, export PNG button | Done: Generate starts the generator script by the real argument protocol (`run::command`, 43 keys, switches as booleans) and follows `progress.json` once a second; the run block has the running button (`docs/shots/run-progress.png`: "Generating…" framed in `--text` and filled `--line` to 40 % of 278 px, the 34 x 34 stop square 6 px right, "20 s of about 50 s.", the hairline at 40 %, the steps "✓ … N s" and "› Map, every 16 blocks · 40 %", the map at 0.3 over the ground), a stop that ends the process tree (`taskkill /T /F` through `nui_base::Launcher`; the stub's grandchild is gone in the test) and a queued re-run; a finished run becomes the world and teaches the pace; Export writes biomes, flat, height and temperature PNGs equal to `paint()` byte for byte and the last section sheet (`export-done.png`, dropped before publication as it showed a machine path; 200 of 200 sampled stage pixels equal a texel of `biomes.png` around their place). The real `preview.ps1` was not run (downloads, pack, EULA, Java, gradle); the tests use `tools/stub_run.ps1`, which refuses any folder outside `target/tmp`. 305 tests in the workspace, none skipped | 5 |
+| 17 | Data and runs: read `out` folder, spawn the PowerShell script, poll progress, run button with progress bar, export PNG button | Done: Generate starts the generator script by the real argument protocol (`run::command`, 43 keys, switches as booleans) and follows `progress.json` once a second; the run block has the running button (`docs/shots/run-progress.png`: "Generating…" framed in `--text` and filled `--line` to 40 % of 278 px, the 34 x 34 stop square 6 px right, "20 s of about 50 s.", the hairline at 40 %, the steps "✓ … N s" and "› Map, every 16 blocks · 40 %", the map at 0.3 over the ground), a stop that ends the process tree (`taskkill /T /F` through `mere_base::Launcher`; the stub's grandchild is gone in the test) and a queued re-run; a finished run becomes the world and teaches the pace; Export writes biomes, flat, height and temperature PNGs equal to `paint()` byte for byte and the last section sheet (`export-done.png`, dropped before publication as it showed a machine path; 200 of 200 sampled stage pixels equal a texel of `biomes.png` around their place). The real `preview.ps1` was not run (downloads, pack, EULA, Java, gradle); the tests use `tools/stub_run.ps1`, which refuses any folder outside `target/tmp`. 305 tests in the workspace, none skipped | 5 |
 | 18 | Figures column, history list, light/dark switch with OS setting | Done: the right column follows the view with the page's numbers (`docs/shots/figures-1400.png`, `figures-light.png`, `figures-change.png`, `figures-1000.png`, `history.png`, `structures-list.png`). `tools/page_figures.mjs` runs the page's own `measure`, `listOf`, `showFigures`, `remember` and `showHistory` in Node on `C:\Games\preview\out`, and `tests/page_figures.rs` finds the 10 figures, the 5 lists (cells and widths to the bit), the 111 absent ids, 232 width and share strings, the 3 figure-cell cases, the 5 stored history entries and 15 trend paths equal; a window switched to the system's other scheme draws the same bytes as a fresh one | 3 |
 | 19 | Launcher bar on an own frame, panels (fixed then, fluid since the panels step), polish: cursor shapes, tooltips, device loss, DPI change, occlusion, errors, export.json | Pictures of the bar at 100/150/200 %, the fixed layout at 1000..1920 and the errors; manual checks of the live window | 4 |
 | 19.5 | The bar floats: no hairline under it, content 10 px under the bar (preview and Home) | bar-1400.png without the line, the fixed-layout sweep with the panels at y 50 | 1 |
@@ -463,13 +463,13 @@ R1. Font: IBM Plex Mono may not be installed; private font loading into DirectWr
 R2. `windows` crate version/feature names changed between 0.58 (classic `Win32_*`) and master (short names). Pin a version; first compile in step 2 will reveal missing features. The list in 2.8 beyond the 0.58 sample is UNVERIFIED.
 R3. Inline text flow: `<small>`, `<output>` inside paragraphs, wrapped paragraphs with mixed styles. The reduced layout supports one text run per leaf. I did not read the whole page; check the HTML body (lines 370-440 and JS-built nodes) for mixed inline content before step 13.
 R4. Baseline alignment (8 uses in preview). Needs a baseline passed through nested containers; wrong baselines look subtly misaligned. Test with number rows early (step 7).
-R5. Launcher `0fr -> 1fr` transition and `prefers-reduced-motion`: needs an animation clock and continuous redraw only while animating (`want_redraw`). Settled in step 21: nui-ui `Slide` with CSS ease, frames requested only while it moves, none with reduced motion.
+R5. Launcher `0fr -> 1fr` transition and `prefers-reduced-motion`: needs an animation clock and continuous redraw only while animating (`want_redraw`). Settled in step 21: mere-ui `Slide` with CSS ease, frames requested only while it moves, none with reduced motion.
 R6. D2D `DrawBitmap` nearest-neighbour exactness at fractional scales; fallback is drawing the map as a D3D textured quad (step 14).
 R7. Flip-model + D2D: the sample uses `FLIP_SEQUENTIAL` and works (ESTABLISHED); `FLIP_DISCARD` and MSAA through resolve are UNVERIFIED. Device loss/occlusion handling must be copied from the sample (ESTABLISHED there).
 R8. Offscreen readback code is my own composition of documented APIs; no Rust reference found (searches returned only C++ docs and crates not showing it). Budget extra time in step 2.
 R9. Text rendering differences: DirectWrite ClearType vs the browser's text. Screenshots will never match the page pixel for pixel; compare layout, not glyph pixels.
 R10. Time: the earlier ~55 h estimate vs ~80 h in section 4. The gap is mostly the golden-image harness, DPI correctness and crate boundaries. An honest range is 55-85 h; text field and layout are the two items most likely to exceed.
 R11. Licenses: Taffy MIT (https://github.com/DioxusLabs/taffy), microui MIT, egui MIT/Apache-2.0 (UNVERIFIED, from memory), Clay Zlib. We copy no code, only algorithms; if any code is copied keep the notice.
-R12. Settled in step 19: the launcher's own title bar is built. It did not change the Window trait: `App::hit`, `App::cursor` and `App::take_request` are default methods, and `nui_win32::run_with` takes a `Frame { own, min }`.
+R12. Settled in step 19: the launcher's own title bar is built. It did not change the Window trait: `App::hit`, `App::cursor` and `App::take_request` are default methods, and `mere_win32::run_with` takes a `Frame { own, min }`.
 R13. Open question: should `Gfx` expose raw D3D to the app (preview needs custom shaders) or only `draw_mesh`? Proposed: only `draw_mesh` with two built-in shaders (lit-textured, flat translucent); a Linux backend then needs only two shaders.
 R14. Unverified: Taffy line counts, the claim that bare `1fr` should be `minmax(auto, 1fr)` in the preview (page uses `minmax(0,1fr)` everywhere except the launcher's `1fr`/`0fr`).

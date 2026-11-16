@@ -10,7 +10,7 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use nui_base::Launcher;
+use mere_base::Launcher;
 
 use crate::settings::SETTINGS;
 
@@ -167,7 +167,7 @@ pub fn rewrite(config: &str, values: &[f64; 43]) -> Result<(String, usize), Fail
     let mut edits: Vec<(usize, usize, usize, String)> = Vec::new();
     for (i, set) in SETTINGS.iter().enumerate() {
         let found = find(&lines, set.key).map_err(|_| {
-            nui_base::observe!(Warn, "apply: the key '{}' is missing from the config or appears twice", set.key);
+            mere_base::observe!(Warn, "apply: the key '{}' is missing from the config or appears twice", set.key);
             Fail::Key
         })?;
         let old = number_of(&found.token).ok_or(Fail::Key)?;
@@ -214,7 +214,7 @@ pub fn apply(host: &dyn Host, target: &Target, values: &[f64; 43]) -> Outcome {
     let text = match std::fs::read_to_string(&file) {
         Ok(t) => t,
         Err(e) => {
-            nui_base::observe!(Warn, "apply: {}: {e}", file.display());
+            mere_base::observe!(Warn, "apply: {}: {e}", file.display());
             return Outcome::Failed(Fail::Read);
         }
     };
@@ -224,15 +224,15 @@ pub fn apply(host: &dyn Host, target: &Target, values: &[f64; 43]) -> Outcome {
     };
     if count > 0 {
         if let Err(e) = write_atomic(&file, &text) {
-            nui_base::observe!(Warn, "apply: {}: {e}", file.display());
+            mere_base::observe!(Warn, "apply: {}: {e}", file.display());
             return Outcome::Failed(Fail::Write);
         }
     }
-    nui_base::observe!(Info, "apply: {count} values written to {}", file.display());
+    mere_base::observe!(Info, "apply: {count} values written to {}", file.display());
     let running = match host.processes() {
         Ok(p) => running(&p, target.own_server.as_deref()),
         Err(e) => {
-            nui_base::observe!(Warn, "apply: the running programs could not be listed: {e}");
+            mere_base::observe!(Warn, "apply: the running programs could not be listed: {e}");
             Vec::new()
         }
     };
@@ -248,7 +248,7 @@ impl Host for SystemHost {
         let script = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-CimInstance Win32_Process | Where-Object { $_.Name -in 'java.exe','javaw.exe' } | ForEach-Object { $_.Name + [char]9 + $_.CommandLine }";
         let mut cmd = Command::new("powershell.exe");
         cmd.args(["-NoProfile", "-NonInteractive", "-Command", script]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-        let child = nui_win32::SystemLauncher.spawn(&mut cmd).map_err(|e| e.to_string())?;
+        let child = mere_win32::SystemLauncher.spawn(&mut cmd).map_err(|e| e.to_string())?;
         let out = child.wait_with_output().map_err(|e| e.to_string())?;
         if !out.status.success() {
             return Err(format!("exit {:?}: {}", out.status.code(), String::from_utf8_lossy(&out.stderr).trim()));
@@ -377,7 +377,7 @@ mod tests {
 
     /// A pack folder of its own under the system's temp folder, with the file in it.
     fn pack(name: &str) -> Target {
-        let dir = std::env::temp_dir().join(format!("nui-apply-{}-{name}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("mere-apply-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("pack").join("config")).unwrap();
         let t = Target { pack: dir.join("pack"), own_server: Some(PathBuf::from(r"M:\preview\server")) };

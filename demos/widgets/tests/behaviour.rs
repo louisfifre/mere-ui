@@ -3,15 +3,15 @@
 //! frame the renderer draws, so that a colour or a caret that goes wrong fails here. Positions come from the
 //! widget's own rect and the kit's constants; colours from the theme.
 
-use nui_base::{Button, Cmd, Color, DrawList, Event, Gfx, Ime, Key, Mods, Rect, Vec2};
-use nui_layout::{Dim, Insets, Position, Style};
-use nui_ui::tokens::{FADE_DIM, FADE_LIT, FRAME, INSET};
-use nui_ui::{SWITCH_H, SWITCH_W};
-use nui_ui::{
+use mere_base::{Button, Cmd, Color, DrawList, Event, Gfx, Ime, Key, Mods, Rect, Vec2};
+use mere_layout::{Dim, Insets, Position, Style};
+use mere_ui::tokens::{FADE_DIM, FADE_LIT, FRAME, INSET};
+use mere_ui::{SWITCH_H, SWITCH_W};
+use mere_ui::{
     ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, NumberSpec, RowOpts, ScrollOpts, THUMB_W, Theme, Ui,
     scroll_style, text_width,
 };
-use nui_win32::Renderer;
+use mere_win32::Renderer;
 
 const SIZE: (u32, u32) = (400, 300);
 const NONE: Mods = Mods { ctrl: false, shift: false };
@@ -530,8 +530,8 @@ fn the_scrollbar_has_a_thin_track_a_thumb_that_follows_the_offset_and_brightens_
         assert!(muted.windows(2).all(|w| w[1] - w[0] == 1.0), "the thumb is one run of columns");
         // The 1 px track runs in the thumb's middle column: the line colour above the thumb, ground beside it.
         let track_x = muted[muted.len() / 2];
-        pic.is(track_x, view.y + nui_ui::ARROW + 4.0, t.line, "track above the thumb");
-        pic.is(gx, view.y + nui_ui::ARROW + 4.0, t.ground, "gutter left of the track");
+        pic.is(track_x, view.y + mere_ui::ARROW + 4.0, t.line, "track above the thumb");
+        pic.is(gx, view.y + mere_ui::ARROW + 4.0, t.ground, "gutter left of the track");
         // The pointer on the thumb: the thumb takes the text colour.
         sc.pointer(Vec2::new(muted[0], mid));
         sc.frame(|ui| {
@@ -555,7 +555,7 @@ fn a_list_without_overflow_has_no_scrollbar() {
             sc.frame(|ui| {
                 ui.node("col", Style { column: true, w: Dim::Px(COL_W), ..at(20.0, 20.0) }, |ui| {
                     let style = Style { h: Dim::Px(BOX_H), grow: 0.0, basis: Dim::Auto, ..scroll_style() };
-                    got = Some(ui.scroll("list", &mut y, style, ScrollOpts::LIST, |ui| ui.label("Item", nui_ui::Tone::Text)));
+                    got = Some(ui.scroll("list", &mut y, style, ScrollOpts::LIST, |ui| ui.label("Item", mere_ui::Tone::Text)));
                 });
             });
         }
@@ -564,7 +564,7 @@ fn a_list_without_overflow_has_no_scrollbar() {
         let list = sc.frame(|ui| {
             ui.node("col", Style { column: true, w: Dim::Px(COL_W), ..at(20.0, 20.0) }, |ui| {
                 let style = Style { h: Dim::Px(BOX_H), grow: 0.0, basis: Dim::Auto, ..scroll_style() };
-                ui.scroll("list", &mut y, style, ScrollOpts::LIST, |ui| ui.label("Item", nui_ui::Tone::Text));
+                ui.scroll("list", &mut y, style, ScrollOpts::LIST, |ui| ui.label("Item", mere_ui::Tone::Text));
             });
         });
         let view = sc.rect(r.id);
@@ -593,7 +593,7 @@ fn a_chosen_row_keeps_its_swatch_the_others_are_set_back_and_the_hovered_one_is_
         });
         let pic = sc.pic(&list);
         // The swatch is SWATCH (12) wide and centred in the row's height; sample its middle.
-        let probe = |r: Rect| (r.x + nui_ui::tokens::SPACE_4 + nui_ui::tokens::SWATCH / 2.0, r.y + r.h / 2.0);
+        let probe = |r: Rect| (r.x + mere_ui::tokens::SPACE_4 + mere_ui::tokens::SWATCH / 2.0, r.y + r.h / 2.0);
         let (px, py) = probe(rects[5]);
         pic.is(px, py, swatch(5), "the chosen row's swatch is at full strength");
         let (px, py) = probe(rects[1]);

@@ -3,9 +3,9 @@
 
 use std::cell::Cell as Memo;
 
-use nui_base::{Button, Event, Rect, Vec2};
-use nui_layout::{Dim, Style};
-use nui_ui::{Id, MENU_ROW, SelectOpts, Theme, Ui};
+use mere_base::{Button, Event, Rect, Vec2};
+use mere_layout::{Dim, Style};
+use mere_ui::{Id, MENU_ROW, SelectOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

@@ -3,9 +3,9 @@
 //! to the pack's values or to Tectonic's own, each pressed while the form is there. Built as the application builds
 //! it, with events fed to the `Ui` between frames.
 
-use nui_base::{Button, Cmd, DrawList, Event, Gfx, Rect, Vec2};
-use nui_ui::{Id, Theme, Ui};
-use nui_win32::Renderer;
+use mere_base::{Button, Cmd, DrawList, Event, Gfx, Rect, Vec2};
+use mere_ui::{Id, Theme, Ui};
+use mere_win32::Renderer;
 use preview::settings::{SETTINGS, original_values, pack_values};
 use preview::{PreviewState, ShellIds, build, text};
 
@@ -152,6 +152,6 @@ fn p4_pictures() {
     out.end();
     let rgba = out.read_rgba().unwrap();
     let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("setting_pack_dark.png");
-    std::fs::write(&path, nui_png::encode(w, h, &rgba)).unwrap();
+    std::fs::write(&path, mere_png::encode(w, h, &rgba)).unwrap();
     println!("wrote {}", path.display());
 }

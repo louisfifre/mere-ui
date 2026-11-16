@@ -3,9 +3,9 @@
 
 use std::cell::Cell as Mem;
 
-use nui_layout::{Dim, Edges, Insets, Position, Style};
-use nui_ui::tokens::{SECTION, SPACE_4};
-use nui_ui::{ARROW, GUTTER, ScrollOpts, THUMB_MIN, TextLook, Theme, Tone, Ui, scroll_style};
+use mere_layout::{Dim, Edges, Insets, Position, Style};
+use mere_ui::tokens::{SECTION, SPACE_4};
+use mere_ui::{ARROW, GUTTER, ScrollOpts, THUMB_MIN, TextLook, Theme, Tone, Ui, scroll_style};
 
 use super::{Block, Card, Cell, State, render};
 

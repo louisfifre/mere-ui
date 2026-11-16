@@ -1,7 +1,7 @@
 //! The StopButton card: the stop square in rest, hover, held and disabled
 //! (components/StopButton/preview.html).
 
-use nui_ui::{Theme, Ui};
+use mere_ui::{Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

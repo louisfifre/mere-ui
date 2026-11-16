@@ -1,8 +1,8 @@
 //! The Fold card: closed and open, at rest and with the pointer on the head, in a 280 px column
 //! (components/Fold/preview.html).
 
-use nui_layout::{Dim, Style};
-use nui_ui::{Theme, Tone, Ui};
+use mere_layout::{Dim, Style};
+use mere_ui::{Theme, Tone, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

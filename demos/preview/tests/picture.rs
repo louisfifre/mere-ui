@@ -1,14 +1,14 @@
 //! The shell drawn offscreen in both themes (the widths are swept by tests/responsive.rs), and checked pixel by pixel. The
 //! pictures are written to the target's tmp folder and copied to docs/shots by hand: they are a milestone.
 
-use nui_base::{Color, Gfx, Rect, Vec2};
-use nui_ui::{GUTTER, Theme};
-use nui_win32::Renderer;
+use mere_base::{Color, Gfx, Rect, Vec2};
+use mere_ui::{GUTTER, Theme};
+use mere_win32::Renderer;
 use preview::{ShellIds, picture};
 
 const H: u32 = 940;
 
-fn draw(theme: Theme, w: u32, name: &str) -> (Vec<u8>, nui_ui::Ui, ShellIds) {
+fn draw(theme: Theme, w: u32, name: &str) -> (Vec<u8>, mere_ui::Ui, ShellIds) {
     let (list, ui, ids) = picture(theme, Vec2::new(w as f32, H as f32));
     let mut r = Renderer::offscreen(w, H, 1.0).expect("offscreen renderer");
     r.begin(theme.ground);
@@ -16,7 +16,7 @@ fn draw(theme: Theme, w: u32, name: &str) -> (Vec<u8>, nui_ui::Ui, ShellIds) {
     r.end();
     let rgba = r.read_rgba().unwrap();
     let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-    std::fs::write(&path, nui_png::encode(w, H, &rgba)).unwrap();
+    std::fs::write(&path, mere_png::encode(w, H, &rgba)).unwrap();
     println!("wrote {}", path.display());
     (rgba, ui, ids)
 }
@@ -54,12 +54,12 @@ fn check(theme: Theme, w: u32, name: &str) {
     let g = rect(ids.generate);
     same(at(g.x + g.w / 2.0, g.y), theme.fill, "generate top border");
     same(at(g.x + 3.0, g.y + 3.0), theme.fill, "generate inside");
-    assert!(ids.status_text.is_empty() && ids.status == nui_ui::Id::ROOT, "an empty status is not built");
+    assert!(ids.status_text.is_empty() && ids.status == mere_ui::Id::ROOT, "an empty status is not built");
 
     // P6: the select's arrow: its third row of ink (the first full one), 13 px from the right edge plus 4. The five
     // rows are centred in the content box, on the whole pixel above: floor(pad + (content - 5) / 2).
     let sel = rect(ids.select);
-    let pad = nui_ui::tokens::FRAME + nui_ui::tokens::INSET_HAIR;
+    let pad = mere_ui::tokens::FRAME + mere_ui::tokens::INSET_HAIR;
     let top = (pad + (sel.h - 2.0 * pad - 5.0) / 2.0).floor();
     same(at(sel.x + sel.w - 13.0 + 4.0, sel.y + top + 2.0), theme.text, "select chevron");
 

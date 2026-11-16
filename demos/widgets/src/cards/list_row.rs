@@ -1,9 +1,9 @@
 //! The ListRow card: the square swatch, the round mark and the swatch while the list is choosing, in rest,
 //! hover, pressed and absent (components/ListRow/preview.html).
 
-use nui_base::Color;
-use nui_layout::{Dim, Style};
-use nui_ui::{ListRow, RowOpts, Theme, Ui};
+use mere_base::Color;
+use mere_layout::{Dim, Style};
+use mere_ui::{ListRow, RowOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

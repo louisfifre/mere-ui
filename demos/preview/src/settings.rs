@@ -8,7 +8,7 @@
 //! `run.json` is read at runtime (`world::Made`), for the form and the "up to date" test, not for these. Each setting
 //! also carries Tectonic's own default, the second fixed set a form can be put back to.
 
-use nui_ui::NumberSpec;
+use mere_ui::NumberSpec;
 
 #[derive(Copy, Clone, Debug)]
 pub enum Kind {
@@ -105,7 +105,7 @@ pub fn original_values() -> [f64; 43] {
     v
 }
 
-/// A value as a number field writes it (`nui-ui`'s `js_number`: Rust's shortest round trip, -0 as "0").
+/// A value as a number field writes it (`mere-ui`'s `js_number`: Rust's shortest round trip, -0 as "0").
 pub fn shown(v: f64) -> String {
     format!("{}", if v == 0.0 { 0.0 } else { v })
 }

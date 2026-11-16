@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use common::*;
-use nui_base::Launcher;
+use mere_base::Launcher;
 use preview::paint::{View, paint};
 use preview::json::Json;
 use preview::run::{Runs, Steps};
@@ -21,8 +21,8 @@ fn saved(rig: &Rig) -> PathBuf {
     }
 }
 
-fn decoded(file: &Path) -> nui_png::Decoded {
-    nui_png::decode(&std::fs::read(file).unwrap_or_else(|e| panic!("{}: {e}", file.display()))).expect("a PNG this crate wrote")
+fn decoded(file: &Path) -> mere_png::Decoded {
+    mere_png::decode(&std::fs::read(file).unwrap_or_else(|e| panic!("{}: {e}", file.display()))).expect("a PNG this crate wrote")
 }
 
 /// The runs of an export: no engine is needed.
@@ -59,7 +59,7 @@ fn e1_the_exported_picture_is_the_stage_content() {
     let rgba = rig.shot("export_done.png");
     let ids = rig.app.ids().clone();
     assert_eq!(ids.status_text, text::EXPORTED);
-    assert_ne!(ids.saved, nui_ui::Id::ROOT);
+    assert_ne!(ids.saved, mere_ui::Id::ROOT);
     let file = decoded(&folder.join("biomes.png"));
     let map = rig.rect(ids.map);
     let side = map.w;

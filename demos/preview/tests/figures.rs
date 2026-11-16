@@ -9,9 +9,9 @@ use std::path::Path;
 use std::process::Command;
 
 use common::*;
-use nui_base::{App, Cmd, Event, Vec2, Weight};
-use nui_ui::Theme;
-use nui_win32::Renderer;
+use mere_base::{App, Cmd, Event, Vec2, Weight};
+use mere_ui::Theme;
+use mere_win32::Renderer;
 use preview::figures::{CellKind, Figures, figure_cells, percent};
 use preview::history::{self, Entry};
 use preview::paint::View;
@@ -50,7 +50,7 @@ impl Mini {
     fn shot(&mut self, name: &str) -> Vec<u8> {
         let rgba = self.rgba();
         let path = tmp().join(name);
-        std::fs::write(&path, nui_png::encode(self.w, self.h, &rgba)).unwrap();
+        std::fs::write(&path, mere_png::encode(self.w, self.h, &rgba)).unwrap();
         println!("wrote {}", path.display());
         rgba
     }
@@ -166,7 +166,7 @@ fn g2_biomes_by_share_then_the_absent_ones_and_the_choice() {
     };
     let colour_of = |key: &str| {
         let c = l.colours[l.ids.iter().position(|x| x == key).unwrap()];
-        nui_base::Color::rgb8(c[0], c[1], c[2])
+        mere_base::Color::rgb8(c[0], c[1], c[2])
     };
     assert!(near(swatch(&rig, 0), rgb(colour_of(&ids.list_keys[0])), 1), "the chosen row is lit");
     assert!(near(swatch(&rig, 1), rgb(rig.theme.faded(colour_of(&ids.list_keys[1]), 0.5)), 2), "the others step back: {:?}", swatch(&rig, 1));
@@ -378,7 +378,7 @@ fn h4_a_finished_run_keeps_the_run_before_and_the_new_map() {
     // One setting moved before Generate, as a person would.
     state.values[0] += 0.01;
     let from = preview::world::data_dir();
-    let env = [("NUI_STUB", "finish"), ("NUI_STUB_FROM", from.to_str().expect("a UTF-8 path"))];
+    let env = [("MERE_STUB", "finish"), ("MERE_STUB_FROM", from.to_str().expect("a UTF-8 path"))];
     let mut rig = Rig::new(&world, state, Some(runs(&root, &env)));
     rig.park();
     assert_eq!(history::load(&root.join("history.json")).len(), 1, "the map on screen is kept at the start");
@@ -452,7 +452,7 @@ fn cli_theme_light_gives_the_light_ground_and_a_list() {
         .status()
         .expect("the preview runs");
     assert!(status.success());
-    let png = nui_png::decode(&std::fs::read(&out).unwrap()).expect("a PNG");
+    let png = mere_png::decode(&std::fs::read(&out).unwrap()).expect("a PNG");
     let px = |x: usize, y: usize| {
         let i = (y * png.width as usize + x) * 4;
         [png.rgba[i], png.rgba[i + 1], png.rgba[i + 2]]

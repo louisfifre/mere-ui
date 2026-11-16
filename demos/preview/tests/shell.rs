@@ -1,8 +1,8 @@
 //! The shell's layout without a GPU. The column positions are the page's wide layout (preview.html lines 75-81)
 //! at every width: the panels are fixed since step 19. The sizes inside are derived in each test's comment.
 
-use nui_base::{Rect, Vec2};
-use nui_ui::{GUTTER, Id, Theme, Ui};
+use mere_base::{Rect, Vec2};
+use mere_ui::{GUTTER, Id, Theme, Ui};
 use preview::settings::{SETTINGS, grouped};
 use preview::world::World;
 use preview::{BAR_H, Columns, PAGE, PreviewState, ShellIds, panels, picture, picture_with};
@@ -119,12 +119,12 @@ fn l5_settings_groups_and_rows() {
     assert_eq!(ids.rows.len(), 43);
     let groups = grouped();
     // What a label has beside its "?" (16 px, 4 after the label): the row less the two gaps and the field.
-    let body = nui_ui::TextLook::body(nui_ui::Tone::Text);
+    let body = mere_ui::TextLook::body(mere_ui::Tone::Text);
     let room = r(&ui, ids.rows[0]).w - 2.0 * panels::SETTING_GAP - panels::setting_field() - 4.0 - 16.0;
     for (g, members) in groups.iter().enumerate() {
         for (k, &i) in members.iter().enumerate() {
             // 2 + 24 + 2: the field is 18 + 2 x 3 + 2 x 1 high. A label that wraps beside its "?" is 18 a line.
-            let lines = nui_ui::wrap_lines(SETTINGS[i].label, body, room).len() as f32;
+            let lines = mere_ui::wrap_lines(SETTINGS[i].label, body, room).len() as f32;
             let h = (lines * 18.0).max(24.0) + 4.0;
             near(r(&ui, ids.rows[i]).h, h, "row height");
             if k > 0 {

@@ -1,10 +1,10 @@
 //! The TabMenu card: a strip tab with a chevron that opens a list, at rest, hovered and open; the list's first
 //! row is disabled (components/TabMenu/preview.html).
 
-use nui_base::Event;
-use nui_layout::{Dim, Style};
-use nui_ui::tokens::FRAME;
-use nui_ui::{MENU_ROW, MenuRow, Theme, Ui, strip_style};
+use mere_base::Event;
+use mere_layout::{Dim, Style};
+use mere_ui::tokens::FRAME;
+use mere_ui::{MENU_ROW, MenuRow, Theme, Ui, strip_style};
 
 use super::select::{Probe, centre, click};
 use super::{Block, Card, Cell, State, render};

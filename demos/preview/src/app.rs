@@ -13,8 +13,8 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use std::collections::VecDeque;
 
-use nui_base::{App, Cursor, DrawList, Event, Gfx, Hit, Rect, Vec2, WindowRequest, observe};
-use nui_ui::{Id, Theme, Ui, chrome_hit};
+use mere_base::{App, Cursor, DrawList, Event, Gfx, Hit, Rect, Vec2, WindowRequest, observe};
+use mere_ui::{Id, Theme, Ui, chrome_hit};
 
 use crate::cut::{self, CUT_IMAGE, NAV_H, NAV_IMAGE, CutLook};
 use crate::figures::Figures;
@@ -675,11 +675,11 @@ impl PreviewApp {
             std::fs::create_dir_all(&folder)?;
             for kind in &kinds {
                 let rgba = paint(world, *kind, self.dark, &BTreeSet::new());
-                std::fs::write(folder.join(format!("{}.png", kind.key())), nui_png::encode(n, n, &rgba))?;
+                std::fs::write(folder.join(format!("{}.png", kind.key())), mere_png::encode(n, n, &rgba))?;
                 steps.push((text::export_step(kind.key()), 0));
             }
             if let Some((w, h, rgba)) = &self.last_sheet {
-                std::fs::write(folder.join("section.png"), nui_png::encode(*w, *h, rgba))?;
+                std::fs::write(folder.join("section.png"), mere_png::encode(*w, *h, rgba))?;
             }
             // The settings and figures come last, as the page's last step; the pictures are already kept if this fails.
             let (seed, values) = self.state.made.as_ref().map_or((self.state.seed.as_str(), &self.state.values), |m| (m.seed.as_str(), &m.values));

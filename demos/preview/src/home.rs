@@ -2,8 +2,8 @@
 //! preview tool; what Home shows (profiles, a server) is the launcher's, so Home is a trait the host fills.
 //! Without one the pane says that Home is for the launcher (the standalone preview's PLACEHOLDER).
 
-use nui_base::Vec2;
-use nui_ui::Ui;
+use mere_base::Vec2;
+use mere_ui::Ui;
 
 pub trait Home {
     /// Builds Home in the pane under the bar; `size` is the pane's (window width, window height - BAR_H).

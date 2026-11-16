@@ -6,9 +6,9 @@ mod common;
 use std::time::{Duration, Instant};
 
 use common::*;
-use nui_base::{App, DrawList, Event, Gfx, Rect, Vec2};
-use nui_ui::Theme;
-use nui_win32::Renderer;
+use mere_base::{App, DrawList, Event, Gfx, Rect, Vec2};
+use mere_ui::Theme;
+use mere_win32::Renderer;
 use preview::{PreviewApp, PreviewState};
 
 /// An application started on `r` at a size in DIP, as the window would start it.
@@ -78,7 +78,7 @@ fn p3_a_run_under_way_does_not_keep_the_window_drawing() {
     let root = root("runs-p3");
     let mut state = PreviewState::for_world(Some(&world));
     state.seed = "p3-seed".to_string();
-    let mut rig = Rig::new(&world, state, Some(runs(&root, &[("NUI_STUB", "hold")])));
+    let mut rig = Rig::new(&world, state, Some(runs(&root, &[("MERE_STUB", "hold")])));
     rig.park();
     let generate = rig.app.ids().generate;
     rig.click_on(generate);
@@ -116,7 +116,7 @@ fn p3_a_run_under_way_does_not_keep_the_window_drawing() {
 fn icon_sheets() {
     let t = Theme::dark();
     let i = preview::bar::icons();
-    let mut crisp: Vec<&nui_ui::Icon> = vec![&i.home, &i.preview, &i.minimize, &i.maximize, &i.restore, &i.close];
+    let mut crisp: Vec<&mere_ui::Icon> = vec![&i.home, &i.preview, &i.minimize, &i.maximize, &i.restore, &i.close];
     crisp.extend(i.views.iter());
     crisp.extend([&i.play, &i.stop, &i.settings]);
     assert_eq!(crisp.len() + 1, 16);
@@ -141,7 +141,7 @@ fn icon_sheets() {
         r.end();
         let rgba = r.read_rgba().unwrap();
         let path = tmp().join(name);
-        std::fs::write(&path, nui_png::encode(pw, ph, &rgba)).unwrap();
+        std::fs::write(&path, mere_png::encode(pw, ph, &rgba)).unwrap();
         println!("wrote {}", path.display());
 
         // Each crisp icon box holds the ground and the icon's colour, nothing between.

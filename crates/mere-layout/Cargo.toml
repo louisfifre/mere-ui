@@ -1,0 +1,10 @@
+[package]
+name = "mere-layout"
+description = "Pure layout: the reduced flexbox, grid, absolute positioning and overflow the applications' pages use, over a tree of styles and measured leaves."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license = "GPL-3.0-only"
+
+[dependencies]
+mere-base.workspace = true

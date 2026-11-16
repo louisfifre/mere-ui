@@ -176,6 +176,41 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "mere-base"
+version = "0.11.0"
+
+[[package]]
+name = "mere-layout"
+version = "0.11.0"
+dependencies = [
+ "mere-base",
+]
+
+[[package]]
+name = "mere-png"
+version = "0.11.0"
+
+[[package]]
+name = "mere-ui"
+version = "0.11.0"
+dependencies = [
+ "mere-base",
+ "mere-layout",
+ "mere-png",
+ "mere-win32",
+]
+
+[[package]]
+name = "mere-win32"
+version = "0.11.0"
+dependencies = [
+ "mere-base",
+ "mere-png",
+ "mere-ui",
+ "windows",
+]
+
+[[package]]
 name = "miniz_oxide"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -183,41 +218,6 @@ checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
 dependencies = [
  "adler2",
  "simd-adler32",
-]
-
-[[package]]
-name = "nui-base"
-version = "0.11.0"
-
-[[package]]
-name = "nui-layout"
-version = "0.11.0"
-dependencies = [
- "nui-base",
-]
-
-[[package]]
-name = "nui-png"
-version = "0.11.0"
-
-[[package]]
-name = "nui-ui"
-version = "0.11.0"
-dependencies = [
- "nui-base",
- "nui-layout",
- "nui-png",
- "nui-win32",
-]
-
-[[package]]
-name = "nui-win32"
-version = "0.11.0"
-dependencies = [
- "nui-base",
- "nui-png",
- "nui-ui",
- "windows",
 ]
 
 [[package]]
@@ -236,11 +236,11 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 name = "preview"
 version = "0.11.0"
 dependencies = [
- "nui-base",
- "nui-layout",
- "nui-png",
- "nui-ui",
- "nui-win32",
+ "mere-base",
+ "mere-layout",
+ "mere-png",
+ "mere-ui",
+ "mere-win32",
  "world-preview",
 ]
 
@@ -295,9 +295,9 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 name = "relief"
 version = "0.11.0"
 dependencies = [
- "nui-base",
- "nui-png",
- "nui-win32",
+ "mere-base",
+ "mere-png",
+ "mere-win32",
  "preview",
 ]
 
@@ -407,10 +407,10 @@ dependencies = [
 name = "shell-boxes"
 version = "0.11.0"
 dependencies = [
- "nui-base",
- "nui-layout",
- "nui-png",
- "nui-win32",
+ "mere-base",
+ "mere-layout",
+ "mere-png",
+ "mere-win32",
 ]
 
 [[package]]
@@ -525,11 +525,11 @@ dependencies = [
 name = "widgets"
 version = "0.11.0"
 dependencies = [
- "nui-base",
- "nui-layout",
- "nui-png",
- "nui-ui",
- "nui-win32",
+ "mere-base",
+ "mere-layout",
+ "mere-png",
+ "mere-ui",
+ "mere-win32",
 ]
 
 [[package]]

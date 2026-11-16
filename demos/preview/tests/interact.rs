@@ -4,9 +4,9 @@
 
 use std::collections::BTreeSet;
 
-use nui_base::{App, Button, Event, Rect, Vec2};
-use nui_ui::{Theme, Ui};
-use nui_win32::Renderer;
+use mere_base::{App, Button, Event, Rect, Vec2};
+use mere_ui::{Theme, Ui};
+use mere_win32::Renderer;
 use preview::map::{Look, point_under};
 use preview::paint::{View, paint, rows};
 use preview::text::pretty;
@@ -239,7 +239,7 @@ fn rig_3d(world: World) -> Rig {
 }
 
 /// Lets the camera glide to rest, as the frames of the window do.
-fn rest(r: &mut Rig) -> nui_base::Vec3 {
+fn rest(r: &mut Rig) -> mere_base::Vec3 {
     let orbit = r.s.orbit.as_mut().expect("the orbit was made");
     for _ in 0..600 {
         if !scene::settle(orbit, &r.world, 1.0 / 60.0) {
@@ -249,7 +249,7 @@ fn rest(r: &mut Rig) -> nui_base::Vec3 {
     panic!("never came to rest");
 }
 
-fn yaw(eye: nui_base::Vec3) -> f32 {
+fn yaw(eye: mere_base::Vec3) -> f32 {
     eye.x.atan2(eye.z)
 }
 

@@ -6,9 +6,9 @@ mod common;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use nui_base::{App, Event, Vec2};
-use nui_ui::Theme;
-use nui_win32::Renderer;
+use mere_base::{App, Event, Vec2};
+use mere_ui::Theme;
+use mere_win32::Renderer;
 use preview::apply::{Host, Notice, Proc, Running};
 use preview::settings::{Kind, SETTINGS, pack_values};
 use preview::{PreviewApp, PreviewState, text};
@@ -124,7 +124,7 @@ fn a4_the_pack_s_values_are_the_ones_its_file_holds() {
     let i = index("vertical_scale");
     assert_eq!(rig.app.state().baseline[i], 1.75, "the pack's value is the file's");
     assert_eq!(rig.app.state().values, rig.app.state().baseline, "a form with no run behind it opens on the pack");
-    assert_eq!(rig.app.ids().pack_marks[i], nui_ui::Id::ROOT, "nothing differs, nothing is marked");
+    assert_eq!(rig.app.ids().pack_marks[i], mere_ui::Id::ROOT, "nothing differs, nothing is marked");
 }
 
 #[test]
@@ -139,5 +139,5 @@ fn a5_a_value_typed_and_not_generated_is_there_at_the_next_start() {
     let second = rig(&root, true, vec![]);
     assert_eq!(second.app.state().values[i], -0.3, "what was typed came back");
     assert_eq!(second.app.state().baseline[i], SETTINGS[i].pack, "and the pack's value is still the pack's");
-    assert_ne!(second.app.ids().pack_marks[i], nui_ui::Id::ROOT, "the field says it differs from the pack");
+    assert_ne!(second.app.ids().pack_marks[i], mere_ui::Id::ROOT, "the field says it differs from the pack");
 }

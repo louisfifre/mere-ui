@@ -5,7 +5,7 @@
 use std::io;
 use std::path::Path;
 
-use nui_base::observe;
+use mere_base::observe;
 
 use crate::figures::{Figures, KEYS, blocks, json_number, percent, to_fixed1};
 use crate::json::Json;
@@ -196,7 +196,7 @@ pub struct Trend {
 }
 
 /// The height of a line's box (line 313).
-pub const PLOT_H: f64 = nui_ui::PLOT_H as f64;
+pub const PLOT_H: f64 = mere_ui::PLOT_H as f64;
 
 /// `showHistory` (1569-1615) as data, for the runs of `here`. `pointed` is the run the pointer is over.
 pub fn trend(runs: &[&Entry], pointed: Option<usize>, width: f64) -> Trend {

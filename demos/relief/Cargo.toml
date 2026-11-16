@@ -7,7 +7,7 @@ publish.workspace = true
 license = "GPL-3.0-only"
 
 [dependencies]
-nui-base.workspace = true
-nui-png.workspace = true
-nui-win32.workspace = true
+mere-base.workspace = true
+mere-png.workspace = true
+mere-win32.workspace = true
 preview = { path = "../preview" }

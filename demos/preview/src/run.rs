@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use nui_base::Launcher;
+use mere_base::Launcher;
 
 use crate::json::Json;
 use crate::settings::{Kind, SETTINGS};

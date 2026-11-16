@@ -1,9 +1,9 @@
 //! The Cover card: the repository's 960 x 288 cover (components/Cover/preview.html). It is a picture, not a
 //! component, so it has no states and the card is the picture alone plus the card padding.
 
-use nui_base::{Cmd, Rect, Weight};
-use nui_layout::{Dim, Position, Style};
-use nui_ui::{TextLook, Theme, Tone, Ui};
+use mere_base::{Cmd, Rect, Weight};
+use mere_layout::{Dim, Position, Style};
+use mere_ui::{TextLook, Theme, Tone, Ui};
 
 use super::{Block, Card, Cell, State, render};
 
@@ -15,7 +15,7 @@ const PITCH: f32 = 48.0;
 fn at(x: f32, y: f32) -> Style {
     Style {
         position: Position::Absolute,
-        inset: nui_layout::Insets { left: Dim::Px(x), top: Dim::Px(y), right: Dim::Auto, bottom: Dim::Auto },
+        inset: mere_layout::Insets { left: Dim::Px(x), top: Dim::Px(y), right: Dim::Auto, bottom: Dim::Auto },
         ..Style::default()
     }
 }

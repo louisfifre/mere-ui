@@ -1,7 +1,7 @@
 //! The Button card: seven looks in rest, hover, held and disabled; a look without a state leaves its cell
 //! empty (components/Button/preview.html).
 
-use nui_ui::{ButtonLook, ButtonOpts, Theme, Ui};
+use mere_ui::{ButtonLook, ButtonOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

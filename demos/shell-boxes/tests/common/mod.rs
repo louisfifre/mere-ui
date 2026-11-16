@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
-use nui_base::{Color, DrawList, Gfx};
-use nui_win32::Renderer;
+use mere_base::{Color, DrawList, Gfx};
+use mere_win32::Renderer;
 
 /// Draws `list` on a `w` x `h` image, writes it as `name` under the test temp dir and returns the path.
 /// Fails if the image is all one colour: then nothing was drawn.
@@ -14,7 +14,7 @@ pub fn write_picture(list: &DrawList, w: u32, h: u32, name: &str) -> PathBuf {
     r.end();
     let rgba = r.read_rgba().unwrap();
     let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-    std::fs::write(&path, nui_png::encode(w, h, &rgba)).unwrap();
+    std::fs::write(&path, mere_png::encode(w, h, &rgba)).unwrap();
     println!("wrote {}", path.display());
     assert!(rgba.chunks(4).any(|p| p[..3] != rgba[..3]), "{name} is one colour");
     path

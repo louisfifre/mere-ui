@@ -3,9 +3,9 @@
 //! "?" moves it; the cross or Escape closes it. Built as the application builds it, with events fed to the `Ui` between frames; the two
 //! pictures go through the offscreen renderer.
 
-use nui_base::{Button, Cmd, Color, Cursor, DrawList, Event, Gfx, Key, Mods, Rect, Vec2};
-use nui_ui::{Id, Theme, Ui};
-use nui_win32::Renderer;
+use mere_base::{Button, Cmd, Color, Cursor, DrawList, Event, Gfx, Key, Mods, Rect, Vec2};
+use mere_ui::{Id, Theme, Ui};
+use mere_win32::Renderer;
 use preview::settings::{Kind, SETTINGS};
 use preview::shell::help_escape;
 use preview::text::{HELP_MARK, SETTING_HINTS, setting_hint};
@@ -317,7 +317,7 @@ fn picture(theme: Theme, size: Vec2, key: &str, name: &str) -> (Vec<u8>, Rig) {
     out.end();
     let rgba = out.read_rgba().unwrap();
     let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-    std::fs::write(&path, nui_png::encode(w, h, &rgba)).unwrap();
+    std::fs::write(&path, mere_png::encode(w, h, &rgba)).unwrap();
     println!("wrote {}", path.display());
     (rgba, r)
 }

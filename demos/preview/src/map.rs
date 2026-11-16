@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use nui_base::{Cmd, Color, ImageId, Rect, Vec2};
+use mere_base::{Cmd, Color, ImageId, Rect, Vec2};
 
 use crate::paint::{View, marks};
 use crate::world::World;

@@ -5,9 +5,9 @@
 
 use std::path::{Path, PathBuf};
 
-use nui_base::{App, Button, Event, Rect, Vec2};
-use nui_ui::Theme;
-use nui_win32::Renderer;
+use mere_base::{App, Button, Event, Rect, Vec2};
+use mere_ui::Theme;
+use mere_win32::Renderer;
 use preview::paint::View;
 use preview::world::World;
 use preview::{PreviewApp, PreviewState, scene, text};
@@ -33,7 +33,7 @@ fn state_3d(view: usize) -> PreviewState {
 
 fn write(rgba: &[u8], name: &str) {
     let path: PathBuf = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-    std::fs::write(&path, nui_png::encode(W, H, rgba)).unwrap();
+    std::fs::write(&path, mere_png::encode(W, H, rgba)).unwrap();
     println!("wrote {}", path.display());
 }
 
@@ -59,7 +59,7 @@ fn take(world: &World, light: bool, state: PreviewState, name: &str) -> (Vec<u8>
 }
 
 fn reference(r: &mut Renderer, app: &PreviewApp, theme: &Theme) -> Vec<u8> {
-    use nui_base::Gfx;
+    use mere_base::Gfx;
     r.begin(theme.ground);
     r.draw_list(app.list());
     r.end();
@@ -194,12 +194,12 @@ fn s4_a_view_tab_repaints_the_drape_and_2d_comes_back() {
     let kept = app.state().orbit.clone();
     assert!(kept.is_some());
     click(&mut app, &mut r, 6);
-    assert_ne!(app.ids().map, nui_ui::Id::ROOT);
-    assert_eq!(app.ids().relief, nui_ui::Id::ROOT);
+    assert_ne!(app.ids().map, mere_ui::Id::ROOT);
+    assert_eq!(app.ids().relief, mere_ui::Id::ROOT);
     click(&mut app, &mut r, 7);
-    assert_ne!(app.ids().relief, nui_ui::Id::ROOT);
+    assert_ne!(app.ids().relief, mere_ui::Id::ROOT);
     assert_eq!(app.state().orbit, kept, "the camera is kept across 2D and 3D");
     click(&mut app, &mut r, 5);
     assert_eq!(app.ids().tabs.len(), 6, "the section has no 2D and 3D tabs");
-    assert_eq!(app.ids().relief, nui_ui::Id::ROOT);
+    assert_eq!(app.ids().relief, mere_ui::Id::ROOT);
 }

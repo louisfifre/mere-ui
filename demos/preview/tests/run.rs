@@ -32,7 +32,7 @@ fn r1_a_run_under_way_and_its_stop() {
     let root = root("runs-r1");
     // What this machine measured: 10 s besides the work, and 40 s of work for 256 points at 16 blocks: 50 s in all.
     std::fs::write(root.join("pace.json"), r#"{"fixed":10,"work":{"16":{"span":256,"seconds":40}}}"#).unwrap();
-    let mut rig = start(&world, &root, &[("NUI_STUB", "hold")], "r1-seed");
+    let mut rig = start(&world, &root, &[("MERE_STUB", "hold")], "r1-seed");
     assert_eq!(rig.app.state().pace.about(256, 16), Some(50), "the detail tab's wait is read from the pace file");
     let ids = rig.app.ids().clone();
     rig.click_on(ids.generate);
@@ -110,7 +110,7 @@ fn r1_a_run_under_way_and_its_stop() {
     let ids = rig.app.ids().clone();
     let (g, s) = (rig.rect(ids.generate), rig.rect(ids.stop));
     assert_eq!(rig.px(&rgba, g.x + g.w / 2.0, g.y), rgb(t.edge), "the running generate is disabled: its frame goes to --edge");
-    assert_eq!(rig.px(&rgba, s.x + 17.0, s.y), rgb(t.faded(t.edge, nui_ui::tokens::FADE_DISABLED)), "the stop's frame is faded");
+    assert_eq!(rig.px(&rgba, s.x + 17.0, s.y), rgb(t.faded(t.edge, mere_ui::tokens::FADE_DISABLED)), "the stop's frame is faded");
 
     rig.until(15, "the run to end", |r| !r.app.running());
     rig.park();
@@ -123,7 +123,7 @@ fn r1_a_run_under_way_and_its_stop() {
     let ids = rig.app.ids().clone();
     let g = rig.rect(ids.generate);
     assert_eq!(rig.px(&rgba, g.x + g.w / 2.0, g.y), rgb(t.text), "Generate is enabled again: the map is not this form's");
-    assert_eq!(ids.stop, nui_ui::Id::ROOT, "the stop square is gone");
+    assert_eq!(ids.stop, mere_ui::Id::ROOT, "the stop square is gone");
     assert!(!ids.steps_items.is_empty() && ids.steps_items.iter().all(|i| i.starts_with('\u{2713}')), "{:?}", ids.steps_items);
     assert!(matches!(rig.app.state().steps, Steps::Run { ref now, .. } if now.is_empty()));
 }
@@ -133,7 +133,7 @@ fn r2_a_finished_run_becomes_the_map() {
     let Some(world) = world() else { return };
     let root = root("runs-r2");
     let from = preview::world::data_dir();
-    let mut rig = start(&world, &root, &[("NUI_STUB", "finish"), ("NUI_STUB_FROM", from.to_str().expect("a UTF-8 path"))], "r2-seed");
+    let mut rig = start(&world, &root, &[("MERE_STUB", "finish"), ("MERE_STUB_FROM", from.to_str().expect("a UTF-8 path"))], "r2-seed");
     let g = rig.app.ids().generate;
     rig.click_on(g);
     assert!(rig.app.running());
@@ -173,7 +173,7 @@ fn r2_a_finished_run_becomes_the_map() {
 fn r3_a_failed_run_says_so_in_the_warning_colour() {
     let Some(world) = world() else { return };
     let root = root("runs-r3");
-    let mut rig = start(&world, &root, &[("NUI_STUB", "fail")], "r3-seed");
+    let mut rig = start(&world, &root, &[("MERE_STUB", "fail")], "r3-seed");
     let g = rig.app.ids().generate;
     rig.click_on(g);
     rig.until(30, "the run to end", |r| !r.app.running());
@@ -199,7 +199,7 @@ fn r3_a_failed_run_says_so_in_the_warning_colour() {
 fn r4_a_refused_seed_starts_nothing() {
     let Some(world) = world() else { return };
     let root = root("runs-r4");
-    let mut rig = start(&world, &root, &[("NUI_STUB", "hold")], "a/b");
+    let mut rig = start(&world, &root, &[("MERE_STUB", "hold")], "a/b");
     let g = rig.app.ids().generate;
     rig.click_on(g);
     rig.park();
@@ -214,7 +214,7 @@ fn r4_a_refused_seed_starts_nothing() {
 fn r5_a_moved_setting_queues_the_next_run() {
     let Some(world) = world() else { return };
     let root = root("runs-r5");
-    let mut rig = start(&world, &root, &[("NUI_STUB", "hold")], "r5-seed");
+    let mut rig = start(&world, &root, &[("MERE_STUB", "hold")], "r5-seed");
     let g = rig.app.ids().generate;
     rig.click_on(g);
     assert!(rig.app.running());
@@ -240,7 +240,7 @@ fn r5_a_moved_setting_queues_the_next_run() {
 fn r6_quitting_stops_the_run_under_way() {
     let Some(world) = world() else { return };
     let root = root("runs-r6");
-    let mut rig = start(&world, &root, &[("NUI_STUB", "hold")], "r6-seed");
+    let mut rig = start(&world, &root, &[("MERE_STUB", "hold")], "r6-seed");
     let g = rig.app.ids().generate;
     rig.click_on(g);
     rig.until(30, "the server's pid", |_| pid_of(&root).is_some());

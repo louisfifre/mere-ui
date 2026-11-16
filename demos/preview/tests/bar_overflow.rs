@@ -6,9 +6,9 @@
 
 mod common;
 
-use nui_base::{App, Button, Cmd, Event, Rect, Vec2};
-use nui_ui::{Id, MENU_ROW, Theme, Ui, tool_button_width};
-use nui_win32::Renderer;
+use mere_base::{App, Button, Cmd, Event, Rect, Vec2};
+use mere_ui::{Id, MENU_ROW, Theme, Ui, tool_button_width};
+use mere_win32::Renderer;
 use preview::overflow::{self, Form, Inputs};
 use preview::world::World;
 use preview::{Mode, PreviewApp, PreviewState, ShellIds, picture_with, text};
@@ -25,11 +25,11 @@ fn state(account: Option<&str>, view: usize) -> PreviewState {
     PreviewState { account: account.map(String::from), view, reduce_motion: true, ..PreviewState::default() }
 }
 
-fn built(w: f32, st: PreviewState, world: Option<&World>) -> (nui_base::DrawList, Ui, ShellIds) {
+fn built(w: f32, st: PreviewState, world: Option<&World>) -> (mere_base::DrawList, Ui, ShellIds) {
     picture_with(Theme::dark(), Vec2::new(w, 800.0), world, st)
 }
 
-fn drawn(list: &nui_base::DrawList) -> Vec<String> {
+fn drawn(list: &mere_base::DrawList) -> Vec<String> {
     list.cmds.iter().filter_map(|c| if let Cmd::Text { text, .. } = c { Some(text.clone()) } else { None }).collect()
 }
 

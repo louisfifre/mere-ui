@@ -1,8 +1,8 @@
 //! The settings panel's "This view only" filter: which settings are listed for each view, with the filter on
 //! and off, and that the panel follows a change of view.
 
-use nui_base::Vec2;
-use nui_ui::{Id, Theme, Ui};
+use mere_base::Vec2;
+use mere_ui::{Id, Theme, Ui};
 use preview::settings::SETTINGS;
 use preview::text;
 use preview::view_filter::{groups_for, visible};
@@ -129,7 +129,7 @@ fn the_filter_toggle_lines_up_with_the_fields_with_and_without_a_scrollbar() {
         s.frame();
         let first = s.rows()[0];
         let (row, filter) = (s.ui.rect(s.ids.rows[first]).unwrap(), s.ui.rect(s.ids.view_only).unwrap());
-        let gutter = if bar { nui_ui::GUTTER } else { 0.0 };
+        let gutter = if bar { mere_ui::GUTTER } else { 0.0 };
         assert!((row.x + row.w - (filter.x + filter.w - gutter)).abs() < 0.5, "view {view}: rows end at {}, filter at {}", row.x + row.w, filter.x + filter.w);
         assert_eq!(s.state.settings_bar, bar, "view {view}");
     }

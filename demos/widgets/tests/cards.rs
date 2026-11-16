@@ -1,9 +1,9 @@
 //! Every card of the Design System drawn offscreen in both themes (`target/tmp/card_<name>_<theme>.png`).
 //! The list is `widgets::cards::CARDS`; a new card adds nothing here.
 
-use nui_base::Gfx;
-use nui_ui::Theme;
-use nui_win32::Renderer;
+use mere_base::Gfx;
+use mere_ui::Theme;
+use mere_win32::Renderer;
 use widgets::cards::CARDS;
 
 fn draw(theme: Theme, name: &str, themed: &str) {
@@ -16,7 +16,7 @@ fn draw(theme: Theme, name: &str, themed: &str) {
     r.end();
     let rgba = r.read_rgba().unwrap();
     let path = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("card_{name}_{themed}.png"));
-    std::fs::write(&path, nui_png::encode(w, h, &rgba)).unwrap();
+    std::fs::write(&path, mere_png::encode(w, h, &rgba)).unwrap();
     println!("wrote {}", path.display());
 }
 

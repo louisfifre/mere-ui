@@ -2,8 +2,8 @@
 //! sets the area, and past 32,768 blocks the sixteen-block detail gives way to the next coarser one, with the hint
 //! under the row. Built as `PreviewApp::frame` builds the shell, without a world and without a GPU.
 
-use nui_base::{Button, Cmd, Event, Vec2};
-use nui_ui::{MENU_ROW, Theme, Ui};
+use mere_base::{Button, Cmd, Event, Vec2};
+use mere_ui::{MENU_ROW, Theme, Ui};
 use preview::run::DETAIL_BLOCKS;
 use preview::{PreviewState, ShellIds, build};
 
@@ -53,7 +53,7 @@ fn a1_the_area_opens_its_sixteen_widths_and_a_row_sets_it() {
     assert!(r.says("4,096 blocks"), "the box shows the area as the page opens");
     assert!(!r.says("65,536 blocks"), "the menu is closed");
     let b = r.ui.rect(r.ids.select).expect("the select is built");
-    assert!((b.h - nui_ui::tokens::CONTROL_COMPACT).abs() < 0.01, "the preview's select is a compact one: {b:?}");
+    assert!((b.h - mere_ui::tokens::CONTROL_COMPACT).abs() < 0.01, "the preview's select is a compact one: {b:?}");
 
     r.click(Vec2::new(b.x + b.w / 2.0, b.y + b.h / 2.0));
     for blocks in ["4,096 blocks", "32,768 blocks", "36,864 blocks", "65,536 blocks"] {
@@ -67,7 +67,7 @@ fn a1_the_area_opens_its_sixteen_widths_and_a_row_sets_it() {
     assert!(!r.says("65,536 blocks"), "the menu closes on its choice");
     assert!(r.says("36,864 blocks"), "the box shows the choice");
     assert_eq!(DETAIL_BLOCKS[r.s.detail], 32, "the sixteen-block detail gives way to 32");
-    assert_ne!(r.ids.area_hint, nui_ui::Id::ROOT, "the hint is under the row");
+    assert_ne!(r.ids.area_hint, mere_ui::Id::ROOT, "the hint is under the row");
     // The paragraph is drawn one line at a time.
     assert!(r.texts.join(" ").contains("Past 32,768 blocks"), "the hint says why");
 }
@@ -81,5 +81,5 @@ fn a2_a_fine_area_keeps_the_detail_and_shows_no_hint() {
     r.click(Vec2::new(b.x + b.w / 2.0, b.y + b.h + 1.0 + 7.0 * MENU_ROW + MENU_ROW / 2.0));
     assert_eq!(r.s.samples, 2048);
     assert_eq!(DETAIL_BLOCKS[r.s.detail], 16);
-    assert_eq!(r.ids.area_hint, nui_ui::Id::ROOT, "no hint");
+    assert_eq!(r.ids.area_hint, mere_ui::Id::ROOT, "no hint");
 }
