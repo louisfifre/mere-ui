@@ -768,7 +768,11 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
 
 /// The filter: its label and a toggle, on the grid of the settings' rows so that the toggle sits above their fields.
 fn view_only_row(ui: &mut Ui, only: &mut bool) {
-    let r = ui.node("view_only", setting_row(), |ui| {
+    // The rows below sit in a scroll that keeps a gutter for its bar on the right; the same gap here lines the
+    // toggle up with their fields.
+    let mut row = setting_row();
+    row.pad.right = nui_ui::GUTTER;
+    let r = ui.node("view_only", row, |ui| {
         ui.paragraph(text::VIEW_ONLY, TextLook::body(Tone::Text));
         ui.text("", TextLook::body(Tone::Muted));
         ui.toggle("field", only, text::ON, text::OFF);
