@@ -2,6 +2,8 @@
 //! and (step 18) the figures, the lists and the history, in the colours of the system's scheme.
 
 pub mod app;
+pub mod apply;
+pub mod apply_ui;
 pub mod bands;
 pub mod bar;
 pub mod colour;
