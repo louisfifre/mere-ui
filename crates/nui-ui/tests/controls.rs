@@ -260,15 +260,15 @@ fn strip_colours() {
     let c = centre(&ui, id);
     mv(&mut ui, c);
     assert_eq!(word(&one_tab(&mut ui, plain).1, "Flat").2, t.text);
-    // Pressed, and pressed under the pointer: the word stays in the ground colour.
+    // Pressed, and pressed under the pointer: the word stays in the fill's own word colour.
     let mut ui = dark();
     let (id, l) = one_tab(&mut ui, pressed);
-    assert_eq!(fills(&l)[0].1, t.text);
-    assert_eq!(frames_of(&l), vec![t.text]);
-    assert_eq!(word(&l, "Flat").2, t.ground);
+    assert_eq!(fills(&l)[0].1, t.fill);
+    assert_eq!(frames_of(&l), vec![t.fill]);
+    assert_eq!(word(&l, "Flat").2, t.on_fill);
     let c = centre(&ui, id);
     mv(&mut ui, c);
-    assert_eq!(word(&one_tab(&mut ui, pressed).1, "Flat").2, t.ground);
+    assert_eq!(word(&one_tab(&mut ui, pressed).1, "Flat").2, t.on_fill);
     // Disabled: faded, and no click.
     let off = TabOpts { pressed: false, disabled: true };
     let mut ui = dark();
@@ -300,7 +300,7 @@ fn pressed_tab_paints_after_its_neighbours() {
             .position(|k| matches!(k, Cmd::Frame { rect, color, .. } if (rect.x - r.x).abs() < 1e-3 && *color == c))
             .expect("frame drawn")
     };
-    assert!(index(flat, t.text) > index(relief, t.edge));
+    assert!(index(flat, t.fill) > index(relief, t.edge));
 }
 
 #[test]
@@ -329,7 +329,7 @@ fn tab_click_is_reported_and_the_app_selects() {
     let list = frame(&mut ui, |ui| ids = strip(ui, 20.0, 36.0, sel, false, &[]));
     let relief = ui.rect(ids[2]).unwrap();
     let flat = ui.rect(ids[1]).unwrap();
-    let has_fill = |r: Rect| fills(&list).iter().any(|(f, c)| (f.x - r.x).abs() < 1e-3 && *c == t.text && f.h > 2.0);
+    let has_fill = |r: Rect| fills(&list).iter().any(|(f, c)| (f.x - r.x).abs() < 1e-3 && *c == t.fill && f.h > 2.0);
     assert!(has_fill(relief));
     assert!(!has_fill(flat));
 }
@@ -359,8 +359,8 @@ fn choice_looks() {
     near(ui.rect(ids[2]).unwrap().x, 124.8);
     let f = fills(&l);
     assert_eq!(f.len(), 1);
-    assert_eq!(f[0].1, t.text);
-    assert_eq!(word(&l, "Pack").2, t.ground);
+    assert_eq!(f[0].1, t.fill);
+    assert_eq!(word(&l, "Pack").2, t.on_fill);
     assert_eq!(word(&l, "Try 2").2, t.muted);
     assert_eq!(word(&l, "Try 4").2, t.faded(t.muted, FADE_DISABLED));
     let c = centre(&ui, ids[1]);
@@ -392,9 +392,9 @@ fn details_geometry_and_colours() {
     let s = word(&list, "10 s");
     near(s.0.y - 1.1, 179.0);
     assert_eq!(s.2, t.muted);
-    assert_eq!(word(&list, "32 blocks").2, t.ground);
-    assert_eq!(word(&list, "25 s").2, nui_ui::mix(t.ground, 0.7, t.text));
-    assert!(fills(&list).iter().any(|(_, c)| *c == t.text));
+    assert_eq!(word(&list, "32 blocks").2, t.on_fill);
+    assert_eq!(word(&list, "25 s").2, nui_ui::mix(t.on_fill, 0.7, t.fill));
+    assert!(fills(&list).iter().any(|(_, c)| *c == t.fill));
     assert!(frames_of(&list).contains(&t.faded(t.edge, FADE_DISABLED)));
 }
 

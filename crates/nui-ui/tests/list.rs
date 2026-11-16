@@ -154,10 +154,10 @@ fn thumb_at_thirty_percent() {
     y = 0.3 * MAX;
     let (l3, _, _) = fixture(&mut ui, &mut y, plain);
     // The track runs between two 12 px arrows: 176 long from 42.5 + 12 = 54.5. Thumb height = 176 x 200 / 544 = 64.71;
-    // top = 54.5 + (176 - 64.71) x 0.3; the gutter is 350 to 362: the 4 px thumb is at 354 and the 1 px track at 356.
+    // top = 54.5 + (176 - 64.71) x 0.3; the gutter is 350 to 362: the 3 px thumb is at 355 and the 1 px track at 356, in its middle column.
     let t = Theme::dark();
     let thumb = fills(&l3).into_iter().find(|(r, c)| r.w == THUMB_W && same_px(*c, t.muted)).expect("a thumb").0;
-    near(thumb.x, 354.0);
+    near(thumb.x, 355.0);
     near(thumb.y, BOX_Y + ARROW + (TRACK_H - THUMB_H) * 0.3);
     near(thumb.h, THUMB_H);
     // The track is a 1 px line in the theme's line colour, inside the thumb, the full length between the arrows.

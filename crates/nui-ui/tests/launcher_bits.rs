@@ -57,8 +57,8 @@ fn square_rest_hover_pressed_disabled() {
     assert_eq!(at_state(IconLook::Square, rest, false), (None, Some(t.edge), t.muted));
     assert_eq!(at_state(IconLook::Square, rest, true), (None, Some(t.text), t.text));
     let on = IconOpts { pressed: true, ..rest };
-    assert_eq!(at_state(IconLook::Square, on, false), (Some(t.text), Some(t.text), t.ground));
-    assert_eq!(at_state(IconLook::Square, on, true), (Some(t.text), Some(t.text), t.ground), "aria-expanded keeps its look on hover");
+    assert_eq!(at_state(IconLook::Square, on, false), (Some(t.fill), Some(t.fill), t.on_fill));
+    assert_eq!(at_state(IconLook::Square, on, true), (Some(t.fill), Some(t.fill), t.on_fill), "aria-expanded keeps its look on hover");
     let off = IconOpts { disabled: true, ..rest };
     assert_eq!(at_state(IconLook::Square, off, true), (None, Some(t.faded(t.edge, FADE_DISABLED)), t.faded(t.muted, FADE_DISABLED)));
 }
@@ -67,11 +67,11 @@ fn square_rest_hover_pressed_disabled() {
 fn filled_rest_hover_disabled() {
     let t = Theme::dark();
     let rest = IconOpts::default();
-    assert_eq!(at_state(IconLook::Filled, rest, false), (Some(t.text), Some(t.text), t.ground));
-    let lit = mix(t.text, FADE_LIT, t.ground);
-    assert_eq!(at_state(IconLook::Filled, rest, true), (Some(lit), Some(lit), t.ground));
+    assert_eq!(at_state(IconLook::Filled, rest, false), (Some(t.fill), Some(t.fill), t.on_fill));
+    let lit = mix(t.fill, FADE_LIT, t.ground);
+    assert_eq!(at_state(IconLook::Filled, rest, true), (Some(lit), Some(lit), t.on_fill));
     let off = IconOpts { disabled: true, ..rest };
-    assert_eq!(at_state(IconLook::Filled, off, true), (Some(t.faded(t.text, FADE_DISABLED)), Some(t.faded(t.text, FADE_DISABLED)), t.faded(t.ground, FADE_DISABLED)));
+    assert_eq!(at_state(IconLook::Filled, off, true), (Some(t.faded(t.fill, FADE_DISABLED)), Some(t.faded(t.fill, FADE_DISABLED)), t.faded(t.on_fill, FADE_DISABLED)));
 }
 
 #[test]
