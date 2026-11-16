@@ -107,6 +107,23 @@ impl Rig {
         let i = (y as usize * self.w as usize + x as usize) * 4;
         [rgba[i], rgba[i + 1], rgba[i + 2]]
     }
+
+    /// How many pixels of a rect differ from the ground: the button is unframed, so this is its icon's ink, and a
+    /// filled icon has more than an empty one.
+    fn ink(&mut self, r: Rect) -> usize {
+        let rgba = self.r.read_rgba().unwrap();
+        let ground = rgb(self.theme.ground);
+        let mut n = 0;
+        for y in r.y as usize..(r.y + r.h) as usize {
+            for x in r.x as usize..(r.x + r.w) as usize {
+                let i = (y * self.w as usize + x) * 4;
+                if [rgba[i], rgba[i + 1], rgba[i + 2]] != ground {
+                    n += 1;
+                }
+            }
+        }
+        n
+    }
 }
 
 fn centre(r: Rect) -> Vec2 {
@@ -337,20 +354,19 @@ fn a_closed_panel_gives_its_room_to_the_map() {
 #[test]
 fn the_bars_buttons_toggle_their_own_panel() {
     let mut rig = Rig::new(1400, H as u32, state(), None);
-    let t = rig.theme;
     let ids = rig.ids();
     assert_eq!(rig.state().panel_open, [true, true], "both start open");
-    for i in 0..2 {
-        let b = rig.rect(ids.toggles[i]);
-        assert_eq!(rig.px(b.x + 2.0, b.y + 2.0), rgb(t.text), "button {i} is pressed while its panel is open");
-    }
+    rig.move_to(Vec2::new(5.0, 400.0));
+    // The buttons are unframed (`IconLook::Caption`): an open panel shows a filled icon, a hidden one an empty icon.
+    let open: Vec<usize> = (0..2).map(|i| { let b = rig.rect(ids.toggles[i]); rig.ink(b) }).collect();
+    assert!(open.iter().all(|&n| n > 0), "both icons are drawn");
     rig.click_on(ids.toggles[0]);
     assert_eq!(rig.state().panel_open, [false, true], "the settings button closes the settings panel only");
     let b0 = rig.rect(ids.toggles[0]);
     rig.move_to(Vec2::new(5.0, 400.0));
-    assert_eq!(rig.px(b0.x + 2.0, b0.y + 2.0), rgb(t.ground), "released when its panel is closed");
+    assert!(rig.ink(b0) < open[0], "the icon empties when its panel is closed");
     let b1 = rig.rect(ids.toggles[1]);
-    assert_eq!(rig.px(b1.x + 2.0, b1.y + 2.0), rgb(t.text), "the other one stays pressed");
+    assert_eq!(rig.ink(b1), open[1], "the other one stays filled");
     rig.click_on(ids.toggles[1]);
     assert_eq!(rig.state().panel_open, [false, false]);
     rig.click_on(ids.toggles[0]);

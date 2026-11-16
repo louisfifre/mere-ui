@@ -1,15 +1,14 @@
 //! The parts of a window drawn by the application: the grips along its edges, the caption area of its bar
 //! and the icon buttons of its tool strip and window buttons (launcher lines 75-129).
 
-use nui_base::{Cmd, Color, Cursor, Edge, Hit, Rect, Vec2};
+use nui_base::{Cmd, Cursor, Edge, Hit, Rect, Vec2};
 use nui_layout::{Align, Dim, Justify, Margin, Position, Side, Style};
 
 use crate::icon::{Icon, icon_shape};
 use crate::id::Id;
 use crate::text::{TextLook, Tone};
 use crate::theme::mix;
-use crate::tokens::palette::{GREY_0, RED_600};
-use crate::tokens::{CAPTION_W, CONTROL, FADE_DISABLED, FADE_LIT, FADE_TINT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
+use crate::tokens::{CONTROL, FADE_DISABLED, FADE_LIT, FADE_TINT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
 use crate::ui::{Paint, Resp, Ui};
 
 /// A tool button with its name (`Ui::tool_button`): `inset` inside the frame before the icon, `gap` between the
@@ -82,9 +81,9 @@ pub fn chrome_hit(ui: &Ui, pos: Vec2, size: Vec2, maximized: bool, bar: Id, butt
 pub enum IconLook {
     /// `.strip button` with an icon (lines 110-112, 122): 36 x 28, framed, drawn in reverse when pressed.
     Tool,
-    /// A window button: `caption-w` wide and as tall as the bar, no frame.
+    /// A window button or a panel's button: an `icon-square` square, no frame, a tint under the pointer.
     Caption,
-    /// `.ends #close`: red under the pointer.
+    /// The close button: the same look as `Caption`, kept apart so a host can name it.
     Close,
     /// A square of `icon-square`, framed in --edge, a muted 16 px icon; under
     /// the pointer the icon and the frame take --text; `pressed` (aria-expanded) is drawn in reverse.
@@ -127,7 +126,7 @@ impl Ui {
                     ..Style::default()
                 };
                 if opts.pressed {
-                    (style, Some(t.text), Some(t.text), t.ground)
+                    (style, Some(t.fill), Some(t.fill), t.on_fill)
                 } else {
                     (style, None, Some(t.edge), if lit { t.text } else { t.muted })
                 }
@@ -149,28 +148,32 @@ impl Ui {
                 match look {
                     IconLook::Bare => (style, None, None, if lit { t.text } else { t.muted }),
                     IconLook::Filled if lit => {
-                        let c = mix(t.text, FADE_LIT, t.ground);
-                        (style, Some(c), Some(c), t.ground)
+                        let c = mix(t.fill, FADE_LIT, t.ground);
+                        (style, Some(c), Some(c), t.on_fill)
                     }
-                    IconLook::Filled => (style, Some(t.text), Some(t.text), t.ground),
+                    IconLook::Filled => (style, Some(t.fill), Some(t.fill), t.on_fill),
                     // aria-expanded keeps its reversed look on hover (line 165).
-                    _ if opts.pressed => (style, Some(t.text), Some(t.text), t.ground),
+                    _ if opts.pressed => (style, Some(t.fill), Some(t.fill), t.on_fill),
                     _ if lit => (style, None, Some(t.text), t.text),
                     _ => (style, None, Some(t.edge), t.muted),
                 }
             }
+            // The window is ours end to end, so its buttons are the kit's, not the system's: an unframed square,
+            // the icon muted, and under the pointer the icon in --text on a faint tint. The panels' buttons take
+            // the same look.
             IconLook::Caption | IconLook::Close => {
                 let style = Style {
-                    w: Dim::Px(CAPTION_W),
+                    w: Dim::Px(ICON_SQUARE),
+                    h: Dim::Px(ICON_SQUARE),
                     shrink: 0.0,
                     align_items: Align::Center,
                     justify: Justify::Center,
                     ..Style::default()
                 };
-                match (lit, look) {
-                    (true, IconLook::Close) => (style, Some(Color::hex(RED_600)), None, Color::hex(GREY_0)),
-                    (true, _) => (style, Some(mix(t.text, FADE_TINT, t.ground)), None, t.text),
-                    (false, _) => (style, None, None, t.muted),
+                if lit {
+                    (style, Some(mix(t.text, FADE_TINT, t.ground)), None, t.text)
+                } else {
+                    (style, None, None, t.muted)
                 }
             }
         };
@@ -209,7 +212,7 @@ impl Ui {
             position: if opts.pressed { Position::Relative } else { Position::Static },
             ..Style::default()
         };
-        let (fill, frame, color) = if opts.pressed { (Some(t.text), Some(t.text), t.ground) } else { (None, Some(t.edge), if lit { t.text } else { t.muted }) };
+        let (fill, frame, color) = if opts.pressed { (Some(t.fill), Some(t.fill), t.on_fill) } else { (None, Some(t.edge), if lit { t.text } else { t.muted }) };
         self.open(key, id, style, Paint::Box { fill, frame });
         let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
         let mut cmds = vec![icon_shape(icon, ICON, color, icon.axis_aligned())];

@@ -7,9 +7,9 @@ mod common;
 use std::path::Path;
 
 use nui_base::{App, Button, Event, Hit, Rect, Vec2, WindowRequest, Edge};
-use nui_ui::tokens::{CAPTION_W, palette};
+use nui_ui::tokens::{ICON_SQUARE, palette};
 use nui_ui::{Id, TOOL_PAD_L, Theme, Ui};
-use preview::overflow::ENDS_W;
+use preview::overflow::{ENDS_W, TOGGLE_EDGE};
 use nui_win32::Renderer;
 use preview::world::World;
 use preview::{BAR_H, CONTENT_TOP, Mode, PreviewApp, PreviewState, ShellIds, picture};
@@ -153,10 +153,10 @@ fn b1_the_bar_keeps_its_form_at_every_width() {
             assert!((strip.x - (lead.x + lead.w + 12.0)).abs() <= 1.01, "tools sat left at {w}: {strip:?}");
         }
         for (i, e) in ids.ends.iter().enumerate() {
-            near(rect_of(&ui, *e).x, w - ENDS_W + CAPTION_W * i as f32, &format!("end {i} at {w}"));
+            near(rect_of(&ui, *e).x, w - ENDS_W + ICON_SQUARE * i as f32, &format!("end {i} at {w}"));
         }
         near(trail.x + trail.w + 8.0, w - ENDS_W, &format!("the figures button before the window's buttons at {w}"));
-        near(lead.x, 12.0, &format!("the settings button at {w}"));
+        near(lead.x, TOGGLE_EDGE, &format!("the settings button at {w}"));
         assert!(lead.x + lead.w < strip.x, "the settings button ends before the tools at {w}: {lead:?} {strip:?}");
         assert!(strip.x + strip.w < trail.x, "the tools end before the figures button at {w}: {strip:?}");
         let tabs: Vec<Rect> = ids.tabs.iter().map(|&t| rect_of(&ui, t)).collect();
@@ -346,7 +346,7 @@ fn b6_the_bar_is_whole_device_pixels_at_every_scale() {
         }
 
         // The icons: each is its colour or the ground, nothing between.
-        for (what, id, side) in [("home", ids.tools[0], 36.0), ("minimise", ids.ends[0], CAPTION_W), ("maximise", ids.ends[1], CAPTION_W), ("close", ids.ends[2], CAPTION_W)] {
+        for (what, id, side) in [("home", ids.tools[0], 36.0), ("minimise", ids.ends[0], ICON_SQUARE), ("maximise", ids.ends[1], ICON_SQUARE), ("close", ids.ends[2], ICON_SQUARE)] {
             let r = rig.rect(id);
             // The home tool is its icon, TOOL_PAD_L in, and its name; the others are the icon alone.
             let c = if what == "home" { Vec2::new(r.x + TOOL_PAD_L + 8.0, r.y + r.h / 2.0) } else { centre(r) };
@@ -429,7 +429,7 @@ fn bar_pictures() {
 
     let mut rig = Rig::standard(&world);
     let close = rig.rect(rig.app.ids().ends[2]);
-    rig.hover(Vec2::new(close.x + CAPTION_W / 2.0, close.y + 20.0));
+    rig.hover(Vec2::new(close.x + ICON_SQUARE / 2.0, close.y + 20.0));
     let rgba = rig.write("bar_hover_close.png");
     assert_eq!(rig.px(&rgba, (close.x + 3.0) as u32, (close.y + 3.0) as u32), [(palette::RED_600 >> 16) as u8, (palette::RED_600 >> 8) as u8, palette::RED_600 as u8], "Close is red under the pointer");
     // Beside it the others stay quiet.

@@ -301,11 +301,11 @@ fn colours_follow_state() {
     // Primary.
     let mut ui = dark();
     let (r, normal) = primary(&mut ui, ButtonOpts::default());
-    assert_eq!(fills(&normal)[0], t.text);
+    assert_eq!(fills(&normal)[0], t.fill);
     let c = centre(&ui, &r);
     mv(&mut ui, c);
     let (_, hover) = primary(&mut ui, ButtonOpts::default());
-    assert_eq!(fills(&hover)[0], t.faded(t.text, FADE_LIT));
+    assert_eq!(fills(&hover)[0], t.faded(t.fill, FADE_LIT));
     down(&mut ui, c);
     let (r, held) = primary(&mut ui, ButtonOpts::default());
     assert!(r.held);

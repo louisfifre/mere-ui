@@ -19,23 +19,25 @@
 //!
 //! The two tools keep their names, always.
 
-use nui_ui::tokens::{CAPTION_W, GAP};
+use nui_ui::tokens::{GAP, GAP_TIGHT, ICON, ICON_SQUARE};
 use nui_ui::{ADVANCE_EM, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, TextLook, Tone, tool_button_width};
 
 use crate::text;
 
-/// The window's three buttons, `CAPTION_W` each: what the right cell holds at least.
-pub const ENDS_W: f32 = 3.0 * CAPTION_W;
-/// A panel's button (`IconLook::Tool`): 36 wide, pulled 1 px over what is before it.
-pub const TOGGLE_W: f32 = 36.0;
-/// Before the settings button, so that it starts where the brand's cube does (12 px in).
-pub const TOGGLE_EDGE: f32 = 13.0;
+/// From the window's edge to an end button's square: the icon in it then sits 12 px in, where the brand's cube does.
+pub const EDGE: f32 = 12.0 - (ICON_SQUARE - ICON) / 2.0;
+/// The window's three buttons, `icon-square` each, and the room after them: what the right cell holds at least.
+pub const ENDS_W: f32 = 3.0 * ICON_SQUARE + EDGE;
+/// A panel's button: the window buttons' unframed square.
+pub const TOGGLE_W: f32 = ICON_SQUARE;
+/// Before the settings button, so that its icon starts where the brand's cube does.
+pub const TOGGLE_EDGE: f32 = EDGE;
 /// Between the figures button and the window's buttons.
-pub const TOGGLE_GAP: f32 = 8.0;
-/// What the left cell holds in the preview tool, and the right one.
-pub const LEFT_NEED: f32 = TOGGLE_EDGE + TOGGLE_W - 1.0;
-/// The figures button sits 1 px left of its cell (it is pulled over what is before it), so the cell is asked for
-/// the button whole, and for the gap the tools keep from it.
+pub const TOGGLE_GAP: f32 = GAP;
+/// Between the preview tool and its views: both can be filled at once, and must not touch.
+pub const TOOL_VIEWS_GAP: f32 = GAP_TIGHT;
+/// What the left cell holds in the preview tool, and the right one, with the gap the tools keep from the buttons.
+pub const LEFT_NEED: f32 = TOGGLE_EDGE + TOGGLE_W;
 pub const RIGHT_NEED: f32 = TOGGLE_W + TOGGLE_GAP + ENDS_W + TOOLS_GAP;
 /// The least space between the tools and the panels' buttons: after the settings button when they sit left, and
 /// before the figures button always.
@@ -81,7 +83,7 @@ const fn widest_view_tab() -> f32 {
     widest
 }
 /// The strip of the narrowest bar: the two tools, one view, "More".
-pub const NARROW_STRIP: f32 = 1.0 + (tool_w(text::TOOL_NAMES[0]) - 1.0) + SEP + (tool_w(text::TOOL_NAMES[1]) - 1.0) + 1.0 + widest_view_tab() + MORE_W;
+pub const NARROW_STRIP: f32 = 1.0 + (tool_w(text::TOOL_NAMES[0]) - 1.0) + SEP + (tool_w(text::TOOL_NAMES[1]) - 1.0) + 1.0 + TOOL_VIEWS_GAP + widest_view_tab() + MORE_W;
 /// The narrowest the preview tool's bar can be: the settings button, the tools sat left, the figures button and the
 /// window's buttons.
 pub const NARROW_BAR: f32 = LEFT_NEED + TOOLS_GAP + NARROW_STRIP + RIGHT_NEED;
@@ -157,8 +159,9 @@ pub fn strip_width(i: &Inputs, form: &Form) -> f32 {
     // The strip's own 1 px of padding, then the tools: each pulled 1 px over what is before it.
     let mut w = 1.0 + (tool_button_width(text::TOOL_NAMES[0]) - 1.0) + SEP + (tool_button_width(text::TOOL_NAMES[1]) - 1.0);
     if i.preview_open {
-        // The options' box pads its tabs by 1 px on the left, which the first tab's pull takes back.
-        w += 1.0;
+        // The options' box pads its tabs by 1 px on the left, which the first tab's pull takes back, and by the
+        // gap that keeps them off the tool.
+        w += 1.0 + TOOL_VIEWS_GAP;
         w += (0..VIEW_COUNT).filter(|v| !form.more.contains(v)).map(|v| tab_step(view_word(v))).sum::<f32>();
         if form.has_more() {
             w += more_step();

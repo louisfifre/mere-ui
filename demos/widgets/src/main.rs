@@ -1,116 +1,63 @@
-//! widgets [--controls | --fields | --lists | --launcher] [--light] [--shot out.png]
+//! widgets [--card NAME] [--light] [--shot out.png]
 //!
-//! Without --shot, opens a window with the live widgets (--controls: the folds, tabs and number fields;
-//! --fields: the text and number fields, typed into for real; --lists: the biome list with its scrollbar,
-//! the wheel and the thumb working, and the trend rows). With it, draws one frame offscreen and writes
-//! the PNG: the same frame the window would show.
+//! Shows one card of the Design System (default: button), drawn once with its forced states: the window and
+//! `--shot` draw the same list. With --shot, draws one frame offscreen, writes the PNG and exits.
 
-use nui_base::{App, DrawList, Event, Gfx, Rect, Vec2, log};
-use nui_ui::{Theme, Ui};
-use widgets::{CONTROLS, ControlsState, FIELDS, FieldsState, LAUNCHER, LISTS, LauncherState, ListsState, launcher_live, SHEET, controls_live, fields_live, live, lists_live, lists_marks, text};
+use nui_base::{App, Event, Gfx, log};
+use nui_ui::Theme;
+use widgets::cards::{CARDS, Card};
+use widgets::text;
 
-struct Widgets {
-    ui: Ui,
+const DEFAULT_CARD: &str = "button";
+
+struct Showcase {
     theme: Theme,
-    size: Vec2,
-    ons: [bool; 2],
-    controls: Option<ControlsState>,
-    fields: Option<FieldsState>,
-    lists: Option<ListsState>,
-    launcher: Option<LauncherState>,
+    card: Card,
 }
 
-impl App for Widgets {
+impl App for Showcase {
     fn start(&mut self, _: &mut dyn Gfx) {}
 
     fn event(&mut self, e: Event) -> bool {
-        if let Event::Resized { width_px, height_px, scale } = e {
-            self.size = Vec2::new(width_px as f32 / scale, height_px as f32 / scale);
-            return true;
-        }
-        self.ui.event(&e)
-    }
-
-    fn ime_spot(&self) -> Option<Rect> {
-        self.ui.ime_spot()
+        // A resize needs a new frame; nothing else changes a card.
+        matches!(e, Event::Resized { .. })
     }
 
     fn frame(&mut self, gfx: &mut dyn Gfx, _: f32) -> bool {
+        // The forced states (hover, held) are part of the picture, so the card is built once, not per frame.
         gfx.begin(self.theme.ground);
-        // The scrollbar's gutter is reserved a frame after the list overflows: the lists page builds again
-        // before drawing, so that a picture (which is one frame) shows the settled page.
-        let mut list = DrawList::default();
-        for _ in 0..3 {
-            self.ui.begin_frame(self.size);
-            match (&mut self.controls, &mut self.fields, &mut self.lists, &mut self.launcher) {
-                (Some(s), _, _, _) => controls_live(&mut self.ui, s),
-                (_, Some(s), _, _) => fields_live(&mut self.ui, s),
-                (_, _, Some(s), _) => lists_live(&mut self.ui, s),
-                (_, _, _, Some(s)) => launcher_live(&mut self.ui, s),
-                _ => live(&mut self.ui, &mut self.ons),
-            }
-            list = self.ui.end_frame().clone();
-            if self.lists.is_none() || !self.ui.want_redraw() {
-                break;
-            }
-        }
-        gfx.draw_list(&list);
-        if let Some(s) = &self.lists {
-            gfx.draw_list(&lists_marks(&self.ui, s, self.theme));
-        }
+        gfx.draw_list(&self.card.list);
         gfx.end();
-        // A Tab moves the focus after the picture is made: one more frame shows it.
-        self.ui.want_redraw()
+        false
     }
 }
 
 fn usage() -> ! {
-    eprintln!("usage: widgets [--controls | --fields | --lists | --launcher] [--light] [--shot out.png]");
+    let names: Vec<_> = CARDS.iter().map(|c| c.0).collect();
+    eprintln!("usage: widgets [--card NAME] [--light] [--shot out.png]\ncards: {}", names.join(", "));
     std::process::exit(2);
 }
 
 fn main() {
     log::add_sink(log::stderr_sink(log::Level::Info));
-    let (mut light, mut shot, mut controls, mut fields, mut lists, mut launcher) = (false, None, false, false, false, false);
+    let (mut light, mut shot, mut name) = (false, None, DEFAULT_CARD.to_string());
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--light" => light = true,
-            "--controls" => controls = true,
-            "--fields" => fields = true,
-            "--lists" => lists = true,
-            "--launcher" => launcher = true,
+            "--card" => name = args.next().unwrap_or_else(|| usage()),
             "--shot" => shot = Some(args.next().unwrap_or_else(|| usage())),
             _ => usage(),
         }
     }
-    if [controls, fields, lists, launcher].iter().filter(|b| **b).count() > 1 {
-        usage();
-    }
     let theme = if light { Theme::light() } else { Theme::dark() };
-    let (w, h) = if controls {
-        CONTROLS
-    } else if fields {
-        FIELDS
-    } else if lists {
-        LISTS
-    } else if launcher {
-        LAUNCHER
-    } else {
-        SHEET
+    let Some(build) = widgets::cards::find(&name) else {
+        eprintln!("widgets: no card {name}");
+        usage();
     };
-    let mut ui = Ui::new(theme);
-    ui.set_clipboard(Box::new(nui_win32::SystemClipboard));
-    let mut app = Widgets {
-        ui,
-        theme,
-        size: Vec2::new(w as f32, h as f32),
-        ons: [false, true],
-        controls: controls.then(ControlsState::default),
-        fields: fields.then(FieldsState::default),
-        lists: lists.then(ListsState::default),
-        launcher: launcher.then(LauncherState::default),
-    };
+    let card = build(theme);
+    let (w, h) = (card.size.0.max(1), card.size.1.max(1));
+    let mut app = Showcase { theme, card };
     match shot {
         Some(path) => {
             let rgba = nui_win32::shot(&mut app, w, h, 1.0).unwrap_or_else(|e| {

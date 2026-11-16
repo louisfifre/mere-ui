@@ -45,15 +45,15 @@ fn check(theme: Theme, w: u32, name: &str) {
     let f = rect(ids.frame);
     same(at(f.x + 5.0, f.y + 5.0), theme.ground, "empty frame");
 
-    // P3: the pressed Relief tab is filled with --text (inside its 1 px frame).
+    // P3: the pressed Relief tab is filled with --fill (inside its 1 px frame).
     let relief = rect(ids.tabs[2]);
-    same(at(relief.x + 3.0, relief.y + 3.0), theme.text, "pressed tab");
+    same(at(relief.x + 3.0, relief.y + 3.0), theme.fill, "pressed tab");
 
     // P5: with no map the page decides Generate (nothing shows these settings): it is enabled, filled with --text
     // to its frame, and the status line has nothing to say, so it is not built.
     let g = rect(ids.generate);
-    same(at(g.x + g.w / 2.0, g.y), theme.text, "generate top border");
-    same(at(g.x + 3.0, g.y + 3.0), theme.text, "generate inside");
+    same(at(g.x + g.w / 2.0, g.y), theme.fill, "generate top border");
+    same(at(g.x + 3.0, g.y + 3.0), theme.fill, "generate inside");
     assert!(ids.status_text.is_empty() && ids.status == nui_ui::Id::ROOT, "an empty status is not built");
 
     // P6: the select's arrow: its third row of ink (the first full one), 13 px from the right edge plus 4. The five

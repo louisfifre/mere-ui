@@ -196,7 +196,7 @@ fn the_bar_fits_at_every_width_with_the_tools_named() {
             assert!(left.x + left.w <= strip.x + 0.01, "{name} {w}: the settings button overlaps the tools {left:?} {strip:?}");
             assert!(strip.x + strip.w <= right.x + 0.01, "{name} {w}: the tools overlap the figures button");
             assert!(right.x + right.w <= w - overflow::ENDS_W + 0.01, "{name} {w}: the figures button overlaps the window's buttons");
-            assert!((left.x - 12.0).abs() < 0.01, "{name} {w}: the settings button is 12 in from the edge: {left:?}");
+            assert!((left.x - overflow::TOGGLE_EDGE).abs() < 0.01, "{name} {w}: the settings button is TOGGLE_EDGE in from the edge: {left:?}");
             assert!((right.x + right.w + 8.0 - (w - overflow::ENDS_W)).abs() < 0.01, "{name} {w}: the figures button is 8 before the window's buttons: {right:?}");
             if ids.form.centred {
                 assert!((strip.x + strip.w / 2.0 - w / 2.0).abs() <= 0.5, "{name} {w}: the tools are centred");
@@ -380,14 +380,14 @@ impl Rig {
 #[test]
 fn choosing_a_view_in_more_presses_it() {
     let mut rig = Rig::new(1000, state(None, 0), None);
-    assert_eq!(rig.app.ids().form.more, vec![3, 4, 5], "Temperature, Structures and Section are in More at 1000");
+    assert_eq!(rig.app.ids().form.more, vec![4, 5], "Structures and Section are in More at 1000");
     let at = rig.more();
     rig.click(Vec2::new(at.x + 10.0, at.y + 10.0));
     let words = rig.words();
     for row in ["Structures", "Section"] {
         assert!(words.iter().any(|t| t == row), "{row} is listed: {words:?}");
     }
-    let at = rig.row(2);
+    let at = rig.row(1);
     rig.click(at);
     assert_eq!(rig.app.state().view, 5, "Section is pressed");
     assert!(!rig.app.ids().form.more.contains(&5), "and it is in the strip");
@@ -415,7 +415,8 @@ fn a_greyed_view_in_more_cannot_be_chosen() {
 /// Narrower still, 2D and 3D are rows of "More" after the views, and choosing one presses it like a tab does.
 #[test]
 fn shapes_in_more_are_chosen_like_views() {
-    let mut rig = Rig::new(640, state(None, 0), None);
+    // The least width the window can have: the bar has given up everything it can.
+    let mut rig = Rig::new(preview::MIN_SIZE.0.ceil() as u32, state(None, 0), None);
     let ids = rig.app.ids().clone();
     assert!(ids.form.shapes_in_more && !ids.form.centred, "{:?}", ids.form);
     assert_eq!(ids.tabs.len(), 1, "only the pressed view is a tab");
