@@ -95,6 +95,8 @@ pub struct PreviewApp {
     /// Apply to pack: the machine it asks (given with a pack), and the write under way with the values it writes.
     apply_host: Option<Arc<dyn Host>>,
     applying: Option<(JoinHandle<Outcome>, [f64; 43])>,
+    /// The form's values as `draft.json` holds them; None without runs, where nothing is kept.
+    draft_saved: Option<[f64; 43]>,
 }
 
 type CutKey = (usize, usize, usize, usize, usize, bool, BTreeSet<String>, u32);
@@ -134,6 +136,7 @@ impl PreviewApp {
             home: None,
             apply_host: None,
             applying: None,
+            draft_saved: None,
         };
         // Line 2815: the map that opens the page is kept like any other (in memory until there are runs).
         app.remember();
@@ -149,6 +152,20 @@ impl PreviewApp {
         self.state.before = std::fs::read_to_string(runs.before()).ok().and_then(|t| Json::parse(&t).ok()).and_then(|j| Figures::from_json(&j));
         // A pack is a place Apply can write to; the real machine is asked about what runs on it.
         self.state.pack_known = runs.pack.is_some();
+        // The pack's values are the ones its file holds now: an apply, or an edit by hand, moved them since the
+        // copy in `settings.rs` was made. A form still on that copy follows.
+        let held = runs.pack.as_ref().and_then(|p| std::fs::read_to_string(p.join("config").join("tectonic.json")).ok()).and_then(|t| apply::read_values(&t));
+        if let Some(held) = held {
+            if self.state.made.is_none() && self.state.values == self.state.baseline {
+                self.state.values = held;
+            }
+            self.state.baseline = held;
+        }
+        // What was typed last, generated or not, comes back over the last run's values.
+        if let Some(typed) = crate::draft::load(&runs.draft(), &self.state.values) {
+            self.state.values = typed;
+        }
+        self.draft_saved = Some(self.state.values);
         if self.apply_host.is_none() {
             self.apply_host = Some(Arc::new(SystemHost));
         }
@@ -770,6 +787,15 @@ impl App for PreviewApp {    fn start(&mut self, gfx: &mut dyn Gfx) {
             }
             if !self.ui.want_redraw() && self.state == before && !acted {
                 break;
+            }
+        }
+        // A value that moved is kept at once: a window closed without a run still has it at its next start.
+        if let (Some(runs), Some(saved)) = (&self.runs, self.draft_saved) {
+            if saved != self.state.values {
+                if let Err(e) = crate::draft::save(&runs.draft(), &self.state.values) {
+                    observe!(Warn, "draft: {}: {e}", runs.draft().display());
+                }
+                self.draft_saved = Some(self.state.values);
             }
         }
         // Before the list is drawn, so that the first frame already shows the picture.

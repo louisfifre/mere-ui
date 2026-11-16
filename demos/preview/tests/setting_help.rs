@@ -1,12 +1,12 @@
-//! Each setting's help: the "?" after its label opens a panel under the row that stays open, shows the label as its
-//! title and the hint under it, with a close cross on the title's line. Another "?" moves it, the same one, the cross
-//! or Escape closes it. Built as the application builds it, with events fed to the `Ui` between frames; the two
+//! Each setting's help: the "?" after its label opens a panel over the row that stays open and moves nothing, shows the
+//! label as its title, the hint and the setting's values under it, with a close cross on the title's line. Another
+//! "?" moves it; the cross or Escape closes it. Built as the application builds it, with events fed to the `Ui` between frames; the two
 //! pictures go through the offscreen renderer.
 
 use nui_base::{Button, Cmd, Color, Cursor, DrawList, Event, Gfx, Key, Mods, Rect, Vec2};
 use nui_ui::{Id, Theme, Ui};
 use nui_win32::Renderer;
-use preview::settings::SETTINGS;
+use preview::settings::{Kind, SETTINGS};
 use preview::shell::help_escape;
 use preview::text::{HELP_MARK, SETTING_HINTS, setting_hint};
 use preview::{PreviewState, ShellIds, build};
@@ -85,6 +85,11 @@ impl Rig {
     }
 }
 
+/// The help is painted on whole pixels, so it may sit half a pixel off a row that the scroll left on a half.
+fn snapped(a: f32, b: f32, what: &str) {
+    assert!((a - b).abs() <= 0.5, "{what}: {a} != {b}");
+}
+
 fn near(a: f32, b: f32, what: &str) {
     assert!((a - b).abs() < 0.01, "{what}: {a} != {b}");
 }
@@ -95,10 +100,15 @@ fn h1_every_setting_has_a_short_hint_of_its_own() {
     for s in &SETTINGS {
         let hint = setting_hint(s.key);
         assert!(!hint.is_empty(), "{} has no hint", s.key);
-        // One or two short sentences, each ended.
+        // Short sentences, each ended: what it shapes, then for a number what lower does and what higher does, in
+        // that order.
         assert!(hint.ends_with('.'), "{}: {hint}", s.key);
         let sentences = hint.matches(". ").count() + 1;
-        assert!(sentences <= 2 && hint.len() <= 120, "{} is too long: {hint}", s.key);
+        assert!(sentences <= 3 && hint.len() <= 170, "{} is too long: {hint}", s.key);
+        if matches!(s.kind, Kind::Number(_)) {
+            let (lower, higher) = (hint.find("Lower: "), hint.find("Higher: "));
+            assert!(matches!((lower, higher), (Some(l), Some(h)) if l < h), "{} says lower then higher: {hint}", s.key);
+        }
     }
     for (i, (k, _)) in SETTING_HINTS.iter().enumerate() {
         assert!(SETTING_HINTS[..i].iter().all(|(o, _)| o != k), "{k} twice");
@@ -107,18 +117,22 @@ fn h1_every_setting_has_a_short_hint_of_its_own() {
 }
 
 #[test]
-fn h2_the_mark_opens_the_help_under_its_row_and_it_stays() {
+fn h2_the_mark_opens_the_help_over_its_row_moves_nothing_and_it_stays() {
     let mut r = Rig::new(Theme::dark(), SIZE, PreviewState::default());
     assert_eq!(r.ids.help, Id::ROOT, "no help at first");
-    r.click_mark("vegetation_scale");
     let i = index("vegetation_scale");
+    let before: Vec<Rect> = (0..SETTINGS.len()).map(|k| r.rect(r.ids.rows[k])).collect();
+    r.click_mark("vegetation_scale");
     assert_eq!(r.s.help, Some(i));
-    // Under its row, as wide, the row above it and the next row under it.
+    // Over its row from the row's top, as wide, and no row has moved: it covers the next ones.
     let (row, panel) = (r.rect(r.ids.rows[i]), r.rect(r.ids.help));
     near(panel.x, row.x, "panel x");
     near(panel.w, row.w, "panel w");
-    assert!(panel.y >= row.y + row.h, "the panel is under its row");
-    assert!(r.rect(r.ids.rows[i + 1]).y >= panel.y + panel.h, "the next row is under the panel");
+    snapped(panel.y, row.y, "the panel starts at its row's top");
+    assert!(panel.h > row.h, "and covers more than its row");
+    for (k, was) in before.iter().enumerate() {
+        assert_eq!(r.rect(r.ids.rows[k]), *was, "{} did not move", SETTINGS[k].key);
+    }
     // The pointer leaving and more frames do not close it.
     r.moved(Vec2::new(700.0, 500.0));
     r.frame();
@@ -130,7 +144,7 @@ fn h2_the_mark_opens_the_help_under_its_row_and_it_stays() {
 }
 
 #[test]
-fn h3_another_mark_switches_the_same_one_closes() {
+fn h3_another_mark_switches_and_what_the_panel_covers_takes_no_click() {
     let mut r = Rig::new(Theme::dark(), SIZE, PreviewState::default());
     r.click_mark("temperature_scale");
     assert_eq!(r.s.help, Some(index("temperature_scale")));
@@ -139,12 +153,17 @@ fn h3_another_mark_switches_the_same_one_closes() {
     let v = index("vertical_scale");
     assert_eq!(r.s.help, Some(v));
     let row = r.rect(r.ids.rows[v]);
-    assert!(r.rect(r.ids.help).y >= row.y + row.h, "the panel moved under its new row");
-    // In the same group.
-    r.click_mark("elevation_boost");
-    assert_eq!(r.s.help, Some(index("elevation_boost")));
-    // The same mark again closes it.
-    r.click_mark("elevation_boost");
+    let panel = r.rect(r.ids.help);
+    assert!(panel.contains(Vec2::new(row.x + row.w / 2.0, row.y + row.h / 2.0)), "the panel moved over its new row");
+    // Another row lies under the panel: its mark takes no click, and its "?" does not show under the pointer.
+    let under = (0..SETTINGS.len()).find(|&k| k != v && r.ids.help_marks[k] != Id::ROOT && panel.contains(r.centre(r.ids.help_marks[k]))).expect("the panel covers another row's mark");
+    let at = r.centre(r.ids.help_marks[under]);
+    r.click(at);
+    assert_eq!(r.s.help, Some(v), "a click through the panel reaches nothing");
+    assert_eq!(r.marks().len(), 1, "only the open help's own mark is drawn, under the panel");
+    // The cross closes it, and no panel is built once closed.
+    let at = r.centre(r.ids.help_close);
+    r.click(at);
     assert_eq!(r.s.help, None);
     assert_eq!(r.ids.help, Id::ROOT, "no panel is built once closed");
 }
@@ -226,35 +245,70 @@ fn check_panel(r: &Rig, what: &str) {
     assert!(hint.y >= title.y + title.h, "{what}: the hint is under the title");
     assert!(hint.x >= panel.x + pad && hint.x + hint.w <= panel.x + panel.w - pad + 0.01, "{what}: the hint stays inside");
     assert!(panel.y + panel.h >= hint.y + hint.h + pad - 0.01, "{what}: the panel holds the hint");
+    // The facts, for a setting: under the hint, inside the panel.
+    if r.ids.help_facts != Id::ROOT {
+        let facts = r.rect(r.ids.help_facts);
+        assert!(facts.y >= hint.y + hint.h, "{what}: the facts are under the hint");
+        near(panel.y + panel.h, facts.y + facts.h + pad, &format!("{what}: the panel ends under the facts"));
+    }
 }
 
 #[test]
 fn h7_a_long_hint_wraps_and_the_cross_keeps_its_line() {
     // A long hint at the natural width, and a long title in the narrowest stacked panel, where it wraps too.
-    let wide = PreviewState { help: Some(index("ultrasmooth")), help_reveal: true, ..PreviewState::default() };
+    let wide = PreviewState { help: Some(index("ultrasmooth")), ..PreviewState::default() };
     let r = Rig::new(Theme::dark(), SIZE, wide);
     check_panel(&r, "wide");
     assert!(r.rect(r.ids.help_text).h >= 3.0 * 18.0, "the long hint wraps onto several lines");
 
-    let narrow = PreviewState { help: Some(index("river_lanterns")), help_reveal: true, ..PreviewState::default() };
+    // Stacked, the panels' column is scrolled to its end, where that row is: a help goes with its row.
+    let narrow = PreviewState { help: Some(index("river_lanterns")), panel_y: [10_000.0, 0.0], ..PreviewState::default() };
     let r = Rig::new(Theme::dark(), Vec2::new(preview::MIN_SIZE.0, 800.0), narrow);
     check_panel(&r, "narrow");
     assert!(r.rect(r.ids.help_title).h >= 2.0 * 18.0, "the long title wraps beside the cross");
 }
 
 #[test]
-fn h8_a_help_low_in_the_list_scrolls_into_sight() {
-    let s = PreviewState { help: Some(index("remove_frozen_ocean_ice")), help_reveal: true, ..PreviewState::default() };
+fn h8_a_help_low_in_the_window_opens_upwards_and_the_list_does_not_scroll() {
+    // The list at its end, so that its last row is in sight, low in the window.
+    let mut r = Rig::new(Theme::dark(), SIZE, PreviewState { settings_y: 10_000.0, ..PreviewState::default() });
+    let i = index("remove_frozen_ocean_ice");
+    let y = r.s.settings_y;
+    assert!(r.rect(r.ids.rows[i]).y > SIZE.y / 2.0, "the last row is in the lower half");
+    r.click_mark("remove_frozen_ocean_ice");
+    assert_eq!(r.s.help, Some(i));
+    assert_eq!(r.s.settings_y, y, "the list did not scroll");
+    let (row, panel) = (r.rect(r.ids.rows[i]), r.rect(r.ids.help));
+    snapped(panel.y + panel.h, row.y + row.h, "the panel ends at its row's bottom");
+    assert!(panel.y < row.y && panel.y >= 0.0, "and rises from there, inside the window");
+}
+
+#[test]
+fn h10_the_help_says_tectonic_s_value_the_pack_s_and_the_range() {
+    let i = index("temperature_scale");
+    let Kind::Number(spec) = SETTINGS[i].kind else { panic!("a number") };
+    let s = PreviewState { help: Some(i), ..PreviewState::default() };
+    let pack = s.baseline[i];
     let r = Rig::new(Theme::dark(), SIZE, s);
-    assert!(r.s.settings_y > 0.0, "the list scrolled");
-    assert!(!r.s.help_reveal, "once");
-    let (panel, list) = (r.rect(r.ids.help), r.rect(r.ids.settings_scroll));
-    assert!(panel.y + panel.h <= list.y + list.h, "the panel is in sight: {panel:?} in {list:?}");
-    assert!(panel.y >= list.y);
+    let want = preview::text::help_facts(&SETTINGS[i].original.to_string(), &pack.to_string(), Some((&spec.min.to_string(), &spec.max.to_string())));
+    let said: String = r.list.cmds.iter().filter_map(|c| match c {
+        Cmd::Text { text, .. } => Some(text.as_str()),
+        _ => None,
+    }).collect::<Vec<_>>().join(" ");
+    // The facts may wrap: every word of them is drawn, in order.
+    let mut from = 0;
+    for word in want.split_whitespace() {
+        let at = said[from..].find(word).unwrap_or_else(|| panic!("'{word}' of '{want}' is not drawn"));
+        from += at + word.len();
+    }
+    // A switch has no range.
+    let r = Rig::new(Theme::dark(), SIZE, PreviewState { help: Some(index("rolling_hills")), ..PreviewState::default() });
+    assert_ne!(r.ids.help_facts, Id::ROOT);
+    assert!(!preview::text::help_facts("on", "on", None).contains("from"));
 }
 
 fn picture(theme: Theme, size: Vec2, key: &str, name: &str) -> (Vec<u8>, Rig) {
-    let s = PreviewState { help: Some(index(key)), help_reveal: true, ..PreviewState::default() };
+    let s = PreviewState { help: Some(index(key)), ..PreviewState::default() };
     let r = Rig::new(theme, size, s);
     let (w, h) = (size.x as u32, size.y as u32);
     let mut out = Renderer::offscreen(w, h, 1.0).expect("offscreen renderer");
@@ -281,7 +335,8 @@ fn same(got: [u8; 3], want: Color, what: &str) {
 #[test]
 fn h9_pictures_in_both_themes() {
     for (theme, tag) in [(Theme::dark(), "dark"), (Theme::light(), "light")] {
-        for (size, key, at) in [(SIZE, "ultrasmooth", "wide"), (Vec2::new(preview::MIN_SIZE.0, 800.0), "river_lanterns", "narrow")] {
+        // Rows in sight with no scroll: a help goes with its row.
+        for (size, key, at) in [(SIZE, "temperature_multiplier", "wide"), (Vec2::new(preview::MIN_SIZE.0, 800.0), "temperature_multiplier", "narrow")] {
             let (rgba, r) = picture(theme, size, key, &format!("setting_help_{at}_{tag}.png"));
             let panel = r.rect(r.ids.help);
             // The frame's hairlines, in the edge colour, and the ground inside.

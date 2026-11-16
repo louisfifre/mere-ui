@@ -8,6 +8,7 @@ pub mod bands;
 pub mod bar;
 pub mod colour;
 pub mod cut;
+pub mod draft;
 pub mod export_data;
 pub mod figures;
 pub mod history;

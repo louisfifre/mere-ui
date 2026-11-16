@@ -59,8 +59,25 @@ pub const COL_WIDTH: &str = "typical width";
 pub const COL_SHARE: &str = "share";
 /// Line 510.
 pub const PICK_HINT: &str = "Click rows, here or on the map.";
-/// Line 580.
-pub const RESET_HINT: &str = "Click \u{201c}pack\u{2026}\u{201d} beside a value to put it back to the pack\u{2019}s.";
+/// Under the settings: what the grey value beside a field is. Not the page's (it had a "pack…" to click).
+pub const PACK_NOTE: &str = "A grey value beside a field is the pack\u{2019}s: the field differs from it.";
+/// The tip of that grey value.
+pub const PACK_VALUE_HINT: &str = "The pack\u{2019}s value";
+/// The arrow in a group's title, shown while one of its settings differs from the pack's.
+pub const GROUP_RESET_HINT: &str = "Put this group back to the pack\u{2019}s values";
+/// The second fixed set of values, beside the pack's: Tectonic's own defaults.
+pub const ORIGINAL: &str = "Original";
+pub const ORIGINAL_HINT: &str = "Put everything back to Tectonic\u{2019}s own values";
+/// What stands before the two choices that put everything back.
+pub const BACK_TO: &str = "Back to";
+/// The last line of a setting's help: Tectonic's own value, the pack's, and the range the field takes (a switch
+/// has none). The values come as the fields write them.
+pub fn help_facts(original: &str, pack: &str, range: Option<(&str, &str)>) -> String {
+    match range {
+        Some((min, max)) => format!("Original {original} \u{b7} Pack {pack} \u{b7} from {min} to {max}"),
+        None => format!("Original {original} \u{b7} Pack {pack}"),
+    }
+}
 /// Lines 528-529.
 pub const ON: &str = "on";
 pub const OFF: &str = "off";
@@ -389,51 +406,51 @@ mod tests {
 /// The mark after a setting's label that opens its help.
 pub const HELP_MARK: &str = "?";
 
-/// What each setting shapes in the world and which way does what, keyed by the setting's key (`settings::SETTINGS`).
+/// What each setting shapes in the world, then what lower does and what higher does, always in that order, keyed by the setting's key (`settings::SETTINGS`).
 /// Ported from the page's hints, which say what changes in the direction that grows it, then checked against the
-/// comments of the pack's `tectonic.json` and reworded where they were vague or said too little. Each is one or two
-/// short sentences.
+/// comments of the pack's `tectonic.json` and reworded where they were vague or said too little. A switch says what on
+/// (or off) does, in one sentence.
 pub const SETTING_HINTS: [(&str, &str); 43] = [
-    ("temperature_scale", "How wide the warm and cold zones are. Lower: wider zones, so larger biomes."),
-    ("vegetation_scale", "How wide the dry and wet zones are. Lower: wider zones, so larger biomes."),
-    ("temperature_multiplier", "How far the climate swings between hot and cold. Lower: fewer deserts and frozen lands."),
-    ("vegetation_multiplier", "How far the land swings between dry and wet. Lower: fewer very dry and very wet biomes."),
-    ("temperature_offset", "Shifts the whole world's climate. Higher: a warmer world, with more hot biomes and fewer snowy ones."),
-    ("vegetation_offset", "Shifts the whole world's humidity. Higher: a wetter world, with more forests and jungles."),
-    ("vertical_scale", "Stretches the land above sea level. Higher: taller relief; doubling it doubles every height above the sea."),
-    ("elevation_boost", "Adds to the vertical scale on mountains and plateaus only. Higher: they rise faster than the lowlands."),
-    ("flat_terrain_skew", "Where plateaus give way to flat ground. Higher: more flat land, fewer plateaus."),
-    ("erosion_scale", "How wide the mountain ranges are. Lower: thicker ranges, with wider land between them."),
-    ("ridge_scale", "How wide rivers and the ground along them are, such as plateaus. Lower: wider rivers, broader valleys."),
+    ("temperature_scale", "How wide the warm and cold zones are. Lower: wider zones, larger biomes. Higher: narrower zones, smaller biomes."),
+    ("vegetation_scale", "How wide the dry and wet zones are. Lower: wider zones, larger biomes. Higher: narrower zones, smaller biomes."),
+    ("temperature_multiplier", "How far the climate swings between hot and cold. Lower: fewer deserts and frozen lands. Higher: more of both."),
+    ("vegetation_multiplier", "How far the land swings between dry and wet. Lower: fewer very dry and very wet biomes. Higher: more of both."),
+    ("temperature_offset", "Shifts the whole world's climate. Lower: a colder world, more snowy biomes. Higher: a warmer world, more hot biomes."),
+    ("vegetation_offset", "Shifts the whole world's humidity. Lower: a drier world. Higher: a wetter world, with more forests and jungles."),
+    ("vertical_scale", "Stretches the land above sea level. Lower: flatter relief. Higher: taller relief; doubling it doubles every height above the sea."),
+    ("elevation_boost", "Adds to the vertical scale on mountains and plateaus only. Lower: they rise like the lowlands. Higher: they rise faster than the lowlands."),
+    ("flat_terrain_skew", "Where plateaus give way to flat ground. Lower: more plateaus. Higher: more flat land."),
+    ("erosion_scale", "How wide the mountain ranges are. Lower: thicker ranges, wider land between them. Higher: thinner ranges, closer together."),
+    ("ridge_scale", "How wide rivers and the ground along them are. Lower: wider rivers, broader valleys. Higher: narrower rivers, closer together."),
     ("rolling_hills", "On: some plains get very smooth, rolling hills."),
     ("jungle_pillars", "On: some jungles get huge pillars, up to a hundred blocks tall."),
     ("ultrasmooth", "On: much smoother ground with no staircase steps, but deep oceans and windswept biomes come out broken."),
     ("alternate_erosion_scaling", "Experimental: another way for Tectonic to apply the erosion scale, which shapes mountain ranges."),
-    ("min_y", "The lowest height of the world, in steps of 16 blocks. Lower: a deeper world, with more room under the ground."),
-    ("max_y", "The highest height of the world, in steps of 16 blocks. Higher: room for taller mountains."),
-    ("continents_scale", "How large continents are. Lower: larger continents, with larger oceans between them."),
-    ("ocean_offset", "Higher: more land, less ocean. Above \u{2212}0.45 there is no deep ocean, so no islands."),
+    ("min_y", "The lowest height of the world, in steps of 16 blocks. Lower: a deeper world, more room under the ground. Higher: a shallower one."),
+    ("max_y", "The highest height of the world, in steps of 16 blocks. Lower: less room for mountains. Higher: room for taller mountains."),
+    ("continents_scale", "How large continents are. Lower: larger continents, larger oceans between them. Higher: smaller ones, closer together."),
+    ("ocean_offset", "Lower: more ocean. Higher: more land. Above \u{2212}0.45 there is no deep ocean, so no islands."),
     ("alternate_continents_scaling", "Experimental: another way for Tectonic to apply the continent scale."),
-    ("ocean_depth", "The height of the ocean floor. Lower: deeper oceans; 0 is sea level, \u{2212}0.5 is 64 blocks under it."),
-    ("deep_ocean_depth", "The height of the deep ocean floor. Lower: deeper deep oceans; 0 is sea level, \u{2212}0.5 is 64 blocks under it."),
+    ("ocean_depth", "The height of the ocean floor; 0 is sea level, \u{2212}0.5 is 64 blocks under it. Lower: deeper oceans. Higher: shallower ones."),
+    ("deep_ocean_depth", "The height of the deep ocean floor; 0 is sea level, \u{2212}0.5 is 64 blocks under it. Lower: deeper deep oceans. Higher: shallower ones."),
     ("enabled", "On: Tectonic raises islands out of the deep ocean, and nowhere else."),
-    ("noise_scale", "How large islands are. Lower: larger islands, further apart."),
-    ("noise_multiplier", "How strongly the island land swings up and down. Higher: more of the deep ocean rises into islands."),
-    ("noise_offset", "Raises the island land everywhere in the deep ocean. Higher: more islands."),
+    ("noise_scale", "How large islands are. Lower: larger islands, further apart. Higher: smaller islands, closer together."),
+    ("noise_multiplier", "How strongly the island land swings up and down. Lower: fewer, lower islands. Higher: more of the deep ocean rises into islands."),
+    ("noise_offset", "Raises the island land everywhere in the deep ocean. Lower: fewer islands. Higher: more islands."),
     ("cheese_enabled", "On: the large, open caves, with wide halls and pillars of stone."),
-    ("cheese_additive", "How much rock fills the cheese caves. Lower: bigger cheese caves."),
+    ("cheese_additive", "How much rock fills the cheese caves. Lower: bigger cheese caves. Higher: smaller ones."),
     ("spaghetti_enabled", "On: the long, winding tunnels of middle width."),
     ("noodle_enabled", "On: the narrow, cramped tunnels."),
-    ("noodle_additive", "How much rock fills the noodle caves. Lower: bigger noodle caves."),
-    ("depth_cutoff_start", "How far under the ground caves stop. Higher: a thicker roof over the caves; 0.1 is about 12 blocks, 0.5 about 64."),
-    ("depth_cutoff_size", "Over how many blocks caves fade out under that roof. Higher: a slower close; 0.1 is about 12 blocks, 0 a sharp cut."),
+    ("noodle_additive", "How much rock fills the noodle caves. Lower: bigger noodle caves. Higher: smaller ones."),
+    ("depth_cutoff_start", "How far under the ground caves stop; 0.1 is about 12 blocks, 0.5 about 64. Lower: caves nearer the surface. Higher: a thicker roof."),
+    ("depth_cutoff_size", "Over how many blocks caves fade out under that roof; 0.1 is about 12 blocks. Lower: a sharper cut. Higher: a slower close."),
     ("lava_tunnels", "On: rare, deep tunnels of lava near the bottom of the world."),
     ("underground_rivers", "On: rivers that reach a mountain range go on under it, so a boat can follow them."),
     ("carvers_enabled", "On: the old caves and ravines, carved once the ground is made. The section does not show them."),
     ("ore_fix", "On: ores are placed at better heights when the bottom of the world is lowered."),
     ("mod_enabled", "Off: the world is made without Tectonic, to compare against."),
-    ("snow_start_offset", "Moves the height where snow starts in cold biomes such as taigas. Higher: snow starts higher up."),
-    ("monument_offset", "Moves ocean monuments down to sit on deeper ocean floors. Lower: deeper monuments."),
+    ("snow_start_offset", "Moves the height where snow starts in cold biomes such as taigas. Lower: snow starts lower down. Higher: snow starts higher up."),
+    ("monument_offset", "Moves ocean monuments down to sit on deeper ocean floors. Lower: deeper monuments. Higher: monuments nearer the surface."),
     ("river_ice", "On: underground rivers under snowy biomes are covered with ice."),
     ("river_lanterns", "On: lanterns hang, rarely, over underground rivers."),
     ("remove_frozen_ocean_ice", "On: frozen oceans lose their ice, so they are as easy to sail as deep frozen oceans."),
