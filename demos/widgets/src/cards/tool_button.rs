@@ -1,6 +1,6 @@
 //! The ToolButton card: plain and with a marker, rest, hover and pressed (components/ToolButton/preview.html).
 
-use nui_ui::{Icon, IconOpts, Theme, Ui};
+use mere_ui::{Icon, IconOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

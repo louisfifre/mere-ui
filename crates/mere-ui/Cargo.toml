@@ -1,0 +1,15 @@
+[package]
+name = "mere-ui"
+description = "Immediate-mode interface: ids, input, theme, widgets over mere-layout."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license = "GPL-3.0-only"
+
+[dependencies]
+mere-base.workspace = true
+mere-layout.workspace = true
+
+[dev-dependencies]
+mere-png.workspace = true
+mere-win32.workspace = true

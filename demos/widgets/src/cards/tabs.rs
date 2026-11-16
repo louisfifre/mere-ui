@@ -1,7 +1,7 @@
 //! The Tabs card: the strip and the choice in rest, hover, held, pressed and disabled, then a strip of two
 //! groups (components/Tabs/preview.html).
 
-use nui_ui::{TabLook, TabOpts, Theme, Ui, choice_style, strip_style};
+use mere_ui::{TabLook, TabOpts, Theme, Ui, choice_style, strip_style};
 
 use super::{Block, Card, Cell, State, render};
 

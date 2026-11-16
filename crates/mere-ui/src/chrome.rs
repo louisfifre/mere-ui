@@ -1,0 +1,228 @@
+//! The parts of a window drawn by the application: the grips along its edges, the caption area of its bar
+//! and the icon buttons of its tool strip and window buttons (launcher lines 75-129).
+
+use mere_base::{Cmd, Cursor, Edge, Hit, Rect, Vec2};
+use mere_layout::{Align, Dim, Justify, Margin, Position, Side, Style};
+
+use crate::icon::{Icon, icon_shape};
+use crate::id::Id;
+use crate::text::{TextLook, Tone};
+use crate::theme::mix;
+use crate::tokens::{CONTROL, FADE_DISABLED, FADE_LIT, FADE_TINT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
+use crate::ui::{Paint, Resp, Ui};
+
+/// A tool button with its name (`Ui::tool_button`): `inset` inside the frame before the icon, `gap` between the
+/// icon and the word, `inset-wide` after; the paddings count the frame.
+pub const TOOL_PAD_L: f32 = FRAME + INSET;
+pub const TOOL_GAP: f32 = GAP;
+pub const TOOL_PAD_R: f32 = FRAME + INSET_WIDE;
+/// The marker: a 4 px square, 4 px in from the button's top right corner.
+const MARKER: f32 = 4.0;
+/// The icon-only tool button's width.
+const TOOL_W: f32 = 36.0;
+
+/// How wide a tool button with this name is: what the bar measures before it builds.
+pub fn tool_button_width(label: &str) -> f32 {
+    TOOL_PAD_L + ICON + TOOL_GAP + TextLook::body(Tone::Text).width(label) + TOOL_PAD_R
+}
+
+/// `.grip` bands along the sides are 5 px, and 8 x 8 boxes at the corners (launcher lines 94-103).
+pub const GRIP: f32 = 5.0;
+pub const CORNER: f32 = 8.0;
+
+/// Which edge of a `size` window the point falls on, if any. Corners first, then the four sides between them;
+/// a maximised window has no edge to pull.
+pub fn grip(pos: Vec2, size: Vec2, maximized: bool) -> Option<Edge> {
+    if maximized || pos.x < 0.0 || pos.y < 0.0 || pos.x >= size.x || pos.y >= size.y {
+        return None;
+    }
+    let left = pos.x < CORNER;
+    let right = pos.x >= size.x - CORNER;
+    let top = pos.y < CORNER;
+    let bottom = pos.y >= size.y - CORNER;
+    match (left, right, top, bottom) {
+        (true, _, true, _) => return Some(Edge::NW),
+        (_, true, true, _) => return Some(Edge::NE),
+        (true, _, _, true) => return Some(Edge::SW),
+        (_, true, _, true) => return Some(Edge::SE),
+        _ => {}
+    }
+    // Between the corners: the bands are 5 px, and run from 8 to the far side less 8.
+    if pos.y < GRIP {
+        Some(Edge::N)
+    } else if pos.y >= size.y - GRIP {
+        Some(Edge::S)
+    } else if pos.x < GRIP {
+        Some(Edge::W)
+    } else if pos.x >= size.x - GRIP {
+        Some(Edge::E)
+    } else {
+        None
+    }
+}
+
+/// What a press at `pos` does, for a window that draws its own bar. The grips are `position: fixed` over
+/// everything (z-index 10), so they come first, buttons included; then the bar that is not a button drags
+/// the window; the rest is the page's.
+pub fn chrome_hit(ui: &Ui, pos: Vec2, size: Vec2, maximized: bool, bar: Id, buttons: &[Id]) -> Hit {
+    if let Some(edge) = grip(pos, size, maximized) {
+        return Hit::Resize(edge);
+    }
+    let in_bar = ui.rect(bar).is_some_and(|r| r.contains(pos));
+    if in_bar && !buttons.iter().any(|b| ui.rect(*b).is_some_and(|r| r.contains(pos))) {
+        Hit::Caption
+    } else {
+        Hit::Client
+    }
+}
+
+/// The icon buttons of the bars and of the launcher's Home.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum IconLook {
+    /// `.strip button` with an icon (lines 110-112, 122): 36 x 28, framed, drawn in reverse when pressed.
+    Tool,
+    /// A window button or a panel's button: an `icon-square` square, no frame, a tint under the pointer.
+    Caption,
+    /// The close button: the same look as `Caption`, kept apart so a host can name it.
+    Close,
+    /// A square of `icon-square`, framed in --edge, a muted 16 px icon; under
+    /// the pointer the icon and the frame take --text; `pressed` (aria-expanded) is drawn in reverse.
+    Square,
+    /// `.icon.play` (lines 180-181): filled with --text, the icon in --ground; `FADE_LIT` under the pointer.
+    Filled,
+    /// No frame, 24 wide, `icon-square` tall, pulled `inset-tight` left.
+    Bare,
+}
+
+#[derive(Copy, Clone, Debug, Default)]
+pub struct IconOpts {
+    pub pressed: bool,
+    pub disabled: bool,
+    /// `.icon + .icon` (line 162): pulled 1 px over the one before, so the two share a hairline.
+    pub joined: bool,
+    /// A 4 x 4 square on the button's top right corner, 4 px in (the launcher's `.marker`, line 129), in this
+    /// colour: where a run of the preview stands while it is not on screen.
+    pub marker: Option<mere_base::Color>,
+}
+
+impl Ui {
+    /// An icon button. `Resp.clicked` is the click; the app decides what it does and which one is pressed.
+    pub fn icon_button(&mut self, key: &str, icon: &Icon, look: IconLook, opts: IconOpts) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, opts.disabled, Cursor::Hand);
+        let t = *self.theme();
+        let lit = !opts.disabled && (resp.hovered || resp.held);
+        let (style, fill, frame, color) = match look {
+            IconLook::Tool => {
+                let style = Style {
+                    w: Dim::Px(TOOL_W),
+                    h: Dim::Px(CONTROL),
+                    shrink: 0.0,
+                    margin: Margin { left: Side::Px(-1.0), ..Margin::default() },
+                    align_items: Align::Center,
+                    justify: Justify::Center,
+                    // As the strip's tabs: the pressed one is painted over its neighbours' hairlines.
+                    position: if opts.pressed { Position::Relative } else { Position::Static },
+                    ..Style::default()
+                };
+                if opts.pressed {
+                    (style, Some(t.fill), Some(t.fill), t.on_fill)
+                } else {
+                    (style, None, Some(t.edge), if lit { t.text } else { t.muted })
+                }
+            }
+            IconLook::Square | IconLook::Filled | IconLook::Bare => {
+                let (w, left) = match look {
+                    IconLook::Bare => (24.0, -INSET_TIGHT),
+                    _ => (ICON_SQUARE, if opts.joined { -FRAME } else { 0.0 }),
+                };
+                let style = Style {
+                    w: Dim::Px(w),
+                    h: Dim::Px(ICON_SQUARE),
+                    shrink: 0.0,
+                    margin: Margin { left: Side::Px(left), ..Margin::default() },
+                    align_items: Align::Center,
+                    justify: Justify::Center,
+                    ..Style::default()
+                };
+                match look {
+                    IconLook::Bare => (style, None, None, if lit { t.text } else { t.muted }),
+                    IconLook::Filled if lit => {
+                        let c = mix(t.fill, FADE_LIT, t.ground);
+                        (style, Some(c), Some(c), t.on_fill)
+                    }
+                    IconLook::Filled => (style, Some(t.fill), Some(t.fill), t.on_fill),
+                    // aria-expanded keeps its reversed look on hover (line 165).
+                    _ if opts.pressed => (style, Some(t.fill), Some(t.fill), t.on_fill),
+                    _ if lit => (style, None, Some(t.text), t.text),
+                    _ => (style, None, Some(t.edge), t.muted),
+                }
+            }
+            // The window is ours end to end, so its buttons are the kit's, not the system's: an unframed square,
+            // the icon muted, and under the pointer the icon in --text on a faint tint. The panels' buttons take
+            // the same look.
+            IconLook::Caption | IconLook::Close => {
+                let style = Style {
+                    w: Dim::Px(ICON_SQUARE),
+                    h: Dim::Px(ICON_SQUARE),
+                    shrink: 0.0,
+                    align_items: Align::Center,
+                    justify: Justify::Center,
+                    ..Style::default()
+                };
+                if lit {
+                    (style, Some(mix(t.text, FADE_TINT, t.ground)), None, t.text)
+                } else {
+                    (style, None, None, t.muted)
+                }
+            }
+        };
+        let (fill, frame, color) = if opts.disabled {
+            (fill.map(|c| t.faded(c, FADE_DISABLED)), frame.map(|c| t.faded(c, FADE_DISABLED)), t.faded(color, FADE_DISABLED))
+        } else {
+            (fill, frame, color)
+        };
+        self.open(key, id, style, Paint::Box { fill, frame });
+        let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
+        let mut cmds = vec![icon_shape(icon, ICON, color, icon.axis_aligned())];
+        if let (Some(m), IconLook::Tool) = (opts.marker, look) {
+            // Positioned against the button, in the icon's coordinates: the icon is centred in it.
+            let (ix, iy) = ((TOOL_W - ICON) / 2.0, (CONTROL - ICON) / 2.0);
+            cmds.push(Cmd::Fill { rect: Rect::new(TOOL_W - MARKER - MARKER - ix, MARKER - iy, MARKER, MARKER), color: m });
+        }
+        self.add("icon", slot, Paint::Cmds(cmds));
+        self.close();
+        resp
+    }
+
+    /// A tool of the bar as an icon and its name: the look of `IconLook::Tool` (framed, reversed when pressed),
+    /// as wide as its word. The marker sits on the icon's top right corner, where the icon-only button has it.
+    pub fn tool_button(&mut self, key: &str, icon: &Icon, label: &str, opts: IconOpts) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, false, Cursor::Hand);
+        let t = *self.theme();
+        let lit = resp.hovered || resp.held;
+        let style = Style {
+            h: Dim::Px(CONTROL),
+            pad: mere_layout::Edges::new(0.0, TOOL_PAD_R, 0.0, TOOL_PAD_L),
+            gap: Vec2::new(TOOL_GAP, 0.0),
+            shrink: 0.0,
+            margin: Margin { left: Side::Px(-1.0), ..Margin::default() },
+            align_items: Align::Center,
+            position: if opts.pressed { Position::Relative } else { Position::Static },
+            ..Style::default()
+        };
+        let (fill, frame, color) = if opts.pressed { (Some(t.fill), Some(t.fill), t.on_fill) } else { (None, Some(t.edge), if lit { t.text } else { t.muted }) };
+        self.open(key, id, style, Paint::Box { fill, frame });
+        let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
+        let mut cmds = vec![icon_shape(icon, ICON, color, icon.axis_aligned())];
+        if let Some(m) = opts.marker {
+            // On the icon's top right corner, where the icon-only button has it.
+            cmds.push(Cmd::Fill { rect: Rect::new(ICON, -MARKER / 2.0, MARKER, MARKER), color: m });
+        }
+        self.add("icon", slot, Paint::Cmds(cmds));
+        self.add_text(label, TextLook::body(Tone::Text), color, false, Style::default());
+        self.close();
+        resp
+    }
+}

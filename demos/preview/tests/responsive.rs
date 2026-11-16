@@ -6,9 +6,9 @@
 
 use std::path::Path;
 
-use nui_base::{App, Event, Rect, Vec2};
-use nui_ui::{Id, Theme, Ui};
-use nui_win32::Renderer;
+use mere_base::{App, Event, Rect, Vec2};
+use mere_ui::{Id, Theme, Ui};
+use mere_win32::Renderer;
 use preview::panels::{self, GAP, MAP_MIN, PANEL_MIN, STACK_AT};
 use preview::world::World;
 use preview::{BAR_H, CONTENT_TOP, MIN_SIZE, PreviewApp, PreviewState, ShellIds, build, picture_with};
@@ -244,7 +244,7 @@ fn picture(world: &World, state: PreviewState, w: u32, h: u32, name: &str) {
     app.frame(&mut r, 0.0);
     let rgba = r.read_rgba().unwrap();
     let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-    std::fs::write(&path, nui_png::encode(w, h, &rgba)).unwrap();
+    std::fs::write(&path, mere_png::encode(w, h, &rgba)).unwrap();
     println!("wrote {}", path.display());
 }
 

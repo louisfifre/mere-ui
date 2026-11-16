@@ -17,17 +17,17 @@ OrbitControls speeds, a camera kept above the ground within a zoom range, and ro
 Not exercised at runtime: device loss, capture lost mid-drag, a `WM_DPICHANGED` between monitors, and a
 look at the live window's pixels (only its start, answer and clean exit were checked).
 
-Later the same day: text is in IBM Plex Mono (`fonts/`, loaded by `nui-win32/src/fonts.rs` through
+Later the same day: text is in IBM Plex Mono (`fonts/`, loaded by `mere-win32/src/fonts.rs` through
 `IDWriteFactory5::UnpackFontFile`; the Pi cut's arrows and signs are reached by DirectWrite's coverage
 matching inside the one family, seen in `tests/fonts.rs`'s picture, not a documented guarantee; the 600 face
 is loaded but unused). `fonts/OFL.txt` was written from memory, as no copy was on the machine: compare it
-with IBM's official LICENSE.txt before anything is published. Build plan step 7 is done: `nui-layout` (flex,
+with IBM's official LICENSE.txt before anything is published. Build plan step 7 is done: `mere-layout` (flex,
 28 rect tests, dump) and `demos/shell-boxes`, whose pictures at 1400, 1200 and 1000 px match the page's
 column widths; heights and the strip width the page does not fix are marked PLACEHOLDER there.
 
-Build plan step 8 is done: `nui-layout` has a reduced grid (`grid.rs`: columns of a length, `auto` or
+Build plan step 8 is done: `mere-layout` has a reduced grid (`grid.rs`: columns of a length, `auto` or
 `minmax(0, Nfr)`, implicit rows, `place-items`, `1 / -1`), absolute boxes against their parent (`absolute.rs`),
-and `overflow` (the flex automatic minimum of 0 and `content_size`; the scroll offset is `nui-ui`'s). `DrawList`
+and `overflow` (the flex automatic minimum of 0 and `content_size`; the scroll offset is `mere-ui`'s). `DrawList`
 has `push_clip`/`pop_clip`, drawn by Direct2D as aliased clips. `demos/shell-boxes` now builds `#page` as a real
 grid (tests/shell.rs unchanged) and has the gallery (`target/tmp/gallery.png`, 718 x 700). 28 flex, 14 grid and
 11 position tests; the numbers are derived by hand from the page's CSS. Plex Mono's baseline at 1.125 em is
@@ -41,7 +41,7 @@ Two observations read from the page's CSS cascade, not checked in a browser:
 - `.ore-row.head` is 11 px, so its `6ch` / `5ch` columns are narrower than the rows' (39.6 / 33 against 43.2 /
   36): the head words sit about 10 px right of the fields' left edges, and about 6 px right of their right edges.
 
-Build plan step 9 is done: `crates/nui-ui` (ids by FNV-1a over the key path, left-button pointer input, the page's dark
+Build plan step 9 is done: `crates/mere-ui` (ids by FNV-1a over the key path, left-button pointer input, the page's dark
 and light themes, label, button in three looks, toggle; hit tests use the last frame's rects) and `demos/widgets`
 (window, `--shot`, and the sheet of states in `docs/shots/widgets-dark.png` and `widgets-light.png`: the first
 pictures in the page's own looks). `DrawList` text has a weight (Regular, SemiBold), so `#generate` is drawn in
@@ -51,22 +51,22 @@ underline's position (3 px under the baseline) and thickness (1 px) against a br
 look, so a held widget looks hovered. Disabled widgets ignore the pointer, whereas the browser still matches
 :hover on disabled `.choice` buttons: a known small difference. No transitions, cursor shapes or keyboard yet.
 
-Build plan step 10 is done: `nui-ui` has `fold`/`fold_with`, `tab` (strip and choice looks), `detail_tab`, `strip_gap`, `number`
+Build plan step 10 is done: `mere-ui` has `fold`/`fold_with`, `tab` (strip and choice looks), `detail_tab`, `strip_gap`, `number`
 (no typing yet) and the styles of the strip, choice and details rows; text looks have a letter spacing, paint order follows
 CSS (positioned boxes last) and `mix` is public. No slider was built: neither application has one. `demos/widgets
---controls` shows them live and `docs/shots/controls-dark.png` and `controls-light.png` are the sheet (12 new `nui-ui`
+--controls` shows them live and `docs/shots/controls-dark.png` and `controls-light.png` are the sheet (12 new `mere-ui`
 tests with the page's numbers, 2 picture tests). Two observations read from the page's CSS, not seen in a browser:
 
 - Hovering the pressed strip tab: `.strip button:hover:not(:disabled)` (specificity 0,3,1) beats `[aria-pressed=true]` (0,2,1),
-  so the word turns `--text` on a `--text` ground and vanishes. `nui-ui` keeps the pressed word on hover on purpose.
+  so the word turns `--text` on a `--text` ground and vanishes. `mere-ui` keeps the pressed word on hover on purpose.
 - The comments at preview.html line 657 and launcher line 571 still say "slider", and `--track` is used by no rule.
 
-Build plan step 11 is done: `nui-base` has `Event::Key`, `Event::Char`, `PointerDown.clicks`, `Key`, `Mods` and the `Clipboard`
-trait; `nui-win32` turns `WM_KEYDOWN`, `WM_CHAR` (with surrogate pairs) and click counting into them and has `SystemClipboard`
-(CF_UNICODETEXT; the manual round-trip test `cargo test -p nui-win32 --test clipboard -- --ignored` passed); `nui-ui` has the
+Build plan step 11 is done: `mere-base` has `Event::Key`, `Event::Char`, `PointerDown.clicks`, `Key`, `Mods` and the `Clipboard`
+trait; `mere-win32` turns `WM_KEYDOWN`, `WM_CHAR` (with surrogate pairs) and click counting into them and has `SystemClipboard`
+(CF_UNICODETEXT; the manual round-trip test `cargo test -p mere-win32 --test clipboard -- --ignored` passed); `mere-ui` has the
 editing model (`edit.rs`), `text_field` (Text and Compact looks) and the editable `number` with a `NumberSpec`, one focused
 field with Tab order = build order and `Ui::want_redraw`. `demos/widgets --fields` is the live mode and
-`docs/shots/fields-dark.png` and `fields-light.png` are the sheet (24 `nui-ui` field tests, 10 edit-model unit tests, 2
+`docs/shots/fields-dark.png` and `fields-light.png` are the sheet (24 `mere-ui` field tests, 10 edit-model unit tests, 2
 picture tests). Unverified, read from the page or chosen by us, not seen in a browser:
 
 - The selection colour (`#0078d7` on `#ffffff` text): Windows' defaults; the page has no `::selection` rule.
@@ -79,10 +79,10 @@ picture tests). Unverified, read from the page or chosen by us, not seen in a br
 - The second number of the live mode is labelled with demo wording ("Elevation boost"), and the controls sheet's "Land
   against ocean" row uses `ocean_offset`'s spec (-1..-0.2, step 0.05), not `continents_scale`'s.
 
-Build plan step 12 is done: `nui-ui` has `ellipsize` and `ellipsis`, a vertical scroll area (`scroll`, `scroll_style`:
+Build plan step 12 is done: `mere-ui` has `ellipsize` and `ellipsis`, a vertical scroll area (`scroll`, `scroll_style`:
 thumb, 11 px gutter, bottom fade, wheel, thumb drag), hit tests cut to the visible part of a widget, `list_row`,
 `list_head` and `trend_row`; `demos/widgets --lists` is the live mode and `docs/shots/lists-dark.png` and `lists-light.png`
-are the sheet (11 `nui-ui` tests in `tests/list.rs`, 1 `Rect::intersect` test, 2 picture tests). Unverified, chosen by us
+are the sheet (11 `mere-ui` tests in `tests/list.rs`, 1 `Rect::intersect` test, 2 picture tests). Unverified, chosen by us
 or read from the page, not seen in a browser:
 
 - `GUTTER` 11 px (what the thin classic scrollbar reserves), `THUMB_MIN` 18 px and `WHEEL_STEP` 100 px per notch.
@@ -102,8 +102,8 @@ Two observations read from the page's CSS, not checked in a browser:
 
 Build plan step 13 is done: `demos/preview` is the world preview's shell (toolbar, three columns, the 43 real
 settings in their five groups, static values), `preview [--light] [--size WxH] [--shot out.png]`, with
-`docs/shots/preview-1400.png`, `preview-1200.png`, `preview-1000.png` and `preview-1400-light.png`. `nui-ui` gained
-`wrap_lines`, `paragraph`, `fill`, `select`, `TextLook::small` and `label`. Tests: 7 in `nui-ui/tests/shell_bits.rs`,
+`docs/shots/preview-1400.png`, `preview-1200.png`, `preview-1000.png` and `preview-1400-light.png`. `mere-ui` gained
+`wrap_lines`, `paragraph`, `fill`, `select`, `TextLook::small` and `label`. Tests: 7 in `mere-ui/tests/shell_bits.rs`,
 4 data, 10 layout and 4 picture tests in `demos/preview`. The columns' rules and Export's right edge match a capture
 of the page (`target/tmp/page_<width>.png`, the file opened without its server) to the pixel at the three widths.
 
@@ -120,8 +120,8 @@ page capture itself.
 Build plan step 14 is done: `preview --data C:\Games\preview\out` draws the 2D map in the stage, in a window and as `--shot`
 (`--view`, `--biome`, `--structure`, `--look` are the page's `?view=`, `&biome=`, `&structure=`; `docs/shots/map-biomes.png`,
 `map-flat.png`, `map-relief.png`, `map-temperature.png`, `map-structures.png`, `map-biomes-light.png`,
-`map-relief-zoom8.png`). Built: `nui-base` has `Cmd::Image`, `Disc` and `Ring`; `nui-win32` draws them in Direct2D
-(a premultiplied BGRA bitmap beside each D3D texture; nearest-neighbour); `nui-ui` has `canvas`, `Resp::pressed`,
+`map-relief-zoom8.png`). Built: `mere-base` has `Cmd::Image`, `Disc` and `Ring`; `mere-win32` draws them in Direct2D
+(a premultiplied BGRA bitmap beside each D3D texture; nearest-neighbour); `mere-ui` has `canvas`, `Resp::pressed`,
 `pointer` and `take_wheel`; `demos/preview` has `world.rs` (the out folder with flat land, structures and the cut),
 `colour.rs` (the page's colours and a regex-free matcher), `paint.rs` (`paint()` for the five views, the choosing dimming,
 the marks), `map.rs` (look, wheel, carry, grid, cross, ticks, points under the pointer), `app.rs` (`PreviewApp`),
@@ -129,7 +129,7 @@ the marks), `map.rs` (look, wheel, carry, grid, cross, ticks, points under the p
 code run by Node on `C:\Games\preview\out`, for 12 cases (five views x dark and light, a chosen-biome and a chosen-height
 case); the biome and structure colours, the structure order and the flat count are equal too. Through the window path
 the rest look shows each point as its texel, and at 8x zoom every block interior equals its texel exactly with 929
-sharp boundaries (so Direct2D's nearest-neighbour is exact at a fractional scale). Tests added: 1 in `nui-base`, 4 canvas tests in `nui-ui`, 1 in `nui-win32`, in `demos/preview` 7 unit tests
+sharp boundaries (so Direct2D's nearest-neighbour is exact at a fractional scale). Tests added: 1 in `mere-base`, 4 canvas tests in `mere-ui`, 1 in `mere-win32`, in `demos/preview` 7 unit tests
 (world, look), 6 colour tests, 1 page comparison, 4 map and 5 interaction tests.
 
 - PLACEHOLDER: the 3D and section slots (a `--line` fill; they draw in steps 15 and 16), the figures and band widths of the right column, and the list there, which still shows the height bands whatever the view.
@@ -162,7 +162,7 @@ tabs and the gap before them are not built. `preview --camera cx,cy,cz` is the p
   press outside does not turn, one notch is 0.95 of the distance and the list's wheel does not zoom, a drag that
   leaves the square keeps turning). Also 5 unit tests in `scene.rs`. The workspace has 244 passing tests, none skipped.
 - The D3D viewport alone clips the scene at the square's edges (S2 saw no leak), so no scissor rect was added to
-  `nui-win32`. S2 asks for 30 notches, which the zoom range stops at its near end (`min_distance` = 40 steps).
+  `mere-win32`. S2 asks for 30 notches, which the zoom range stops at its near end (`min_distance` = 40 steps).
 
 - PLACEHOLDER: the section's slot (a `--line` fill; step 16), the figures and band widths of the right column, and the list there, which still shows the height bands whatever the view.
 - UNVERIFIED: the glide's speed against OrbitControls' damping (`RATE` is ours), the 0.95 per wheel notch against three.js r160, nearest against linear sampling for the structures drape (the page draws its marks into a 2048 px canvas with linear filtering), and the live window (not looked at: only the offscreen pictures).
@@ -255,7 +255,7 @@ the map (the hairline and the line of ✓ steps and the step under way), the bus
 over the map, the 3D view or the cut, not over the note and the lines under), and the queued re-run (a setting moved
 during a run: the button offers a new run, which stops this one and starts by itself). A finished run (the generator
 ended with a status of 0 and `preview.json` in out) is read again as the world, the form takes its settings, the pace
-learns. Stop is `taskkill /PID … /T /F` through `nui_base::Launcher` (new, no OS code; `nui_win32::SystemLauncher`
+learns. Stop is `taskkill /PID … /T /F` through `mere_base::Launcher` (new, no OS code; `mere_win32::SystemLauncher`
 implements it with `std::process` and `CREATE_NO_WINDOW`, no new `windows` feature): it takes the generator's whole
 tree, the game server included; the app does the same when it is dropped (serve.ps1's `finally`). Export writes
 `biomes.png`, `flat.png` (not for a coarse map), `height.png`, `temperature.png` (each the whole map, whatever is
@@ -265,14 +265,14 @@ and "Close" under the map.
 
 Tests: `tools/stub_run.ps1` stands for `preview.ps1` (same parameters, same deleted files, `progress.json` written
 atomically, `timing.json`, `run.json`, the same throw when killed; modes `finish`, `hold` and `fail` by
-`$env:NUI_STUB`; it refuses any Out or Dir outside `target/tmp` before it creates anything and downloads nothing).
+`$env:MERE_STUB`; it refuses any Out or Dir outside `target/tmp` before it creates anything and downloads nothing).
 `tests/run.rs` R1 to R7 drive the whole application against it offscreen (R1: the 40 % picture
 `target/tmp/run_40.png` and the stop that ends the stub's grandchild process; R2: the finished run becomes the map and
 the pace learns 1.5 s of work; R3 failed, R4 refused, R5 queued, R6 dropped while running, R7 the guard), `tests/export.rs`
 E1 to E4 (E1: the four PNGs equal `paint()` byte for byte and 200 stage pixels of `target/tmp/export_done.png` each equal
 a texel of `biomes.png` around their place; E2 a chosen biome is not exported; E3 `section.png` is the sheet; E4 the
-notice's two links, through a recording launcher), `nui-win32/tests/process.rs` X1 (stop takes the grandchild),
-`nui-ui/tests/run_bits.rs` N1 to N3, 10 unit tests in `run.rs` and `text.rs` (the command line, seeds, the pace, the
+notice's two links, through a recording launcher), `mere-win32/tests/process.rs` X1 (stop takes the grandchild),
+`mere-ui/tests/run_bits.rs` N1 to N3, 10 unit tests in `run.rs` and `text.rs` (the command line, seeds, the pace, the
 follow, durations, folder names, `same_as`, the progress file) and `tests/data.rs` d5 (`run.json` of the real folder). The
 workspace has 305 passing tests, none skipped. The step-13 test P5 (generate disabled) and the section CLI shot test
 followed the page: with no map Generate is enabled and filled; the CLI picture is built from `PreviewState::for_world`.
@@ -308,11 +308,11 @@ followed the page: with no map Generate is enabled and filled; the CLI picture i
 Build plan step 18 is done: the right column follows the view with the page's real numbers, the history is kept, and the
 theme follows the system. Built:
 
-- `nui-base`: `Cmd::Polyline` (an open stroke, round joins, flat ends) and `Event::Scheme { dark }`. `nui-win32`: the
+- `mere-base`: `Cmd::Polyline` (an open stroke, round joins, flat ends) and `Event::Scheme { dark }`. `mere-win32`: the
   polyline as a Direct2D path geometry with one stroke style (`D2D1_LINE_JOIN_ROUND`, flat caps), `system_dark()` (the
   registry's `AppsUseLightTheme`; missing or an error is light, as Chrome reads it; the only new `windows` feature is
   `Win32_System_Registry`) and `WM_SETTINGCHANGE` ("ImmersiveColorSet") turned into `Event::Scheme` when the value differs
-  from the last one sent. `nui-ui`: `hover_area`, `list_part` (the `.part` heads), round mark swatches (`RowOpts.mark`),
+  from the last one sent. `mere-ui`: `hover_area`, `list_part` (the `.part` heads), round mark swatches (`RowOpts.mark`),
   `ButtonLook::Pick` and `PickNone`, a strike-through decoration, and `trend_row` with a plot drawn in its slot.
 - `demos/preview`: `figures.rs` is the page's `measure()` (zones, the 10 figures, the five lists, `Math.round`,
   `toFixed(1)`, `percent`, `blocks`) and the cells of `showFigures`, with the change column against the run before.
@@ -346,7 +346,7 @@ theme follows the system. Built:
   (definitions, "needs the full detail", "before: ...", the part hint, the rows' ids); cursor shapes (the history's
   crosshair); the fold's open state kept across launches; the window title bar's dark mode (DWM); history eviction (there
   is no quota natively: the file grows by about 1 KB a run); line wrapping inside a `#pick` piece.
-- Choices where the brief was silent: the first two commits of the brief became one (nui-base alone would not compile
+- Choices where the brief was silent: the first two commits of the brief became one (mere-base alone would not compile
   with the renderer's exhaustive match), so the renderer's polyline is in the first and the registry in the second;
   `BAND_FIGURES` went with the shell in commit 7, since the shell used it until then; `ids.rows` was already the
   settings' rows, so the list's are `list_rows`, `list_keys`, `list_parts`, `list_part_words`, `absent_rows`, and
@@ -362,7 +362,7 @@ Steps 14 to 18 ran as one workflow (17 agents, 2 h 40 min; step 17 needed a seco
 Opus agent set the scope and checked the pictures, a Sonnet agent wrote the code. The session then reran
 `cargo test --offline --workspace` (green), checked the 39 commits (author Louis only, no trailer, clean tree),
 that `C:\Games\preview\out` and `world-preview` were untouched, the one new `windows` feature (`Win32_System_Registry`,
-inside `nui-win32`), and looked at `figures-1400`, `history`, `stage-3d-relief`, `section-1400` and `run-progress`.
+inside `mere-win32`), and looked at `figures-1400`, `history`, `stage-3d-relief`, `section-1400` and `run-progress`.
 The step 15 and 17 shots still show step 13's placeholder figures in the right column: they are those steps' record.
 
 Step 19 (2026-11-15; its fixed panels, its 1000x600 minimum and its single bar form are superseded by the fluid panels section further down) answered the maintainer's remark that the page had too many breakpoints: the world preview's
@@ -370,7 +370,7 @@ panels never move (left 320, right 330, gap 28, padding 18/28/22/28; step 19.5: 
 rule (the map's square side is `min(W - 762, H - 144)` (step 19.5: `H - 136`); the brief's `W - 752` left ten pixels out: 320 + 330 + 2 x 28 +
 2 x 28 = 762), and the top bar has one form from 1000 px up. The window has a minimum of 1000x600, so no layout
 below it exists. The bar is the launcher's, on a frame of our own (`WM_NCCALCSIZE` returns 0, `WM_NCHITTEST` asks
-`App::hit`, the buttons are drawn by `nui-ui`'s `chrome.rs`), with the tool switch Home / preview. The same step
+`App::hit`, the buttons are drawn by `mere-ui`'s `chrome.rs`), with the tool switch Home / preview. The same step
 added cursor shapes, tooltips (the page's titles, 0.5 s delay, painted last), a wake timer with no busy loop, the
 occlusion callback (a covered window is not drawn but still follows its run), device loss through
 `DXGI_STATUS_OCCLUDED` and a rebuild, a DPI change through `WM_DPICHANGED`, `export.json`, and errors in the page's
@@ -388,7 +388,7 @@ the window stays open (the CLI no longer exits 1 for it).
   within 1 s, `tick` reads `progress.json` with no renderer).
 - PLACEHOLDER: `HOME_LATER` (at step 19 it said Home came with step 21; since the final review it says Home belongs to
   the launcher) and the Home pane it fills, which is empty otherwise; Home's own content belongs to step 21.
-- New `windows` features, all inside `nui-win32`: `Win32_Graphics_Dwm` (`DwmExtendFrameIntoClientArea`, to keep the
+- New `windows` features, all inside `mere-win32`: `Win32_Graphics_Dwm` (`DwmExtendFrameIntoClientArea`, to keep the
   window's shadow on the own frame) and `Win32_UI_Controls` (`TrackMouseEvent`, so that the pointer leaving the window
   is known). `RegisterOcclusionStatusWindow` needed nothing new (`Win32_Graphics_Dxgi` was already on).
 - Report for the maintainer: in the pack's repository, `git status` shows ` M pack/pack.toml` with an empty content diff;
@@ -396,7 +396,7 @@ the window stays open (the CLI no longer exits 1 for it).
   only here); the likely cause is a launcher (webview) run in that checkout, since ignored files under `run/app/webview/EBWebView`
   were also written between 00:11 and 00:18. The maintainer should confirm; `git update-index --refresh` there would
   clear it, and was not run.
-- Choices where the brief was silent: `Cmd::Shape` (a path with the winding rule) was added to `nui-base` for the
+- Choices where the brief was silent: `Cmd::Shape` (a path with the winding rule) was added to `mere-base` for the
   icons, drawn crisp with its vertices on device pixels; the icon grammar is the reduced SVG one (`M m L l H h V v Z z`);
   a hidden window's `tick()` looks at the run and leaves the end for the next frame, which holds the device;
   `export.json` writes `ores.added` as null (no editor for the added rows natively) and `ores` as null outside the
@@ -426,16 +426,16 @@ box (step 21 builds in it).
 - Not built: unchanged (no animation, `#account`).
 
 Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the text field.
-- Built: `nui-base` has `Event::Ime(Ime)` (`Start`, `Update { text, cursor }`, `Commit { text }`, `End`, one per IMM
+- Built: `mere-base` has `Event::Ime(Ime)` (`Start`, `Update { text, cursor }`, `Commit { text }`, `End`, one per IMM
   message; `Event` is no longer `Copy`) and `App::ime_spot()` (the caret in dip, None turns the input method off).
-  `nui-ui` counts cells: a wide char (East Asian Wide or Fullwidth, a reduced UAX #11 table in `text.rs`) takes two
+  `mere-ui` counts cells: a wide char (East Asian Wide or Fullwidth, a reduced UAX #11 table in `text.rs`) takes two
   cells inside a field, for the text's width, the caret, the selection, the pointer and the scroll; `max_chars` still
   counts chars. The composition (preedit) is shown inline at the caret, with one underline under all of it; the value
   the application holds changes only at the commit (a departure from the browser's input events, on purpose), which goes
   through the edit model as one undo step and replaces a selection. A cancel (an empty update, then the end) leaves the
   text and the selection as they were. Keys and chars are dropped while a composition shows; a blur drops it (the system
   is told to cancel; Chrome commits on blur, which would here commit after the focus moved, possibly into another
-  field). Number fields ignore the input method. `nui-win32` (`ime.rs`, the only module that names IMM): the
+  field). Number fields ignore the input method. `mere-win32` (`ime.rs`, the only module that names IMM): the
   composition becomes `Event::Ime`, the system's own composition window is hidden (`WM_IME_SETCONTEXT`), the candidate
   window is placed under the composition's start with `CFS_EXCLUDE`, `WM_IME_COMPOSITION` never reaches
   `DefWindowProcW` (no second typing through `WM_IME_CHAR`), and no input context is associated with the window unless a
@@ -443,7 +443,7 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   `demos/widgets` has the input method sheet (`ime_sheet`, `docs/shots/ime-dark.png`, `ime-light.png`); both apps pass
   `Ui::ime_spot` to the backend.
 - Evidence: `cargo test --offline --workspace` 402 passed, 0 failed, 1 ignored, no warning (22 new: 3 wide-cell tests in
-  `nui-ui/tests/field.rs`, 9 in `nui-ui/tests/ime.rs`, 6 unit tests of `nui-win32/src/ime.rs`, the `key_of(0xE5)` test,
+  `mere-ui/tests/field.rs`, 9 in `mere-ui/tests/ime.rs`, 6 unit tests of `mere-win32/src/ime.rs`, the `key_of(0xE5)` test,
   2 pixel tests in `demos/widgets/tests/ime.rs`, 1 in `demos/preview/tests/ime.rs`). No other shot was regenerated.
 - PLACEHOLDER: none.
 - UNVERIFIED: the live input-method path in its entirety (no Japanese or Chinese input method is installed or driven
@@ -475,11 +475,11 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
 ### Step 21: the native launcher (2026-11-15)
 
 - Built, in this repository (branch `feat/native-launcher`):
-  - `nui-ui`: the launcher's icon looks (`IconLook::Square`, `Filled`, `Bare`, joined squares), `hover_box`,
+  - `mere-ui`: the launcher's icon looks (`IconLook::Square`, `Filled`, `Bare`, joined squares), `hover_box`,
     disabled text and number fields (`FieldOpts`, `number_with`), `ButtonLook::Underlined`, `toggle_with`, `Ui::clock`,
     the select with its menu (`menu.rs`, `select_menu`: 25 px box, 20 px rows, painted last and outside every clip,
     Escape closes it), and `anim.rs` (`ease` = CSS `cubic-bezier(.25,.1,.25,1)`, `Slide`, 220 ms).
-  - `nui-win32`: `reduced_motion()` (`SPI_GETCLIENTAREAANIMATION`, read once by the app).
+  - `mere-win32`: `reduced_motion()` (`SPI_GETCLIENTAREAANIMATION`, read once by the app).
   - `demos/widgets`: the launcher controls sheet (`--launcher`, `launcher_controls_<theme>.png`).
   - `demos/preview`: `home.rs` (the `Home` trait: build, act, poll, wake_in, shown, account, as_any; hosted by
     `PreviewApp::with_home`, drawn by `picture_with_home`), the bar's account (`#account`, ellipsis beside the pack's
@@ -524,13 +524,13 @@ Step 20 (2026-11-15) built the input method (IME, IMM32 only, no TSF) in the tex
   - the bar normalises a state that names a tool without its slide (Home with the views open becomes closed, and the
     reverse); `options_w` lives in `PreviewState`; `ShellIds.options` was added;
   - the select's width is the parent's (`Pct(100)`) and its menu is `20 n + 2` tall;
-  - icon tests read draw-list colours (nui-ui has no renderer);
+  - icon tests read draw-list colours (mere-ui has no renderer);
   - disabled number fields show 0 when the server has no properties;
   - Home's first poll asks both endpoints whatever the tool;
   - `Rig` in `demos/preview/tests/bar.rs` sets `reduce_motion` true, so the older tests do not animate;
   - `launcher/native` keeps its own `Cargo.lock` (copied from `launcher/app`); its toolkit paths, written in one place,
     name this repository's main checkout by an absolute path since the merge of 0.2.0, and become
-    `../../../rust-native-ui` once the pack's repository merges its branch;
+    `../../../mere-ui` once the pack's repository merges its branch;
   - `main.rs` opens 1280x880 raised to the least size; `--shot` defaults to the dark theme;
   - at 1400x600 the two parts never overflow with the preview's 10 px top (they end at 582 of 600), so the test and the
     picture of the overflow use a long server note (a 412 EULA error on start); a deviation from the brief;
@@ -583,7 +583,7 @@ back arrow at once, minimise during a Generate and look at the taskbar title, a 
 UNVERIFIED: the live window, a display scale of 150%, the real `preview.ps1` run from the launcher. Not built: the list
 above. The build plan has no further step.
 
-Next: the maintainer's manual check of the native launcher (above); then the orchestrator merges `feat/native-launcher` of both repositories and repoints `launcher/native`'s paths at `../../../rust-native-ui`. The build plan has no step after 21.
+Next: the maintainer's manual check of the native launcher (above); then the orchestrator merges `feat/native-launcher` of both repositories and repoints `launcher/native`'s paths at `../../../mere-ui`. The build plan has no step after 21.
 
 Provisional choices, made by the session on 2026-11-14 and not settled: the maintainer had no view of their
 own and asked to see the result first, so revisit both once the panels can be looked at.
@@ -623,10 +623,10 @@ and the PNG has been looked at and compared with the web preview's look.
 ## Decisions already taken (do not reopen)
 
 - Direct3D 11 + Win32 directly. No tao, no wry, no web page, no Slint, Electron or Tauri.
-- Only `nui-win32` names Windows; the other crates are portable so a Linux backend can replace it later.
-- No third-party crate except `windows = "=0.62.2"` (already in the cargo cache), and only in `nui-win32`.
+- Only `mere-win32` names Windows; the other crates are portable so a Linux backend can replace it later.
+- No third-party crate except `windows = "=0.62.2"` (already in the cargo cache), and only in `mere-win32`.
   Open-source libraries (Taffy, microui, egui, Clay) are read for how they do things, never depended on.
-- PNG, lossless, our own encoder (`nui-png`, done): hairlines and text must not blur, so no JPEG or WebP.
+- PNG, lossless, our own encoder (`mere-png`, done): hairlines and text must not blur, so no JPEG or WebP.
 - Reversed-Z infinite perspective (clear depth 0, compare GREATER) instead of three.js's logarithmic depth.
 - Consolas first; IBM Plex Mono (embedded woff2 in preview.html, SIL OFL) comes after step 6.
 - Work happens on `main` in this young repository, which has no remote: nothing to push.
@@ -634,23 +634,23 @@ and the PNG has been looked at and compared with the web preview's look.
 
 ## Where it stands
 
-- Done and committed (`692a87a`): `nui-base` (Color, Vertex, Material, the `Gfx` and `App` traits, Event,
+- Done and committed (`692a87a`): `mere-base` (Color, Vertex, Material, the `Gfx` and `App` traits, Event,
   math with column-major `Mat4`, `perspective_reversed`, `look_at`, the `Orbit` camera, `DrawList`, the log
-  hub with `observe!`) and `nui-png` (encoder with filter heuristic and fixed-Huffman deflate, plus a decoder
+  hub with `observe!`) and `mere-png` (encoder with filter heuristic and fixed-Huffman deflate, plus a decoder
   of our own files for tests). 8 tests green.
-- Drafted, never compiled, untracked: `crates/nui-win32/` with `Cargo.toml`, `src/lib.rs` (`shot()`) and
+- Drafted, never compiled, untracked: `crates/mere-win32/` with `Cargo.toml`, `src/lib.rs` (`shot()`) and
   `src/renderer.rs` (device with WARP fallback, swap chain or offscreen texture, D2D on the DXGI surface,
   DirectWrite text, shaders compiled at start with `D3DCompile`, STAGING readback). `src/window.rs` (the
   `run` function it exports) does not exist yet. Expect compile errors against windows-rs 0.62.2 signatures.
-- The workspace `members` in the root `Cargo.toml` list only `nui-base` and `nui-png`; add `nui-win32` and
+- The workspace `members` in the root `Cargo.toml` list only `mere-base` and `mere-png`; add `mere-win32` and
   `demos/relief` as each one comes to exist.
 
 ## Steps left
 
-1. **Offscreen renderer** (`nui-win32`): compile `renderer.rs`; a test or tiny example clears to a colour,
+1. **Offscreen renderer** (`mere-win32`): compile `renderer.rs`; a test or tiny example clears to a colour,
    draws one flat triangle and a `Frame`/`Text` command, writes a PNG. Pass: the PNG shows them.
 2. **Window** (`window.rs`): `SetProcessDpiAwarenessContext(PER_MONITOR_AWARE_V2)`, a Win32 class and window,
-   events mapped to `nui_base::Event` (size, pointer, wheel, close, `WM_DPICHANGED`), `GetMessageW` when idle
+   events mapped to `mere_base::Event` (size, pointer, wheel, close, `WM_DPICHANGED`), `GetMessageW` when idle
    and `PeekMessageW` while `App::frame` asks for more, `Renderer::resize` on `WM_SIZE`.
 3. **Relief demo** (`demos/relief`, binary `relief <data-dir> [--shot out.png --size WxH --scale S]`):
    - reads `preview.json` (seed, samples 256, step 16, originX/Z, seaLevel 63, minY, maxY), `heights.bin`
@@ -676,7 +676,7 @@ Data for tests: a world preview out folder named by `PREVIEW_DATA_DIR` (the one 
 The steps depend on each other, so the workflow is a chain, not a fan-out; keep it under 10 agents.
 
 - Each step: one implementing agent (Sonnet) that writes the code, runs `cargo build` and `cargo test` in
-  `rust-native-ui`, and commits once it compiles (small commits, `feat:`/`fix:` messages in
+  `mere-ui`, and commits once it compiles (small commits, `feat:`/`fix:` messages in
   English); then one checking agent (Sonnet) that rebuilds, runs the step's pass check, opens the PNG and
   answers pass/fail with reasons. On fail, the implementer gets the reasons back, at most two more rounds.
 - The orchestrator (the session) reads each verdict, looks at the final PNGs itself, and reports in French.

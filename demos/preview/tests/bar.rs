@@ -6,11 +6,11 @@ mod common;
 
 use std::path::Path;
 
-use nui_base::{App, Button, Event, Hit, Rect, Vec2, WindowRequest, Edge};
-use nui_ui::tokens::{ICON_SQUARE, palette};
-use nui_ui::{Id, TOOL_PAD_L, Theme, Ui};
+use mere_base::{App, Button, Event, Hit, Rect, Vec2, WindowRequest, Edge};
+use mere_ui::tokens::{ICON_SQUARE, palette};
+use mere_ui::{Id, TOOL_PAD_L, Theme, Ui};
 use preview::overflow::{ENDS_W, TOGGLE_EDGE};
-use nui_win32::Renderer;
+use mere_win32::Renderer;
 use preview::world::World;
 use preview::{BAR_H, CONTENT_TOP, Mode, PreviewApp, PreviewState, ShellIds, picture};
 
@@ -65,7 +65,7 @@ impl Rig {
     fn write(&mut self, name: &str) -> Vec<u8> {
         let rgba = self.rgba();
         let path = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-        std::fs::write(&path, nui_png::encode((self.w as f32 * self.scale) as u32, (self.h as f32 * self.scale) as u32, &rgba)).unwrap();
+        std::fs::write(&path, mere_png::encode((self.w as f32 * self.scale) as u32, (self.h as f32 * self.scale) as u32, &rgba)).unwrap();
         println!("wrote {}", path.display());
         rgba
     }
@@ -109,7 +109,7 @@ fn centre(r: Rect) -> Vec2 {
     Vec2::new(r.x + r.w / 2.0, r.y + r.h / 2.0)
 }
 
-fn rgb(c: nui_base::Color) -> [u8; 3] {
+fn rgb(c: mere_base::Color) -> [u8; 3] {
     [c.r, c.g, c.b].map(|v| (v * 255.0).round() as u8)
 }
 
@@ -238,7 +238,7 @@ fn b4_the_buttons_and_the_title_are_requests() {
     let mut state = PreviewState::for_world(Some(&world));
     state.detail = 2;
     state.reduce_motion = true;
-    let runs = common::runs(&root, &[("NUI_STUB", "hold")]);
+    let runs = common::runs(&root, &[("MERE_STUB", "hold")]);
     let theme = Theme::dark();
     let mut r = Renderer::offscreen(1400, 940, 1.0).unwrap();
     let mut app = PreviewApp::new(theme, true, Vec2::new(1400.0, 940.0), state, Some(world.clone())).with_runs(runs);
@@ -438,14 +438,14 @@ fn bar_pictures() {
 }
 
 fn says(rig: &Rig, words: &str) -> bool {
-    rig.app.list().cmds.iter().any(|c| matches!(c, nui_base::Cmd::Text { text, .. } if text == words))
+    rig.app.list().cmds.iter().any(|c| matches!(c, mere_base::Cmd::Text { text, .. } if text == words))
 }
 
 /// B3: the pointer's shape follows what is under it: a hand on a tab, the arrow on the bare shell, a crosshair on
 /// the map, and the sizing arrows only where the window's frame is (an edge of the bar).
 #[test]
 fn b3_the_cursor_follows_what_is_under_the_pointer() {
-    use nui_base::Cursor;
+    use mere_base::Cursor;
     let Some(world) = load() else { return };
     let mut rig = Rig::standard(&world);
     // Biomes: a greyed tab (the loaded world is a coarse one) asks for no hand.
@@ -485,7 +485,7 @@ fn t1_a_tooltip_comes_after_its_delay_and_goes_with_the_pointer() {
     rig.hover(tab);
     rig.app.set_clock(Some(20.6));
     rig.frame();
-    let tips = rig.app.list().cmds.iter().filter(|c| matches!(c, nui_base::Cmd::Text { text, .. } if text == "Relief")).count();
+    let tips = rig.app.list().cmds.iter().filter(|c| matches!(c, mere_base::Cmd::Text { text, .. } if text == "Relief")).count();
     assert!(tips >= 2, "the tab's own label and the tip that repeats it: {tips}");
     rig.write("tooltip.png");
 }
@@ -547,7 +547,7 @@ fn a1_the_options_slide_open_in_220_ms() {
     let natural = rig.app.state().options_w;
     assert!(natural > 300.0, "the tabs' width is known: {natural}");
     let w = options_w(&rig);
-    let want = nui_ui::ease(0.5) * natural;
+    let want = mere_ui::ease(0.5) * natural;
     assert!((w - want).abs() < 1.5, "{w} against {want}");
     assert!(rig.app.frame(&mut rig.r, 0.0), "frames go on while it moves");
     rig.app.set_clock(Some(11.0));
@@ -581,7 +581,7 @@ fn a3_the_options_slide_shut_and_are_inert() {
     rig.app.set_clock(Some(10.11));
     rig.app.frame(&mut rig.r, 0.0);
     let w = options_w(&rig);
-    let want = (1.0 - nui_ui::ease(0.5)) * natural;
+    let want = (1.0 - mere_ui::ease(0.5)) * natural;
     assert!((w - want).abs() < 1.5, "{w} against {want}");
     let (view, tab) = (rig.app.state().view, rig.app.ids().tabs[0]);
     let c = centre(rig.rect(tab));
@@ -599,11 +599,11 @@ fn a3_the_options_slide_shut_and_are_inert() {
 fn a4_the_account_follows_the_name() {
     for w in [1000, 1920] {
         let rig = slide_rig(Mode::Home, true, Some("PlayerOne"), w, 1.0);
-        let shown: Vec<(String, Vec2)> = rig.app.list().cmds.iter().filter_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { text.starts_with("Player").then(|| (text.clone(), *at)) } else { None }).collect();
+        let shown: Vec<(String, Vec2)> = rig.app.list().cmds.iter().filter_map(|c| if let mere_base::Cmd::Text { text, at, .. } = c { text.starts_with("Player").then(|| (text.clone(), *at)) } else { None }).collect();
         assert_eq!(shown.len(), 1, "Home {w}");
         let (text, at) = &shown[0];
         // The brand's padding (12), the cube (16) and two gaps (10 each), then the brand's name, whatever it says.
-        let after_name = 48.0 + nui_ui::TextLook::heading().width(&preview::text::BAR_TITLE.to_uppercase());
+        let after_name = 48.0 + mere_ui::TextLook::heading().width(&preview::text::BAR_TITLE.to_uppercase());
         assert!((at.x - after_name).abs() < 0.5, "Home {w}: {} for {after_name}", at.x);
         let brand = rig.rect(rig.app.ids().brand);
         assert!((at.y + 9.0 - (brand.y + brand.h / 2.0)).abs() < 3.0, "on the bar's centre line");
@@ -613,13 +613,13 @@ fn a4_the_account_follows_the_name() {
     }
     for w in [1000, 1400, 1920] {
         let rig = slide_rig(Mode::Preview, true, Some("PlayerOne"), w, 1.0);
-        let shown = rig.app.list().cmds.iter().filter(|c| matches!(c, nui_base::Cmd::Text { text, .. } if text.starts_with("Player"))).count();
+        let shown = rig.app.list().cmds.iter().filter(|c| matches!(c, mere_base::Cmd::Text { text, .. } if text.starts_with("Player"))).count();
         assert_eq!(shown, 0, "the preview tool shows no account at {w}");
         assert_eq!(rig.app.ids().brand, Id::ROOT);
     }
     let long = "A".repeat(40);
     let rig = slide_rig(Mode::Home, true, Some(&long), 600, 1.0);
-    let cut = rig.app.list().cmds.iter().find_map(|c| if let nui_base::Cmd::Text { text, at, .. } = c { (text.ends_with('\u{2026}') && text.starts_with("AAA")).then(|| (text.clone(), *at)) } else { None });
+    let cut = rig.app.list().cmds.iter().find_map(|c| if let mere_base::Cmd::Text { text, at, .. } = c { (text.ends_with('\u{2026}') && text.starts_with("AAA")).then(|| (text.clone(), *at)) } else { None });
     let (text, at) = cut.expect("a 40 char account does not fit before the tools at 600 and ends in an ellipsis");
     let right = at.x + text.chars().count() as f32 * 7.2;
     let strip = rig.rect(rig.app.ids().strip);

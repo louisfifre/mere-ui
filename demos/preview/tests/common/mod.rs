@@ -9,9 +9,9 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
-use nui_base::{App, Button, Color, Event, Rect, Vec2};
-use nui_ui::{Id, Theme};
-use nui_win32::{Renderer, SystemLauncher};
+use mere_base::{App, Button, Color, Event, Rect, Vec2};
+use mere_ui::{Id, Theme};
+use mere_win32::{Renderer, SystemLauncher};
 use preview::run::{Engine, Runs};
 use preview::world::World;
 use preview::{PreviewApp, PreviewState};
@@ -56,13 +56,13 @@ pub fn root(name: &str) -> PathBuf {
 /// flag is set. It downloads nothing, starts no game and writes only under target\tmp (it refuses any other out or
 /// work folder before it creates anything).
 ///
-/// `NUI_STUB` is the mode: "finish" (default) copies the finished out folder `NUI_STUB_FROM` names, "hold" stays in
+/// `MERE_STUB` is the mode: "finish" (default) copies the finished out folder `MERE_STUB_FROM` names, "hold" stays in
 /// the map pass with a child process of its own, as the game server is, until it is stopped, and "fail" fails after
 /// its first progress.
 pub fn stub(env: &[(&str, &str)]) -> Engine {
     let get = |k: &str| env.iter().find(|(key, _)| *key == k).map(|(_, v)| v.to_string());
-    let mode = get("NUI_STUB").unwrap_or_else(|| "finish".to_string());
-    let from = get("NUI_STUB_FROM").map(PathBuf::from);
+    let mode = get("MERE_STUB").unwrap_or_else(|| "finish".to_string());
+    let from = get("MERE_STUB_FROM").map(PathBuf::from);
     Arc::new(move |o: &world_preview::Options, log: &mut dyn FnMut(&str)| stub_run(o, &mode, from.as_deref(), log))
 }
 
@@ -137,7 +137,7 @@ fn stub_run(o: &world_preview::Options, mode: &str, from: Option<&Path>, log: &m
     if mode != "finish" {
         return Err(format!("stub: unknown mode {mode}"));
     }
-    let from = from.filter(|f| f.join("preview.json").exists()).ok_or("stub: NUI_STUB_FROM must name a folder with a preview.json.")?;
+    let from = from.filter(|f| f.join("preview.json").exists()).ok_or("stub: MERE_STUB_FROM must name a folder with a preview.json.")?;
     for entry in std::fs::read_dir(from).map_err(|e| e.to_string())?.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         let kept = ["preview.json", "heights.bin", "biomes.bin", "section.json", "ores.json", "structures.json"].contains(&name.as_str())
@@ -252,7 +252,7 @@ impl Rig {
         self.frame();
         let rgba = self.rgba();
         let path = tmp().join(name);
-        std::fs::write(&path, nui_png::encode(W, H, &rgba)).unwrap();
+        std::fs::write(&path, mere_png::encode(W, H, &rgba)).unwrap();
         println!("wrote {}", path.display());
         rgba
     }

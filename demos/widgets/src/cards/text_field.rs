@@ -1,9 +1,9 @@
 //! The TextField card: the field at control height, compact and tall; empty, rest, focused with the caret,
 //! text selected and disabled (components/TextField/preview.html).
 
-use nui_base::{Event, Key, Mods};
-use nui_layout::Dim;
-use nui_ui::{FieldLook, FieldOpts, Theme, Ui};
+use mere_base::{Event, Key, Mods};
+use mere_layout::Dim;
+use mere_ui::{FieldLook, FieldOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

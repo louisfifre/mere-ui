@@ -1,6 +1,6 @@
 //! What the bar gives up when the window is too narrow for all of it, worked out from the real widths of its
 //! parts before they are built. The widths are arithmetic (the font is monospaced: a word is a count of cells
-//! times a constant, see `nui_ui::TextLook::width`), so the thresholds are measured, not typed in: a longer
+//! times a constant, see `mere_ui::TextLook::width`), so the thresholds are measured, not typed in: a longer
 //! word, another account name or one more view moves them by itself.
 //!
 //! The bar is a grid of three cells. In the preview tool the left cell holds the settings panel's button and the
@@ -19,8 +19,8 @@
 //!
 //! The two tools keep their names, always.
 
-use nui_ui::tokens::{GAP, GAP_TIGHT, ICON, ICON_SQUARE};
-use nui_ui::{ADVANCE_EM, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, TextLook, Tone, tool_button_width};
+use mere_ui::tokens::{GAP, GAP_TIGHT, ICON, ICON_SQUARE};
+use mere_ui::{ADVANCE_EM, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, TextLook, Tone, tool_button_width};
 
 use crate::text;
 

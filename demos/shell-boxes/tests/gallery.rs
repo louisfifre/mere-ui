@@ -2,8 +2,8 @@
 //! CSS, nothing overlapping, and the picture `target/tmp/gallery.png`. Every expected number is derived by
 //! hand from the page's rule (the line is cited in `src/gallery.rs`), not copied from the output.
 
-use nui_base::Rect;
-use nui_layout::{NodeId, Overflow, Position, Tree};
+use mere_base::Rect;
+use mere_layout::{NodeId, Overflow, Position, Tree};
 use shell_boxes::draw_boxes;
 use shell_boxes::gallery::{GALLERY, build_gallery};
 
@@ -173,7 +173,7 @@ fn labels_stay_inside_their_box_and_the_picture() {
         }
     }
     // A label never sits on the box of a descendant of its own node.
-    fn descendants(t: &nui_layout::Tree, n: nui_layout::NodeId, out: &mut Vec<nui_layout::NodeId>) {
+    fn descendants(t: &mere_layout::Tree, n: mere_layout::NodeId, out: &mut Vec<mere_layout::NodeId>) {
         for &c in t.children(n) {
             out.push(c);
             descendants(t, c, out);
@@ -187,7 +187,7 @@ fn labels_stay_inside_their_box_and_the_picture() {
             if r.w <= 0.0 && r.h <= 0.0 {
                 continue;
             }
-            let r = nui_base::Rect::new(r.x, r.y, r.w.max(0.01), r.h.max(0.01));
+            let r = mere_base::Rect::new(r.x, r.y, r.w.max(0.01), r.h.max(0.01));
             assert!(!overlap(l.rect, r), "label {:?} sits on its descendant {}", l.text, g.tree.name(d));
         }
     }

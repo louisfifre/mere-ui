@@ -1,15 +1,15 @@
 //! The ListHeads card: the legend head, then the part head plain, pressed, as a button and first
 //! (components/ListHeads/preview.html).
 
-use nui_layout::{Dim, Style};
-use nui_ui::{PartOpts, Theme, Ui};
+use mere_layout::{Dim, Style};
+use mere_ui::{PartOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 
 /// The preview's `col: '240px'`.
 const COL: f32 = 240.0;
 
-fn column(ui: &mut Ui, inner: impl FnOnce(&mut Ui) -> nui_ui::Id) -> nui_ui::Id {
+fn column(ui: &mut Ui, inner: impl FnOnce(&mut Ui) -> mere_ui::Id) -> mere_ui::Id {
     let mut id = None;
     ui.node("col", Style { column: true, w: Dim::Px(COL), ..Style::default() }, |ui| id = Some(inner(ui)));
     id.unwrap()

@@ -6,7 +6,7 @@
 mod text;
 mod view;
 
-use nui_base::log;
+use mere_base::log;
 use std::path::PathBuf;
 
 struct Args {
@@ -54,17 +54,17 @@ fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args = parse_args(&args).map_err(|e| format!("{e}\n{}", text::usage()))?;
     let world = preview::world::World::load(&args.dir)?;
-    nui_base::observe!(Info, "loaded {} points, seed {}", world.heights.len(), world.seed);
+    mere_base::observe!(Info, "loaded {} points, seed {}", world.heights.len(), world.seed);
     let mut app = view::Relief::new(world);
     match args.shot {
         Some(path) => {
             let (w, h) = args.size;
-            let rgba = nui_win32::shot(&mut app, w, h, args.scale).map_err(|e| e.to_string())?;
-            std::fs::write(&path, nui_png::encode(w, h, &rgba)).map_err(|e| format!("{}: {e}", path.display()))?;
-            nui_base::observe!(Info, "wrote {}", path.display());
+            let rgba = mere_win32::shot(&mut app, w, h, args.scale).map_err(|e| e.to_string())?;
+            std::fs::write(&path, mere_png::encode(w, h, &rgba)).map_err(|e| format!("{}: {e}", path.display()))?;
+            mere_base::observe!(Info, "wrote {}", path.display());
             Ok(())
         }
-        None => nui_win32::run(text::WINDOW_TITLE, &mut app).map_err(|e| e.to_string()),
+        None => mere_win32::run(text::WINDOW_TITLE, &mut app).map_err(|e| e.to_string()),
     }
 }
 

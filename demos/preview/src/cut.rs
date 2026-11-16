@@ -9,7 +9,7 @@
 
 use std::collections::BTreeSet;
 
-use nui_base::{ImageId, Rect};
+use mere_base::{ImageId, Rect};
 
 use crate::section::{CAVE, DEEP, EARTH, EARTH_DEPTH, Ground, LAVA, ORE_COLOURS, ORE_KINDS, ROCK, Section, Shown, WATER};
 use crate::text;

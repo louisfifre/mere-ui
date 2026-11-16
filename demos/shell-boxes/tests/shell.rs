@@ -1,8 +1,8 @@
 //! Step 7's checks on the world preview shell: the column widths of the three breakpoints, nothing
 //! overlapping, and the debug pictures under `target/tmp`.
 
-use nui_base::Rect;
-use nui_layout::{NodeId, Tree};
+use mere_base::Rect;
+use mere_layout::{NodeId, Tree};
 use shell_boxes::{Columns, build, draw_boxes};
 
 mod common;
@@ -90,7 +90,7 @@ fn the_toolbar_is_centred_and_the_stage_leaves_room_for_under() {
 
 #[test]
 fn debug_pictures_at_1400_1200_and_1000() {
-    nui_base::log::add_sink(nui_base::log::stderr_sink(nui_base::log::Level::Info));
+    mere_base::log::add_sink(mere_base::log::stderr_sink(mere_base::log::Level::Info));
     for (width, ..) in CASES {
         let s = build(width, HEIGHT);
         let list = draw_boxes(&s.tree, s.root, width, HEIGHT);

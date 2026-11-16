@@ -3,9 +3,9 @@
 //! on the real rects of a built page, and the hand through the events a window sends.
 
 
-use nui_base::{App, Button, Cmd, Color, Cursor, Event, Rect, Vec2};
-use nui_ui::{Id, Theme};
-use nui_win32::Renderer;
+use mere_base::{App, Button, Cmd, Color, Cursor, Event, Rect, Vec2};
+use mere_ui::{Id, Theme};
+use mere_win32::Renderer;
 use preview::panels::{self, GAP, GAP_STACKED, MAP_MIN, PANEL_MAX, PANEL_MIN, STACK_AT, beside_min};
 use preview::world::World;
 use preview::{BAR_H, CONTENT_TOP, PreviewApp, PreviewState, ShellIds, picture_with};
@@ -148,7 +148,7 @@ fn the_natural_widths_are_the_widest_rows_under_the_maximum() {
     let [left, right] = panels::natural();
     assert!((PANEL_MIN..=PANEL_MAX).contains(&left) && (PANEL_MIN..=PANEL_MAX).contains(&right), "{left} {right}");
     // "Lanterns over underground rivers": 32 cells of 7.2 px, the two gaps and the field, and the scrollbar's gutter.
-    let widest = nui_ui::TextLook::body(nui_ui::Tone::Text).width("Lanterns over underground rivers") + 2.0 * panels::SETTING_GAP + panels::setting_field() + nui_ui::GUTTER;
+    let widest = mere_ui::TextLook::body(mere_ui::Tone::Text).width("Lanterns over underground rivers") + 2.0 * panels::SETTING_GAP + panels::setting_field() + mere_ui::GUTTER;
     assert_eq!(left, widest.ceil());
     // That row is the widest label of the settings.
     for s in preview::settings::SETTINGS.iter() {

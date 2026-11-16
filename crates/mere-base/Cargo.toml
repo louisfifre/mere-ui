@@ -1,0 +1,9 @@
+[package]
+name = "mere-base"
+description = "The platform contract: geometry, colours, matrices, draw lists, the Gfx and App traits, the log hub."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license = "GPL-3.0-only"
+
+[dependencies]

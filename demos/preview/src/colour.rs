@@ -146,7 +146,7 @@ pub fn biome_colour(id: &str) -> [u8; 3] {
         Some([h, s, l]) => (h, s, l),
         None => {
             // A name no rule knows: say so, the grey-green it gets tells nothing.
-            nui_base::observe!(Info, "No colour family for {id}");
+            mere_base::observe!(Info, "No colour family for {id}");
             (100.0, 20.0, 50.0)
         }
     };

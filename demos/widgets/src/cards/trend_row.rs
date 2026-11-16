@@ -1,9 +1,9 @@
 //! The TrendRow card: the default row, a name too long for its column, and a thicker stroke
 //! (components/TrendRow/preview.html). The trend row has no states.
 
-use nui_base::{Cmd, Vec2};
-use nui_layout::{Dim, Style};
-use nui_ui::{Theme, Ui};
+use mere_base::{Cmd, Vec2};
+use mere_layout::{Dim, Style};
+use mere_ui::{Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

@@ -2,7 +2,7 @@
 //! overlay of facts about the area.
 
 use crate::text;
-use nui_base::{App, Button, Color, DrawList, Event, Gfx, ImageId, Orbit, Rect, Vec2};
+use mere_base::{App, Button, Color, DrawList, Event, Gfx, ImageId, Orbit, Rect, Vec2};
 use preview::paint::{View, paint};
 use preview::scene;
 use preview::world::World;
@@ -105,8 +105,8 @@ impl App for Relief {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nui_base::Vec3;
-    use nui_win32::Renderer;
+    use mere_base::Vec3;
+    use mere_win32::Renderer;
     use std::f32::consts::FRAC_PI_2;
     use std::path::Path;
 
@@ -133,7 +133,7 @@ mod tests {
         }
         let path = format!("{}/../../target/tmp/interact-{name}.png", env!("CARGO_MANIFEST_DIR"));
         std::fs::create_dir_all(Path::new(&path).parent().unwrap()).unwrap();
-        std::fs::write(&path, nui_png::encode(SIZE.0, SIZE.1, &r.read_rgba().unwrap())).unwrap();
+        std::fs::write(&path, mere_png::encode(SIZE.0, SIZE.1, &r.read_rgba().unwrap())).unwrap();
     }
 
     fn drag(app: &mut Relief, from: Vec2, to: Vec2) {
@@ -225,7 +225,7 @@ mod tests {
         let small = r.read_rgba().unwrap();
         assert_eq!(small.len(), 480 * 600 * 4);
         let path = format!("{}/../../target/tmp/interact-6-resized.png", env!("CARGO_MANIFEST_DIR"));
-        std::fs::write(&path, nui_png::encode(480, 600, &small)).unwrap();
+        std::fs::write(&path, mere_png::encode(480, 600, &small)).unwrap();
     }
 
     trait Finite {

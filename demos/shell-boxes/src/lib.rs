@@ -1,5 +1,5 @@
 //! Build plan step 7's picture: the world preview's page shell (`world-preview/page/preview.html`), laid out
-//! by `nui-layout` at a given window width, and drawn as named boxes. Only the shell is here: the toolbar
+//! by `mere-layout` at a given window width, and drawn as named boxes. Only the shell is here: the toolbar
 //! and the three columns with their big blocks. What is inside the blocks comes with steps 9 to 13.
 //!
 //! Every number that comes from the page says which CSS line it is read from. A number the page does not
@@ -8,8 +8,8 @@
 
 pub mod gallery;
 
-use nui_base::{Color, DrawList, Rect, Vec2};
-use nui_layout::{Dim, Display, Edges, Margin, NodeId, Overflow, Style, Track, Tracks, Tree};
+use mere_base::{Color, DrawList, Rect, Vec2};
+use mere_layout::{Dim, Display, Edges, Margin, NodeId, Overflow, Style, Track, Tracks, Tree};
 
 /// The three layouts of `#page`, one per media query.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -96,9 +96,9 @@ pub fn build(width: f32, height: f32) -> Shell {
         "toolbar",
         Style {
             shrink: 0.0,
-            justify: nui_layout::Justify::Center,
+            justify: mere_layout::Justify::Center,
             pad: Edges::new(10.0, 16.0, 0.0, 16.0),
-            align_items: nui_layout::Align::Start,
+            align_items: mere_layout::Align::Start,
             ..Style::default()
         },
     );

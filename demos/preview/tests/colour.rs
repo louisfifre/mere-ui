@@ -1,6 +1,6 @@
 //! The pieces of the map that need no data: the regex-free matcher, the number and name formats, the look.
 
-use nui_base::Vec2;
+use mere_base::Vec2;
 use preview::colour::{Alt, biome_colour, hash_of, hsl_to_rgb, structure_colour, underground};
 use preview::map::Look;
 use preview::paint::View;

@@ -12,9 +12,9 @@
 
 use std::sync::OnceLock;
 
-use nui_base::{Cmd, Color, Rect, Vec2};
-use nui_layout::{Align, Dim, Display, Edges, Overflow, Position, Style, Track, Tracks};
-use nui_ui::{Icon, IconLook, IconOpts, MenuRow, Slide, TabLook, TabOpts, TextLook, Tone, Ui, strip_style};
+use mere_base::{Cmd, Color, Rect, Vec2};
+use mere_layout::{Align, Dim, Display, Edges, Overflow, Position, Style, Track, Tracks};
+use mere_ui::{Icon, IconLook, IconOpts, MenuRow, Slide, TabLook, TabOpts, TextLook, Tone, Ui, strip_style};
 
 use crate::overflow::{self, Form, VIEW_COUNT};
 use crate::shell::{BAR_H, Mode, PreviewState, RunEnd, ShellIds, Want};
@@ -80,7 +80,7 @@ pub struct Icons {
 /// in copying, so it is a logged empty icon rather than a panic.
 fn parse(d: &str, grid: f32) -> Icon {
     Icon::parse(d, grid).unwrap_or_else(|e| {
-        nui_base::observe!(Error, "icon path '{d}': {e}");
+        mere_base::observe!(Error, "icon path '{d}': {e}");
         Icon { grid, figures: Vec::new() }
     })
 }

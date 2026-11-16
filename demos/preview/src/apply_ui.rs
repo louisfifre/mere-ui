@@ -2,8 +2,8 @@
 //! pack's, to Tectonic's own; each is pressed while the form is there, both when the pack is Tectonic's own), what the
 //! last apply said, and the one-time warning about seams. The shell only records the press (`Want::Apply`); the application writes (`apply.rs`).
 
-use nui_layout::{Align, Edges, Margin, Side, Style};
-use nui_ui::{ButtonLook, ButtonOpts, TabLook, TabOpts, TextLook, Tone, Ui, choice_style};
+use mere_layout::{Align, Edges, Margin, Side, Style};
+use mere_ui::{ButtonLook, ButtonOpts, TabLook, TabOpts, TextLook, Tone, Ui, choice_style};
 
 use crate::apply::{Fail, Notice, Running};
 use crate::settings::original_values;
@@ -38,15 +38,15 @@ pub struct Apply<'a> {
 }
 
 pub fn apply_block(ui: &mut Ui, s: Apply, ids: &mut ShellIds) {
-    ids.apply = nui_ui::Id::ROOT;
-    ids.apply_note = nui_ui::Id::ROOT;
+    ids.apply = mere_ui::Id::ROOT;
+    ids.apply_note = mere_ui::Id::ROOT;
     ids.apply_text.clear();
-    let style = Style { column: true, shrink: 0.0, pad: Edges::new(10.0, 0.0, 0.0, 0.0), gap: nui_base::Vec2::new(0.0, 6.0), ..Style::default() };
+    let style = Style { column: true, shrink: 0.0, pad: Edges::new(10.0, 0.0, 0.0, 0.0), gap: mere_base::Vec2::new(0.0, 6.0), ..Style::default() };
     ui.node("applyBlock", style, |ui| {
         let differs = *s.values != *s.baseline;
         let working = *s.notice == Notice::Working;
         let enabled = s.pack_known && differs && !working;
-        let line = Style { wrap: true, align_items: Align::Baseline, gap: nui_base::Vec2::new(10.0, 4.0), ..Style::default() };
+        let line = Style { wrap: true, align_items: Align::Baseline, gap: mere_base::Vec2::new(10.0, 4.0), ..Style::default() };
         ui.node("applyLine", line, |ui| {
             let r = ui.button_with("applyPack", text::APPLY_TO_PACK, ButtonLook::Link, ButtonOpts { disabled: !enabled, grow: 0.0 });
             ids.apply = r.id;

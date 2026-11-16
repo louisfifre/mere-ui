@@ -1,7 +1,7 @@
 //! The IconButton card: the looks as rows, rest, hover, pressed and disabled as columns; a look without a
 //! state leaves its cell empty (components/IconButton/preview.html).
 
-use nui_ui::{Icon, IconLook, IconOpts, Theme, Ui};
+use mere_ui::{Icon, IconLook, IconOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

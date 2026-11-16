@@ -2,7 +2,7 @@
 //! relief demo: the land as a mesh draped in the map's picture, the sheet of water, the orbit camera and the
 //! ground under it. One unit is one block, heights included.
 
-use nui_base::{Color, Gfx, ImageId, Material, MeshId, Orbit, Rect, Vec3, Vertex};
+use mere_base::{Color, Gfx, ImageId, Material, MeshId, Orbit, Rect, Vec3, Vertex};
 
 use crate::paint::View;
 use crate::world::World;

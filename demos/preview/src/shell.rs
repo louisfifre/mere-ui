@@ -1,5 +1,5 @@
 //! The world preview's shell (build plan step 13): the bar and the three columns of `#page`
-//! (preview.html lines 63-88, 370-449), built with `nui-ui` and filled with the page's real settings
+//! (preview.html lines 63-88, 370-449), built with `mere-ui` and filled with the page's real settings
 //! sections and static values. The side panels are fluid (`panels.rs`): each is as wide as its content wants, the
 //! middle column is what they leave, its map a square of one rule, and when the window cannot hold both panels
 //! and the map's minimum side by side the panels stack under the stage.
@@ -11,13 +11,13 @@
 
 use std::collections::BTreeSet;
 
-use nui_base::{Cmd, Color, Cursor, DrawList, Orbit, Rect, Vec2, Weight};
-use nui_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
-use nui_ui::{
+use mere_base::{Cmd, Color, Cursor, DrawList, Orbit, Rect, Vec2, Weight};
+use mere_layout::{Align, Dim, Display, Edges, Insets, Justify, Margin, Position, Side, Style, Track, Tracks};
+use mere_ui::{
     ButtonLook, ButtonOpts, FieldLook, FieldOpts, Id, ListRow, PartOpts, RowOpts, ScrollOpts, SelectOpts, Slide, TabOpts, TextLook, Theme, Tone, Ui,
     details_style, scroll_style, wrap_lines, ASCENT_EM, DESCENT_EM, Icon,
 };
-use nui_ui::tokens::GAP_TIGHT;
+use mere_ui::tokens::GAP_TIGHT;
 
 use crate::home::Home;
 use crate::cut::{self, CUT_IMAGE, CutLook, NAV_H, NAV_IMAGE};
@@ -70,7 +70,7 @@ pub fn min_size_px(size: (u32, u32)) -> (u32, u32) {
 pub fn raise_to_min(size: Vec2) -> Vec2 {
     let raised = Vec2::new(size.x.max(MIN_SIZE.0), size.y.max(MIN_SIZE.1));
     if raised != size {
-        nui_base::observe!(Warn, "a window of {}x{} is smaller than the least the layout holds: using {}x{}", size.x, size.y, raised.x, raised.y);
+        mere_base::observe!(Warn, "a window of {}x{} is smaller than the least the layout holds: using {}x{}", size.x, size.y, raised.x, raised.y);
     }
     raised
 }
@@ -759,7 +759,7 @@ fn grip_gap(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, si
 fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, stacked: bool) {
     let muted = TextLook::body(Tone::Muted);
 
-    let r = ui.fold_with("world", text::WORLD, &mut s.world_open, nui_ui::FoldOpts { bare: stacked, ..Default::default() }, |ui| {
+    let r = ui.fold_with("world", text::WORLD, &mut s.world_open, mere_ui::FoldOpts { bare: stacked, ..Default::default() }, |ui| {
         ui.node("seedRow", world_row(), |ui| {
             ui.text(text::SEED, muted);
             let opts = FieldOpts { look: FieldLook::Text, placeholder: text::SEED_RANDOM, max_chars: 64, width: Dim::Pct(100.0), focus: false, ..FieldOpts::default() };
@@ -770,7 +770,7 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
             // The page's sixteen widths (lines 806-809): 256 to 4096 points of 16 blocks, by 256.
             let labels: Vec<String> = AREA_POINTS.iter().map(|&p| text::span_value(p as f64 * 16.0)).collect();
             let mut at = AREA_POINTS.iter().position(|&p| p == s.samples).unwrap_or(0);
-            let r = ui.select_menu("area", &labels, &mut at, SelectOpts { height: Some(nui_ui::tokens::CONTROL_COMPACT), ..SelectOpts::default() });
+            let r = ui.select_menu("area", &labels, &mut at, SelectOpts { height: Some(mere_ui::tokens::CONTROL_COMPACT), ..SelectOpts::default() });
             ids.select = r.resp.id;
             if r.changed {
                 s.samples = AREA_POINTS.get(at).copied().unwrap_or(s.samples);
@@ -787,10 +787,10 @@ fn left_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
     });
     ids.world_head = r.id;
 
-    let r = ui.fold_with("settings", text::PROFILES, &mut s.settings_open, nui_ui::FoldOpts { grow: !stacked, ..Default::default() }, |ui| {
+    let r = ui.fold_with("settings", text::PROFILES, &mut s.settings_open, mere_ui::FoldOpts { grow: !stacked, ..Default::default() }, |ui| {
         let mut help = Help { open: &mut s.help };
         // Stacked, the list has no bar of its own: the column's scroll serves the filter and the list alike.
-        let gutter = if s.settings_bar && !stacked { nui_ui::GUTTER } else { 0.0 };
+        let gutter = if s.settings_bar && !stacked { mere_ui::GUTTER } else { 0.0 };
         view_only_row(ui, (&mut s.view_only, s.view), gutter, &mut help, ids);
         s.settings_bar = settings_scroll(ui, (s.view_only, s.view), &mut s.settings_list, &mut s.settings_y, (&mut s.values, &s.baseline), &mut help, ids, t, stacked);
         crate::apply_ui::apply_block(ui, crate::apply_ui::Apply { values: &mut s.values, baseline: &s.baseline, pack_known: s.pack_known, notice: &s.apply, want: &mut s.want }, ids);
@@ -806,7 +806,7 @@ pub const FILTER_HELP: usize = SETTINGS.len();
 /// What a setting's label has beside its "?": the row (the panel less the scrollbar's gutter), less the gaps, the
 /// field and the mark. Read from the plan, as the layout does not give it before it is laid out.
 fn label_room(ids: &ShellIds) -> f32 {
-    ids.plan.widths[0] - nui_ui::GUTTER - 2.0 * panels::SETTING_GAP - panels::setting_field() - GAP_TIGHT - MARK_W
+    ids.plan.widths[0] - mere_ui::GUTTER - 2.0 * panels::SETTING_GAP - panels::setting_field() - GAP_TIGHT - MARK_W
 }
 
 /// The filter, on the grid of the settings' rows so that its toggle sits above their fields: a label that names the
@@ -1016,8 +1016,8 @@ struct Help<'a> {
 }
 
 /// The hit box of the "?" after a label, and how far in its glyph sits: a few pixels each side of the glyph to aim at.
-const MARK_W: f32 = nui_ui::tokens::ICON;
-const MARK_IN: f32 = nui_ui::tokens::INSET_TIGHT;
+const MARK_W: f32 = mere_ui::tokens::ICON;
+const MARK_IN: f32 = mere_ui::tokens::INSET_TIGHT;
 
 /// Where a glyph of `look` is drawn below the top of its line: the CSS half leading, as the kit draws its text.
 fn glyph_top(look: TextLook) -> f32 {
@@ -1027,7 +1027,7 @@ fn glyph_top(look: TextLook) -> f32 {
 /// The "?" after a setting's label: hidden until the pointer is on its row (`row`), then muted; in the text colour
 /// under the pointer and while its help is open (brighter on the dark theme, darker on the light one), with the hand
 /// of what can be clicked. `at` is its place in the label's box. Hidden, it keeps its place, so nothing moves.
-fn help_mark(ui: &mut Ui, at: Vec2, row: bool, open: bool) -> nui_ui::Resp {
+fn help_mark(ui: &mut Ui, at: Vec2, row: bool, open: bool) -> mere_ui::Resp {
     let look = TextLook::body(Tone::Muted);
     let t = *ui.theme();
     let style = Style {
@@ -1062,7 +1062,7 @@ fn back_icon() -> &'static Icon {
     static ICON: std::sync::OnceLock<Icon> = std::sync::OnceLock::new();
     ICON.get_or_init(|| {
         Icon::parse(BACK, CROSS_SIZE).unwrap_or_else(|e| {
-            nui_base::observe!(Error, "the group's arrow: {e}");
+            mere_base::observe!(Error, "the group's arrow: {e}");
             Icon { grid: CROSS_SIZE, figures: Vec::new() }
         })
     })
@@ -1072,7 +1072,7 @@ fn cross_icon() -> &'static Icon {
     static ICON: std::sync::OnceLock<Icon> = std::sync::OnceLock::new();
     ICON.get_or_init(|| {
         Icon::parse(CROSS, CROSS_SIZE).unwrap_or_else(|e| {
-            nui_base::observe!(Error, "the help's cross: {e}");
+            mere_base::observe!(Error, "the help's cross: {e}");
             Icon { grid: CROSS_SIZE, figures: Vec::new() }
         })
     })
@@ -1081,7 +1081,7 @@ fn cross_icon() -> &'static Icon {
 /// A small icon to click (the cross that closes the help, the arrow that puts a group back): as wide as the "?" and
 /// `line` tall (the line of the text it sits beside, so that it adds no height), the icon centred, with the mark's
 /// colours.
-fn small_icon(ui: &mut Ui, key: &str, icon: &'static Icon, line: f32, margin: Margin) -> nui_ui::Resp {
+fn small_icon(ui: &mut Ui, key: &str, icon: &'static Icon, line: f32, margin: Margin) -> mere_ui::Resp {
     let t = *ui.theme();
     let style = Style { w: Dim::Px(MARK_W), h: Dim::Px(line), shrink: 0.0, margin, ..Style::default() };
     ui.canvas(key, style, |ui, r| {
@@ -1101,7 +1101,7 @@ fn small_icon(ui: &mut Ui, key: &str, icon: &'static Icon, line: f32, margin: Ma
 /// the pack's, the range; none for the filter) take the panel's whole width under them. `about` is the key, title,
 /// hint and facts.
 fn help_panel(ui: &mut Ui, ids: &mut ShellIds, row: Id, about: (&str, &str, &str, &str), open: &mut Option<usize>) {
-    use nui_ui::tokens::{FRAME, GAP, INSET};
+    use mere_ui::tokens::{FRAME, GAP, INSET};
     let (key, title_text, hint, facts) = about;
     let title_look = TextLook { weight: Weight::SemiBold, ..TextLook::body(Tone::Text) };
     let hint_look = TextLook::body(Tone::Muted);
@@ -1130,8 +1130,8 @@ fn help_panel(ui: &mut Ui, ids: &mut ShellIds, row: Id, about: (&str, &str, &str
 }
 /// Escape closes the open help, after an open menu and a focused field have had theirs (they take it first). True
 /// when it did, and the event goes no further.
-pub fn help_escape(s: &mut PreviewState, ui: &Ui, e: &nui_base::Event) -> bool {
-    let escape = matches!(e, nui_base::Event::Key { key: nui_base::Key::Escape, .. });
+pub fn help_escape(s: &mut PreviewState, ui: &Ui, e: &mere_base::Event) -> bool {
+    let escape = matches!(e, mere_base::Event::Key { key: mere_base::Key::Escape, .. });
     if escape && s.help.is_some() && !ui.menu_open() && ui.focused().is_none() {
         s.help = None;
         return true;
@@ -1316,7 +1316,7 @@ fn steps_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme,
                 .id;
             // `.line` (line 269): one line, cut at the edge; the names of the done steps shorten first (`.step`,
             // 270-273), their seconds and the step under way stay whole.
-            let row = Style { gap: Vec2::new(14.0, 0.0), min_w: Dim::Px(0.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
+            let row = Style { gap: Vec2::new(14.0, 0.0), min_w: Dim::Px(0.0), overflow: mere_layout::Overflow::Hidden, ..Style::default() };
             ui.node("line", row, |ui| {
                 for (i, (label, seconds)) in done.iter().enumerate() {
                     let took = duration(*seconds);
@@ -1621,7 +1621,7 @@ enum Pick {
 fn right_column(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Theme, cols: &Columns, world: Option<&World>, shown: Option<&Shown>, stacked: bool) {
     let cut = s.view == 5;
     // The history's plots are as wide as the panel; stacked, the panel's scrollbar keeps its gutter.
-    let plot_w = ids.plan.widths[1] - if stacked { nui_ui::GUTTER } else { 0.0 };
+    let plot_w = ids.plan.widths[1] - if stacked { mere_ui::GUTTER } else { 0.0 };
     if !cut {
         figures_block(ui, s, ids, t, cols, world, plot_w, stacked);
     }
@@ -1676,7 +1676,7 @@ fn ore_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Option
             ui.text(&title, TextLook::heading());
         });
         // `#pick` (line 341): two lines of the small size at most.
-        let pick = Style { h: Dim::Px(34.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
+        let pick = Style { h: Dim::Px(34.0), overflow: mere_layout::Overflow::Hidden, ..Style::default() };
         let words = match (shown, section) {
             (Some(_), Some(sec)) if sec.unplayed() > 0 => text::ore_unplayed(sec.unplayed()),
             (Some(_), _) => text::ORE_PICK_HINT.to_string(),
@@ -1750,7 +1750,7 @@ fn view_list(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, world: Optio
             });
         }
         // `#pick` (line 341): two lines whatever it says, so the first choice does not move the rows under the pointer.
-        let line = Style { h: Dim::Px(34.0), overflow: nui_layout::Overflow::Hidden, ..Style::default() };
+        let line = Style { h: Dim::Px(34.0), overflow: mere_layout::Overflow::Hidden, ..Style::default() };
         let Some(l) = list else {
             ids.pick = ui.node("pick", line, |_| {});
             return;
@@ -1920,7 +1920,7 @@ fn figures_block(ui: &mut Ui, s: &mut PreviewState, ids: &mut ShellIds, t: &Them
     let muted = TextLook::body(Tone::Muted);
     // It keeps its height whatever the room: stacked, the panel is a scroll area and what does not fit scrolls.
     ui.node("figuresBlock", Style { shrink: 0.0, ..column() }, |ui| {
-        let r = ui.fold_with("figures", text::FIGURES, &mut s.figures_open, nui_ui::FoldOpts { bare: stacked, ..Default::default() }, |ui| {
+        let r = ui.fold_with("figures", text::FIGURES, &mut s.figures_open, mere_ui::FoldOpts { bare: stacked, ..Default::default() }, |ui| {
             // Line 297: name, value and change; the rule before "Sea" spans all three.
             let grid = Style {
                 display: Display::Grid,

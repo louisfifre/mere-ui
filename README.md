@@ -1,8 +1,10 @@
-# rust-native-ui
+# mere-ui
 
 A small native interface kit for Windows, written in Rust and drawn with Direct2D and DirectWrite. It is read as a design system: a short list of tokens (colours, type, sizes, motion), a set of components built from them, and pictures of every component in both themes, taken offscreen by the tests from the same frame the window shows.
 
 It grows piece by piece as its applications need it. Its applications are a world preview for a Minecraft server's terrain and the launcher of Outpost Tools (its own repository, `outpost-tools`), which hosts that preview.
+
+`mere` names a family of base libraries written with nothing borrowed: this kit is `mere-ui`, and its crates are `mere-base`, `mere-layout`, `mere-ui`, `mere-win32` and `mere-png`. Until 0.11.0 it was called `rust-native-ui`, with crates named `nui-*`.
 
 | Dark | Light |
 |---|---|
@@ -23,11 +25,11 @@ Each picture is a card: one component in its variants, the same as the Design Sy
 
 | Crate | What it holds |
 |---|---|
-| `crates/nui-base` | Geometry, colours, matrices, the orbit camera, draw lists, the `Gfx` and `App` traits, events, the log hub. No system code, no dependency. |
-| `crates/nui-layout` | Pure layout: a reduced flexbox and grid, absolute boxes, overflow, measured leaves, a debug dump. |
-| `crates/nui-ui` | The immediate-mode components and the tokens above. Depends on `nui-base` and `nui-layout` only. |
-| `crates/nui-win32` | The Windows backend: a Win32 window with its own frame, Direct3D 11 for meshes, Direct2D and DirectWrite for the interface, offscreen pictures, the system's theme and motion settings, the input method, a launcher for child processes. |
-| `crates/nui-png` | A PNG writer and a reader for the files it writes, for picture tests. |
+| `crates/mere-base` | Geometry, colours, matrices, the orbit camera, draw lists, the `Gfx` and `App` traits, events, the log hub. No system code, no dependency. |
+| `crates/mere-layout` | Pure layout: a reduced flexbox and grid, absolute boxes, overflow, measured leaves, a debug dump. |
+| `crates/mere-ui` | The immediate-mode components and the tokens above. Depends on `mere-base` and `mere-layout` only. |
+| `crates/mere-win32` | The Windows backend: a Win32 window with its own frame, Direct3D 11 for meshes, Direct2D and DirectWrite for the interface, offscreen pictures, the system's theme and motion settings, the input method, a launcher for child processes. |
+| `crates/mere-png` | A PNG writer and a reader for the files it writes, for picture tests. |
 | `demos/widgets` | One card per component of the Design System, in a window (`--card NAME`) or as a picture (`--shot`). |
 | `demos/preview` | The world preview, the kit's largest application. |
 | `demos/relief`, `demos/shell-boxes` | The preview's 3D scene alone, and its page laid out as named boxes. |

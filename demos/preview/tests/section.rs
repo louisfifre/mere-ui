@@ -5,9 +5,9 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use nui_base::{App, Button, Cmd, Event, Rect, Vec2};
-use nui_ui::{Id, Theme, wrap_lines};
-use nui_win32::Renderer;
+use mere_base::{App, Button, Cmd, Event, Rect, Vec2};
+use mere_ui::{Id, Theme, wrap_lines};
+use mere_win32::Renderer;
 use preview::cut::{self, CutLook, NAV_H};
 use preview::map::tick_at;
 use preview::section::{ORE_COLOURS, ORE_KINDS};
@@ -38,7 +38,7 @@ fn tmp(name: &str) -> PathBuf {
     Path::new(env!("CARGO_TARGET_TMPDIR")).join(name)
 }
 
-fn rgb(c: nui_base::Color) -> [u8; 3] {
+fn rgb(c: mere_base::Color) -> [u8; 3] {
     [c.r, c.g, c.b].map(|v| (v * 255.0).round() as u8)
 }
 
@@ -76,7 +76,7 @@ impl Rig {
 
     fn write(&mut self, name: &str) -> Vec<u8> {
         let rgba = self.rgba();
-        std::fs::write(tmp(name), nui_png::encode(self.w, self.h, &rgba)).unwrap();
+        std::fs::write(tmp(name), mere_png::encode(self.w, self.h, &rgba)).unwrap();
         println!("wrote {}", tmp(name).display());
         rgba
     }
@@ -561,7 +561,7 @@ fn c10_light_and_narrow() {
     let nav = narrow.rect(ids.nav);
     let cv = narrow.rect(ids.cut_view);
     let note = text::nav_note(&text::times(cut::nav_times(section.length, nav.w as f64, cut::nav_range(section, &narrow.app.shown().unwrap().ground))));
-    assert_eq!(wrap_lines(&note, nui_ui::TextLook::body(nui_ui::Tone::Muted), nav.w).len(), 3);
+    assert_eq!(wrap_lines(&note, mere_ui::TextLook::body(mere_ui::Tone::Muted), nav.w).len(), 3);
     assert_eq!(cv.y - nav.y, 98.0 + 36.0, "the cut view moved down by two lines");
     assert_eq!((cv.w as f64, cv.h as f64), ids.cut_box);
     assert_eq!(narrow.rect(ids.frame).w, nav.w);
@@ -594,7 +594,7 @@ fn cli_shot_is_byte_identical_to_the_test_shot() {
     let Some(world) = load() else { return };
     // The command line builds its state from the world (the page's loadWorld): the form holds the run's settings.
     let mut rig = Rig::new(&world, false, PreviewState { view: 5, ..PreviewState::for_world(Some(&world)) }, W, H);
-    let mine = nui_png::encode(W, H, &rig.rgba());
+    let mine = mere_png::encode(W, H, &rig.rgba());
     let out = tmp("cli_section.png");
     let _ = std::fs::remove_file(&out);
     let run = std::process::Command::new(env!("CARGO_BIN_EXE_preview"))

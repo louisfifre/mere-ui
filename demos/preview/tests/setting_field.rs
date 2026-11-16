@@ -1,7 +1,7 @@
 //! The settings' field column is as wide as the widest value any of the 43 settings can show, so that no number is
 //! cut ("Noodle caves size" is -0.075, six cells, which the old 8 ch column of 57.6 px did not hold).
 
-use nui_ui::{TextLook, Tone, tokens};
+use mere_ui::{TextLook, Tone, tokens};
 use preview::panels::setting_field;
 use preview::settings::{Kind, SETTINGS, widest_number_text};
 

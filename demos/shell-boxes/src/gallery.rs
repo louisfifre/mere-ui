@@ -1,5 +1,5 @@
 //! Build plan step 8's picture: the page's grid rows and absolute boxes that the shell leaves out, each laid
-//! out by `nui-layout` from the numbers of `world-preview/page/preview.html`, in one 718 x 700 sheet with
+//! out by `mere-layout` from the numbers of `world-preview/page/preview.html`, in one 718 x 700 sheet with
 //! the left column (320 px) and the right column (330 px) of the 1400 px layout side by side.
 //!
 //! Every number from the page cites its CSS line. A value the page does not fix (figures, durations, the
@@ -10,8 +10,8 @@
 //! A padding below is the CSS padding with the 1 px border already counted where the page has one; the
 //! numbers are the ones the build brief derived (24 px fields, 22 px inputs), so none is added twice.
 
-use nui_base::Vec2;
-use nui_layout::{
+use mere_base::Vec2;
+use mere_layout::{
     Align, Avail, Dim, Display, Edges, Insets, Margin, Measured, NodeId, Overflow, Position, Side, Style, Track, Tracks, Tree,
 };
 

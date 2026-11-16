@@ -1,9 +1,9 @@
 //! The NumberField card: the compact number field, one with a taller padding and one with the value on the
 //! left; at rest, focused and disabled (components/NumberField/preview.html).
 
-use nui_base::Vec2;
-use nui_layout::Dim;
-use nui_ui::{NumberOpts, NumberSpec, Theme, Ui};
+use mere_base::Vec2;
+use mere_layout::Dim;
+use mere_ui::{NumberOpts, NumberSpec, Theme, Ui};
 
 use super::select::{Probe, click};
 use super::{Block, Card, Cell, State, render};

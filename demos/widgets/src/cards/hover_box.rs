@@ -1,9 +1,9 @@
 //! The HoverBox card: one word in a box, rest and hover, in columns 200 px wide
 //! (components/HoverBox/preview.html).
 
-use nui_layout::{Align, Dim, Edges, Style};
-use nui_ui::tokens::{FADE_TINT, INSET};
-use nui_ui::{TextLook, Theme, Tone, Ui, mix};
+use mere_layout::{Align, Dim, Edges, Style};
+use mere_ui::tokens::{FADE_TINT, INSET};
+use mere_ui::{TextLook, Theme, Tone, Ui, mix};
 
 use super::{Block, Card, Cell, State, render};
 

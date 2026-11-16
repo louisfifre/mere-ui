@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use nui_base::{Rect, Vec2};
-use nui_ui::Theme;
+use mere_base::{Rect, Vec2};
+use mere_ui::Theme;
 use preview::map::{Look, tick_at};
 use preview::paint::{View, paint};
 use preview::world::World;
@@ -50,9 +50,9 @@ fn take(world: &World, light: bool, state: PreviewState, name: &str) -> Shot {
     let theme = if light { Theme::light() } else { Theme::dark() };
     let look = state.look;
     let mut app = PreviewApp::new(theme, !light, Vec2::new(W as f32, H as f32), state, Some(world.clone()));
-    let rgba = nui_win32::shot(&mut app, W, H, 1.0).expect("offscreen frame");
+    let rgba = mere_win32::shot(&mut app, W, H, 1.0).expect("offscreen frame");
     let path: PathBuf = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
-    std::fs::write(&path, nui_png::encode(W, H, &rgba)).unwrap();
+    std::fs::write(&path, mere_png::encode(W, H, &rgba)).unwrap();
     println!("wrote {}", path.display());
     let frame = app.ui().rect(app.ids().frame).expect("the frame was built");
     assert_eq!(frame.x.fract(), 0.0, "an integer frame keeps the pixel arithmetic exact");

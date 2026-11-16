@@ -1,8 +1,8 @@
 //! Where the input method may write in the preview: on the text fields (the seed, the filter), never on a
 //! setting's number field. Built with the shell's own harness, no GPU.
 
-use nui_base::{Button, Event, Rect, Vec2};
-use nui_ui::{Id, Theme, Ui};
+use mere_base::{Button, Event, Rect, Vec2};
+use mere_ui::{Id, Theme, Ui};
 use preview::{PreviewState, ShellIds, build, picture};
 
 const SIZE: Vec2 = Vec2::new(1400.0, 940.0);

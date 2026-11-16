@@ -1,8 +1,8 @@
 //! The Toggle card: the square switch with its word, on and off, default and wide, in rest, hover, held and
 //! disabled (components/Toggle/preview.html).
 
-use nui_layout::{Dim, Edges};
-use nui_ui::{Theme, ToggleOpts, Ui};
+use mere_layout::{Dim, Edges};
+use mere_ui::{Theme, ToggleOpts, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

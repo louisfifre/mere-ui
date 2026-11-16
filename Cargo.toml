@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/nui-base", "crates/nui-png", "crates/nui-win32", "crates/nui-layout", "crates/nui-ui", "demos/relief", "demos/shell-boxes", "demos/widgets", "demos/preview"]
+members = ["crates/mere-base", "crates/mere-png", "crates/mere-win32", "crates/mere-layout", "crates/mere-ui", "demos/relief", "demos/shell-boxes", "demos/widgets", "demos/preview"]
 
 [workspace.package]
 version = "0.11.0"
@@ -8,11 +8,11 @@ edition = "2024"
 publish = false
 
 [workspace.dependencies]
-nui-base = { path = "crates/nui-base" }
-nui-png = { path = "crates/nui-png" }
-nui-win32 = { path = "crates/nui-win32" }
-nui-layout = { path = "crates/nui-layout" }
-nui-ui = { path = "crates/nui-ui" }
+mere-base = { path = "crates/mere-base" }
+mere-png = { path = "crates/mere-png" }
+mere-win32 = { path = "crates/mere-win32" }
+mere-layout = { path = "crates/mere-layout" }
+mere-ui = { path = "crates/mere-ui" }
 
 [profile.release]
 opt-level = 3

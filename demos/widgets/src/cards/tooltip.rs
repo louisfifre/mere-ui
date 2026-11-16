@@ -6,10 +6,10 @@
 
 use std::cell::Cell as Memo;
 
-use nui_base::{Event, Vec2};
-use nui_layout::{Dim, Insets, Position, Style};
-use nui_ui::tokens::{FRAME, INSET, INSET_TIGHT, TIP_WIDTH};
-use nui_ui::{Id, TIP_DELAY, TextLook, Theme, Tone, Ui, wrap_lines};
+use mere_base::{Event, Vec2};
+use mere_layout::{Dim, Insets, Position, Style};
+use mere_ui::tokens::{FRAME, INSET, INSET_TIGHT, TIP_WIDTH};
+use mere_ui::{Id, TIP_DELAY, TextLook, Theme, Tone, Ui, wrap_lines};
 
 use super::{Block, Card, Cell, State, render};
 

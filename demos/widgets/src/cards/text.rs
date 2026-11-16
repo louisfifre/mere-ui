@@ -1,7 +1,7 @@
 //! The Text card: one line per look, in the look's own tone (components/Text/preview.html).
 
-use nui_layout::Style;
-use nui_ui::{TextLook, Theme, Tone, Ui};
+use mere_layout::Style;
+use mere_ui::{TextLook, Theme, Tone, Ui};
 
 use super::{Block, Card, Cell, State, render};
 

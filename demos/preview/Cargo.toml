@@ -7,11 +7,11 @@ publish.workspace = true
 license = "GPL-3.0-only"
 
 [dependencies]
-nui-base.workspace = true
-nui-layout.workspace = true
-nui-ui.workspace = true
-nui-win32.workspace = true
-nui-png.workspace = true
+mere-base.workspace = true
+mere-layout.workspace = true
+mere-ui.workspace = true
+mere-win32.workspace = true
+mere-png.workspace = true
 # The engine, as a library, from the world-preview repository beside this one. Cargo takes no variable in a path
 # dependency: a checkout of this repository that sits elsewhere must point this at world-preview's driver folder.
 world-preview = { path = "../../../world-preview/driver" }
