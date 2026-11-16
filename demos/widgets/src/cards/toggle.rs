@@ -1,12 +1,13 @@
-//! The Toggle card: on and off, default and wide, in rest, hover, held and disabled
-//! (components/Toggle/preview.html).
+//! The Toggle card: the square switch with its word, on and off, default and wide, in rest, hover, held and
+//! disabled (components/Toggle/preview.html).
 
 use nui_layout::{Dim, Edges};
 use nui_ui::{Theme, ToggleOpts, Ui};
 
 use super::{Block, Card, Cell, State, render};
 
-/// The preview's `minW: '8ch', pad: [5, 9]`: the launcher's `min-width: 8ch` is 57.6 px at its body size.
+/// The preview's `minW: '8ch', pad: [5, 9]`: the launcher's `min-width: 8ch` is 57.6 px at its body size. The
+/// switch stays at the box's left edge, inside the padding.
 fn wide() -> ToggleOpts {
     ToggleOpts { min_w: Dim::Px(57.6), pad: Edges::vh(5.0, 9.0), disabled: false }
 }

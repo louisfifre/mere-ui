@@ -2,6 +2,8 @@
 //! and (step 18) the figures, the lists and the history, in the colours of the system's scheme.
 
 pub mod app;
+pub mod apply;
+pub mod apply_ui;
 pub mod bands;
 pub mod bar;
 pub mod colour;
@@ -21,8 +23,9 @@ pub mod section;
 pub mod settings;
 pub mod shell;
 pub mod text;
+pub mod view_filter;
 pub mod world;
 
 pub use app::PreviewApp;
 pub use home::Home;
-pub use shell::{Mode, RunEnd, BAR_H, CONTENT_TOP, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px, picture_with_home};
+pub use shell::{FILTER_HELP, Mode, RunEnd, BAR_H, CONTENT_TOP, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px, picture_with_home};
