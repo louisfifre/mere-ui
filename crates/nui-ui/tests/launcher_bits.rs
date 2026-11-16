@@ -205,7 +205,7 @@ fn toggle_with_disabled_does_not_flip() {
     };
     let r = build(&mut ui, &mut on);
     let rect = ui.rect(r.id).unwrap();
-    assert_eq!((rect.w, rect.h), (57.6, 26.0), "8ch minimum and 4 + 18 + 4");
+    assert_eq!((rect.w, rect.h), (64.4, 26.0), "7 + switch 28 + 8 + ON + 7 is past the 8ch minimum; 4 + 18 + 4 tall");
     let p = Vec2::new(rect.x + 5.0, rect.y + 5.0);
     mv(&mut ui, p);
     ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: 1 });
