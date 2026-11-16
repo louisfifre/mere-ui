@@ -195,6 +195,12 @@ impl Ui {
         self.focus.as_ref().map(|f| f.id)
     }
 
+    /// A select's or a tab's menu is open: it takes Escape before anything else, so an application that closes
+    /// its own things with Escape leaves it to the menu.
+    pub fn menu_open(&self) -> bool {
+        self.menu.is_some()
+    }
+
     /// True when the frame just ended changed something that only the next frame shows (Tab moved the focus
     /// after the picture was made): the application should draw once more.
     pub fn want_redraw(&self) -> bool {

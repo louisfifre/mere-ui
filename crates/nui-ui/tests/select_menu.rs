@@ -156,7 +156,10 @@ fn escape_closes() {
     let mut p = Page::new();
     p.open();
     assert!(p.last.unwrap().open);
+    // The application can tell that Escape is the menu's.
+    assert!(p.ui.menu_open());
     p.ui.event(&Event::Key { key: Key::Escape, mods: Mods::default() });
+    assert!(!p.ui.menu_open());
     p.frame();
     assert!(!p.last.unwrap().open);
     assert_eq!(p.chosen, 1);
