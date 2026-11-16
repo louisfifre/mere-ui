@@ -28,4 +28,4 @@ pub mod world;
 
 pub use app::PreviewApp;
 pub use home::Home;
-pub use shell::{Mode, RunEnd, BAR_H, CONTENT_TOP, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px, picture_with_home};
+pub use shell::{FILTER_HELP, Mode, RunEnd, BAR_H, CONTENT_TOP, Columns, MIN_SIZE, PAGE, PreviewState, ShellIds, build, picture, picture_with, raise_to_min, min_size_px, picture_with_home};

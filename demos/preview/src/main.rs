@@ -246,7 +246,12 @@ fn main() {
         state.cut_look = l;
     }
     if let Some(key) = help {
-        let at = preview::settings::SETTINGS.iter().position(|s| s.key == key).unwrap_or_else(|| usage());
+        // `view_only` opens the filter's own help.
+        let at = if key == "view_only" {
+            preview::FILTER_HELP
+        } else {
+            preview::settings::SETTINGS.iter().position(|s| s.key == key).unwrap_or_else(|| usage())
+        };
         state.help = Some(at);
         state.help_reveal = true;
     }

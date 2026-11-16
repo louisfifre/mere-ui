@@ -2,10 +2,11 @@
 //! and off, and that the panel follows a change of view.
 
 use nui_base::Vec2;
-use nui_ui::{Theme, Ui};
+use nui_ui::{Id, Theme, Ui};
 use preview::settings::SETTINGS;
+use preview::text;
 use preview::view_filter::{groups_for, visible};
-use preview::{PreviewState, ShellIds, build, picture_with};
+use preview::{FILTER_HELP, PreviewState, ShellIds, build, picture_with};
 
 const GROUP_BIOMES: usize = 0;
 const GROUP_RELIEF: usize = 1;
@@ -82,6 +83,52 @@ fn the_panel_builds_only_the_listed_rows_and_headers() {
         let (rows, heads, _) = built(true, view);
         assert_eq!(rows, listed(true, view), "filter on, view {view}");
         assert_eq!(heads, groups_listed(true, view).len(), "a header per group on show, view {view}");
+    }
+}
+
+#[test]
+fn the_filter_names_the_pressed_map() {
+    assert_eq!(text::view_only(0), "Only for the Biomes map");
+    assert_eq!(text::view_only(2), "Only for the Relief map");
+    assert_eq!(text::view_only(3), "Only for the Temperature map");
+    assert_eq!(text::view_only(5), "Only for the section");
+}
+
+#[test]
+fn the_count_shows_only_while_the_filter_is_on_and_matches_the_rows() {
+    for view in 0..6 {
+        let (_, _, ids) = built(false, view);
+        assert_eq!(ids.filter_count, Id::ROOT, "no count with the filter off, view {view}");
+        let (rows, _, ids) = built(true, view);
+        assert_ne!(ids.filter_count, Id::ROOT, "a count with the filter on, view {view}");
+        assert_eq!(text::shown_of(rows.len(), 43), format!("{} of 43", rows.len()));
+    }
+}
+
+#[test]
+fn the_filter_has_its_own_help_that_opens_under_it() {
+    let mut state = PreviewState::for_world(None);
+    state.help = Some(FILTER_HELP);
+    let (_, ui, ids) = picture_with(Theme::dark(), Vec2::new(1400.0, 940.0), None, state);
+    let (row, panel) = (ui.rect(ids.view_only).expect("filter row"), ui.rect(ids.help).expect("help panel"));
+    assert!(panel.y >= row.y + row.h, "the panel is under the filter's row");
+    let list = ui.rect(ids.settings_scroll).expect("list");
+    assert!(panel.y + panel.h <= list.y + 0.5, "and above the list");
+}
+
+#[test]
+fn the_filter_toggle_lines_up_with_the_fields_with_and_without_a_scrollbar() {
+    // The Temperature map's list is short (no bar, the rows reach the panel's edge); the Relief map's is long (the
+    // bar's gutter on the right of the rows). The filter's row ends at the panel's edge and keeps the same gutter
+    // inside it, so its toggle ends where the fields do.
+    for (view, bar) in [(3, false), (2, true)] {
+        let mut s = Session::new(view, true);
+        s.frame();
+        let first = s.rows()[0];
+        let (row, filter) = (s.ui.rect(s.ids.rows[first]).unwrap(), s.ui.rect(s.ids.view_only).unwrap());
+        let gutter = if bar { nui_ui::GUTTER } else { 0.0 };
+        assert!((row.x + row.w - (filter.x + filter.w - gutter)).abs() < 0.5, "view {view}: rows end at {}, filter at {}", row.x + row.w, filter.x + filter.w);
+        assert_eq!(s.state.settings_bar, bar, "view {view}");
     }
 }
 
