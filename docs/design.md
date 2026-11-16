@@ -165,7 +165,16 @@ monospaced and a text width is arithmetic (`text_width`, `ADVANCE_EM` 0.6); a le
 warning). `rect(id)` is the widget's absolute rect of the last frame. `button(key, text, ButtonLook) -> Resp` and
 `button_with(key, text, look, ButtonOpts { disabled, grow })`; `Resp { id, rect, hovered, held, clicked }`.
 `toggle(key, &mut bool, on_word, off_word) -> Resp` takes both words, which come from the application's catalog, and flips
-the value before painting. `Theme` holds the page's variables plus `faded(color, opacity)` for CSS opacity.
+the value before painting. It is drawn as a switch, not a box: a square-cornered 28 by 16 frame (`SWITCH_W`, `SWITCH_H`; the kit has no
+rounded corner) with a square 8 px knob 3 px inside the line, and the word beside it, 8 px away and in capitals (the
+widget uppercases the catalog word, as a fold does its title). Off is an outline with an outlined knob on the left, the
+frame in `--edge`, the knob and the word `--muted`. On is the frame filled with `--fill`, the knob on the right in
+`--on-fill`, the word in `--text`. Under the pointer the lines and the word take `--text` and the on fill the primary
+button's `FADE_LIT`; disabled fades everything to `FADE_DISABLED` and takes no click. The box is the switch and its word
+plus `ToggleOpts.pad` and `min_w`, and it does not stretch in a grid cell, so a click anywhere on it flips and one beside
+it does not. 28 + 8 + the 21.6 px of "OFF" is the 8ch (57.6 px) of a setting's field column, which is why the switch is
+that small. It takes no keyboard focus: in this kit only text fields do, and buttons are pointer only (INTERPRETATION:
+a focus ring for every control is a decision of its own). `Theme` holds the page's variables plus `faded(color, opacity)` for CSS opacity.
 
 **As built (step 10).** No slider: neither application has one (see 2.6). `fold(key, title, &mut open, body) -> Resp` and
 `fold_with(.., FoldOpts { grow }, ..)`: the widget uppercases the title as the page's CSS does, draws the 1 px rule, the
