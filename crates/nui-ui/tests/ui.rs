@@ -6,7 +6,8 @@ use std::sync::Mutex;
 
 use nui_base::{Button, Cmd, Color, DrawList, Event, Vec2, Weight, log};
 use nui_layout::{Align, Dim, Display, Edges, Style, Track, Tracks};
-use nui_ui::{ButtonLook, ButtonOpts, Resp, TextLook, Theme, Tone, Ui};
+use nui_base::Rect;
+use nui_ui::{ButtonLook, ButtonOpts, Resp, SWITCH_W, SWITCH_H, TextLook, Theme, ToggleOpts, Tone, Ui};
 
 const SIZE: Vec2 = Vec2::new(600.0, 300.0);
 
@@ -193,14 +194,14 @@ fn toggle_flips_on_click_and_shows_the_new_word() {
         (r.unwrap(), list)
     };
     let (r, list) = build(&mut ui, &mut on);
-    assert_eq!(texts(&list)[0].1, "off");
+    assert_eq!(texts(&list)[0].1, "OFF");
     let c = centre(&ui, &r);
     mv(&mut ui, c);
     down(&mut ui, c);
     up(&mut ui, c);
     let (r, list) = build(&mut ui, &mut on);
     assert!(r.clicked && on);
-    assert_eq!(texts(&list)[0].1, "on");
+    assert_eq!(texts(&list)[0].1, "ON");
 }
 
 #[test]
@@ -289,10 +290,11 @@ fn sizes_match_the_page() {
     let (row, toggle) = ids.unwrap();
     let (row, tg) = (ui.rect(row).unwrap(), ui.rect(toggle).unwrap());
     near(tg.x - row.x, 122.4);
-    near(tg.w, 57.6);
+    // The switch, 8 px, then the word, in the cell's own width and not stretched to the cell.
+    near(tg.w, SWITCH_W + 8.0 + 3.0 * 7.2);
     near(tg.h, 24.0);
-    let off = texts(&list).into_iter().find(|t| t.1 == "off").unwrap();
-    near(off.0.x, row.x + 149.4);
+    let off = texts(&list).into_iter().find(|t| t.1 == "OFF").unwrap();
+    near(off.0.x, tg.x + SWITCH_W + 8.0);
 }
 
 #[test]
@@ -338,7 +340,9 @@ fn colours_follow_state() {
     assert_eq!(frames(&l)[0], t.edge);
     let c = centre(&ui, &r);
     mv(&mut ui, c);
-    assert_eq!(frames(&tog(&mut ui).1)[0], t.text);
+    let hover = tog(&mut ui).1;
+    assert_eq!(frames(&hover), vec![t.text, t.text], "frame and knob outline");
+    assert_eq!(frames(&l), vec![t.edge, t.muted], "at rest the frame is the edge and the knob muted");
     assert_eq!(px(t.text), [0xeb, 0xeb, 0xeb]);
 }
 
@@ -363,3 +367,107 @@ fn a_key_used_twice_is_reported() {
 }
 
 
+
+/// One toggle in a 180 px row, with its words as the catalog gives them (lower case: the widget capitalises).
+fn switch(ui: &mut Ui, on: &mut bool, opts: ToggleOpts) -> (Resp, DrawList) {
+    let mut r = None;
+    let list = frame(ui, |ui| {
+        ui.node("row", row180(), |ui| r = Some(ui.toggle_with("t", on, "on", "off", opts)));
+    });
+    (r.unwrap(), list)
+}
+
+fn rects_of(l: &DrawList) -> Vec<(Rect, Color, bool)> {
+    l.cmds
+        .iter()
+        .filter_map(|c| match c {
+            Cmd::Fill { rect, color } => Some((*rect, *color, true)),
+            Cmd::Frame { rect, color, .. } => Some((*rect, *color, false)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn an_off_switch_is_an_outline_with_an_outlined_knob_on_the_left() {
+    let t = Theme::dark();
+    let (mut ui, mut on) = (dark(), false);
+    let (r, l) = switch(&mut ui, &mut on, ToggleOpts::default());
+    let at = ui.rect(r.id).unwrap();
+    let parts = rects_of(&l);
+    assert_eq!(parts.len(), 2, "a frame and a knob, nothing filled: {parts:?}");
+    let ((frame, fc, f_fill), (knob, kc, k_fill)) = (parts[0], parts[1]);
+    assert!(!f_fill && !k_fill, "outlines only");
+    assert_eq!((frame.w, frame.h), (SWITCH_W, SWITCH_H));
+    assert_eq!((fc, kc), (t.edge, t.muted));
+    assert!(knob.w == knob.h && knob.w < frame.h, "a square knob inside the frame");
+    assert!(knob.x < frame.x + frame.w / 2.0, "the knob is on the left: {knob:?}");
+    assert!(knob.x > frame.x && knob.y > frame.y && knob.y + knob.h < frame.y + frame.h);
+    near(frame.x, at.x);
+    assert_eq!(texts(&l)[0].1, "OFF");
+    assert_eq!(texts(&l)[0].2, t.muted);
+}
+
+#[test]
+fn an_on_switch_is_filled_with_the_knob_on_the_right() {
+    let t = Theme::dark();
+    let (mut ui, mut on) = (dark(), true);
+    let (_, l) = switch(&mut ui, &mut on, ToggleOpts::default());
+    let parts = rects_of(&l);
+    assert_eq!(parts.len(), 2);
+    let ((frame, fc, f_fill), (knob, kc, k_fill)) = (parts[0], parts[1]);
+    assert!(f_fill && k_fill, "both filled");
+    assert_eq!((fc, kc), (t.fill, t.on_fill));
+    assert!(knob.x > frame.x + frame.w / 2.0, "the knob is on the right: {knob:?}");
+    // The knob keeps the gap to the frame that the off knob keeps on the other side.
+    let off_gap = {
+        let (mut ui, mut off) = (dark(), false);
+        let (_, l) = switch(&mut ui, &mut off, ToggleOpts::default());
+        let p = rects_of(&l);
+        p[1].0.x - p[0].0.x
+    };
+    near((frame.x + frame.w) - (knob.x + knob.w), off_gap);    assert_eq!(texts(&l)[0].1, "ON");
+    assert_eq!(texts(&l)[0].2, t.text);
+}
+
+#[test]
+fn a_click_on_the_word_flips_the_switch_and_a_click_beside_the_box_does_not() {
+    let (mut ui, mut on) = (dark(), false);
+    let (r, _) = switch(&mut ui, &mut on, ToggleOpts::default());
+    let at = ui.rect(r.id).unwrap();
+    // The word is the right end of the box.
+    let word = Vec2::new(at.x + at.w - 3.0, at.y + at.h / 2.0);
+    mv(&mut ui, word);
+    down(&mut ui, word);
+    switch(&mut ui, &mut on, ToggleOpts::default());
+    up(&mut ui, word);
+    let (r, _) = switch(&mut ui, &mut on, ToggleOpts::default());
+    assert!(r.clicked && on, "the word reaches the switch");
+    // In the row's free space, to the right of the box.
+    let beside = Vec2::new(at.x + at.w + 20.0, at.y + at.h / 2.0);
+    mv(&mut ui, beside);
+    down(&mut ui, beside);
+    switch(&mut ui, &mut on, ToggleOpts::default());
+    up(&mut ui, beside);
+    let (r, _) = switch(&mut ui, &mut on, ToggleOpts::default());
+    assert!(!r.clicked && on);
+}
+
+#[test]
+fn a_hovered_on_switch_is_lit_and_a_disabled_one_is_faded() {
+    let t = Theme::dark();
+    let (mut ui, mut on) = (dark(), true);
+    let (r, _) = switch(&mut ui, &mut on, ToggleOpts::default());
+    let c = centre(&ui, &r);
+    mv(&mut ui, c);
+    let (_, l) = switch(&mut ui, &mut on, ToggleOpts::default());
+    assert_eq!(rects_of(&l)[0].1, t.faded(t.fill, FADE_LIT), "the primary button's hover");
+    let (mut ui, mut off) = (dark(), false);
+    let (r, _) = switch(&mut ui, &mut off, ToggleOpts { disabled: true, ..ToggleOpts::default() });
+    let c = centre(&ui, &r);
+    mv(&mut ui, c);
+    let (_, l) = switch(&mut ui, &mut off, ToggleOpts { disabled: true, ..ToggleOpts::default() });
+    let parts = rects_of(&l);
+    assert_eq!(parts[0].1, t.faded(t.edge, FADE_DISABLED), "no hover when disabled, and faded");
+    assert_eq!(texts(&l)[0].2, t.faded(t.muted, FADE_DISABLED));
+}

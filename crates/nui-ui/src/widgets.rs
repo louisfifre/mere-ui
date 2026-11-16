@@ -1,6 +1,6 @@
 //! Label, button and toggle in the page's looks.
 
-use nui_base::{Cmd, Color, Cursor, Rect, Weight};
+use nui_base::{Cmd, Color, Cursor, Rect, Vec2, Weight};
 use nui_layout::{Align, Dim, Edges, Justify, Margin, Side, Style};
 
 use crate::text::{TextLook, Tone};
@@ -29,12 +29,13 @@ pub enum ButtonLook {
     Underlined,
 }
 
-/// The launcher's `.toggle button` (lines 204-205) and what it differs by from the preview's.
+/// What the toggle's box differs by between applications. The switch itself has one size (`SWITCH_W` by
+/// `SWITCH_H`); these measures are the room around it and its word, which is also what a click reaches.
 #[derive(Copy, Clone, Debug)]
 pub struct ToggleOpts {
-    /// `min-width: 8ch`.
+    /// Least width of the whole box, so that several toggles or a toggle and a field can line up.
     pub min_w: Dim,
-    /// Padding with the border.
+    /// Padding of the box, around the switch and its word.
     pub pad: Edges,
     /// Disabled: faded to `FADE_DISABLED`, and no click.
     pub disabled: bool,
@@ -42,10 +43,16 @@ pub struct ToggleOpts {
 
 impl Default for ToggleOpts {
     fn default() -> Self {
-        ToggleOpts { min_w: Dim::Auto, pad: Edges::vh(FRAME + INSET_HAIR, FRAME + INSET), disabled: false }
+        // 3 above and below the 18 px line of the word make the 24 px of a compact control.
+        ToggleOpts { min_w: Dim::Auto, pad: Edges::vh(3.0, 0.0), disabled: false }
     }
 }
 
+/// The switch: a square-cornered frame, 28 by 16, whose square knob (8) sits 3 inside the frame's line. 28 and the
+/// 8 of the gap leave the word "off" in the 8ch (57.6 px) of a setting's field column.
+pub const SWITCH_W: f32 = 28.0;
+pub const SWITCH_H: f32 = 16.0;
+const KNOB: f32 = 8.0;
 #[derive(Copy, Clone, Debug, Default)]
 pub struct ButtonOpts {
     pub disabled: bool,
@@ -227,8 +234,11 @@ impl Ui {
         resp
     }
 
-    /// `.setting button.field`: shows `on_word` or `off_word` (the app's catalog) and flips `on` on a click,
-    /// before painting, so the frame already shows the new word. `Resp.clicked` means the value changed.
+    /// A switch with its word beside it: off is an outline with an outlined square knob on the left, on is the
+    /// frame filled with `--fill` and the knob on the right in `--on-fill`. The word is `on_word` or `off_word`
+    /// (the app's catalog), written in capitals as a fold's title is. A click anywhere on the switch or the word
+    /// flips `on` before painting, so the frame already shows the new state. `Resp.clicked` means the value
+    /// changed. Like the buttons it takes no keyboard focus: only text fields do in this kit.
     pub fn toggle(&mut self, key: &str, on: &mut bool, on_word: &str, off_word: &str) -> Resp {
         self.toggle_with(key, on, on_word, off_word, ToggleOpts::default())
     }
@@ -241,23 +251,49 @@ impl Ui {
             *on = !*on;
         }
         let t = *self.theme();
-        let mut frame = if resp.hovered || resp.held { t.text } else { t.edge };
-        let mut word = t.text;
+        let lit = resp.hovered || resp.held;
+        let on = *on;
+        // The lines and the off word follow the pointer like a button's frame; the on fill like the primary's.
+        let line = if lit { t.text } else { t.edge };
+        let (mut fill, mut frame, mut knob, mut word) = if on {
+            let f = if lit { t.faded(t.fill, FADE_LIT) } else { t.fill };
+            (Some(f), f, t.on_fill, t.text)
+        } else {
+            // The off knob is muted at rest, not --edge, which is too faint to read as a part of the control.
+            let ink = if lit { t.text } else { t.muted };
+            (None, line, ink, ink)
+        };
         if opts.disabled {
+            fill = fill.map(|c| t.faded(c, FADE_DISABLED));
             frame = t.faded(frame, FADE_DISABLED);
+            if !on {
+                knob = t.faded(knob, FADE_DISABLED);
+            }
             word = t.faded(word, FADE_DISABLED);
         }
         let style = Style {
-            // The padding counts the frame; the word is right-aligned.
             pad: opts.pad,
             min_w: opts.min_w,
-            justify: Justify::End,
-            align_items: Align::Start,
+            gap: Vec2::new(SPACE_8, 0.0),
+            align_items: Align::Center,
+            // In a grid cell the box keeps its own width instead of stretching, so a click beside it misses.
+            justify_self: Some(Align::Start),
             ..Style::default()
         };
-        self.open(key, id, style, Paint::Box { fill: None, frame: Some(frame) });
-        let look = TextLook::body(Tone::Text);
-        self.add_text(if *on { on_word } else { off_word }, look, word, false, Style::default());
+        self.open(key, id, style, Paint::None);
+        let mut cmds = Vec::new();
+        if let Some(c) = fill {
+            cmds.push(Cmd::Fill { rect: Rect::new(0.0, 0.0, SWITCH_W, SWITCH_H), color: c });
+        } else {
+            cmds.push(Cmd::Frame { rect: Rect::new(0.0, 0.0, SWITCH_W, SWITCH_H), width_px: FRAME, color: frame });
+        }
+        let at = if on { SWITCH_W - FRAME - 3.0 - KNOB } else { FRAME + 3.0 };
+        let knob_rect = Rect::new(at, (SWITCH_H - KNOB) / 2.0, KNOB, KNOB);
+        cmds.push(if on { Cmd::Fill { rect: knob_rect, color: knob } } else { Cmd::Frame { rect: knob_rect, width_px: FRAME, color: knob } });
+        let sw = Style { w: Dim::Px(SWITCH_W), h: Dim::Px(SWITCH_H), shrink: 0.0, ..Style::default() };
+        self.add("switch", sw, Paint::Cmds(cmds));
+        let words = if on { on_word } else { off_word }.to_uppercase();
+        self.add_text(&words, TextLook::body(Tone::Text), word, false, Style::default());
         self.close();
         resp
     }

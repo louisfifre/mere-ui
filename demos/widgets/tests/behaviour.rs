@@ -6,6 +6,7 @@
 use nui_base::{Button, Cmd, Color, DrawList, Event, Gfx, Ime, Key, Mods, Rect, Vec2};
 use nui_layout::{Dim, Insets, Position, Style};
 use nui_ui::tokens::{FADE_DIM, FADE_LIT, FRAME, INSET};
+use nui_ui::{SWITCH_H, SWITCH_W};
 use nui_ui::{
     ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, NumberSpec, RowOpts, ScrollOpts, THUMB_W, Theme, Ui,
     scroll_style, text_width,
@@ -161,9 +162,9 @@ fn the_primary_button_is_filled_lit_under_the_pointer_and_set_back_when_disabled
     });
 }
 
-fn toggle(theme: Theme, pointer: bool) -> (Pic, Rect) {
+fn toggle(theme: Theme, on: bool, pointer: bool) -> (Pic, Rect) {
     let mut sc = Scene::new(theme);
-    let mut on = false;
+    let mut on = on;
     let mut id = None;
     sc.frame(|ui| {
         ui.node("t", at(20.0, 20.0), |ui| id = Some(ui.toggle("field", &mut on, "on", "off").id));
@@ -181,16 +182,29 @@ fn toggle(theme: Theme, pointer: bool) -> (Pic, Rect) {
 }
 
 #[test]
-fn the_toggle_frame_takes_the_text_colour_under_the_pointer() {
+fn the_off_switch_frame_takes_the_text_colour_under_the_pointer() {
     both(|t| {
-        let (rest, r) = toggle(t, false);
-        // The frame's top line, away from the corners and the word.
-        rest.is(r.x + r.w / 2.0, r.y, t.edge, "toggle frame at rest");
-        let (hover, _) = toggle(t, true);
-        hover.is(r.x + r.w / 2.0, r.y, t.text, "toggle frame on hover");
+        let (rest, r) = toggle(t, false, false);
+        // The frame's top line, away from the corners; the switch is the box's left part, centred in its height.
+        let (x, top) = (r.x + SWITCH_W / 2.0, r.y + (r.h - SWITCH_H) / 2.0);
+        rest.is(x, top, t.edge, "switch frame at rest");
+        rest.is(x, top + SWITCH_H / 2.0, t.ground, "an off switch is hollow");
+        let (hover, _) = toggle(t, false, true);
+        hover.is(x, top, t.text, "switch frame on hover");
     });
 }
 
+#[test]
+fn the_on_switch_is_filled_with_a_square_knob_on_the_right() {
+    both(|t| {
+        let (pic, r) = toggle(t, true, false);
+        let top = r.y + (r.h - SWITCH_H) / 2.0;
+        let mid = top + SWITCH_H / 2.0;
+        pic.is(r.x + 2.0, mid, t.fill, "the fill, left of the knob");
+        pic.is(r.x + SWITCH_W - 8.0, mid, t.on_fill, "the knob's body, right");
+        pic.is(r.x + 8.0, mid, t.fill, "no knob on the left");
+    });
+}
 const PLAY: &str = "M15 11h-2V9h2zm0 4h-2v-2h2zm-2 2h-2v-2h2zm0-8h-2V7h2zm-2-2H9V5h2zM9 21H7V3h2zm6-8h2v-2h-2zm-6 4h2v2H9z";
 
 fn icon_button(theme: Theme, look: IconLook, pressed: bool, pointer: bool) -> (Pic, Rect) {
