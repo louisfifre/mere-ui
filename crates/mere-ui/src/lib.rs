@@ -20,6 +20,7 @@ mod compose;
 mod edit;
 mod field;
 mod fold;
+mod help;
 mod icon;
 mod id;
 mod input;
@@ -44,6 +45,7 @@ pub use list::{ListRow, PLOT_H, PartOpts, ROW_GAP, RowOpts, SHARE_MIN, SWATCH_W,
 pub use number::{NumberOpts, NumberSpec};
 pub use scroll::{ARROW, GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, THUMB_W, WHEEL_STEP, arrows_shown, scroll_style};
 pub use fold::FoldOpts;
+pub use help::{HELP_MARK_W, HelpResp, HelpText, SMALL_ICON, help_anchor, help_label};
 pub use id::Id;
 pub use input::Input;
 pub use tab::{TabLook, TabOpts, choice_style, details_style, strip_style};
