@@ -691,3 +691,7 @@ Replaces step 19's fixed panels (left 320, right 330, minimum window 1000x600). 
 - The bar in the preview tool: the settings panel's button replaces the brand, the figures panel's sits before the window's buttons; below the width where the tools can be centred they sit left, then 2D and 3D go into More (`overflow.rs`). Home keeps brand and account.
 - Pictures: `docs/shots/responsive-*` and `bar-*`. `responsive-section-1000.png` is `--data C:\Games\preview\out-section --view section`.
 - Checks on this machine: the loaded `C:\Games\preview\out` is a coarse 320-sample world without a section, so the section, map, figures, page_* and run tests that need it already failed before this branch (same tests, same reasons).
+
+## The preview and the relief demo leave (2026-11-17)
+
+- demos/preview (package `preview`) and demos/relief left this repository: the world preview's window and the relief demo now live in the outpost-tools repository (https://github.com/louisfifre/outpost-tools, folders `preview/` and `relief/`), which depends on this kit by git tag. The text above is the history of how they were built, and its paths under `demos/preview` and `demos/relief` name files that are no longer here.

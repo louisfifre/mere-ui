@@ -1,8 +1,6 @@
-# Third-party material in the preview's bar
+# Third-party material
 
-The icon paths of `src/bar.rs` come from the launcher page (`index.html` in the outpost-tools
-repository, lines 223-245, 418-433 and 735-736), which draws them after Pixelarticons. The section below is the
-launcher's own, copied word for word. The paths of `bar.rs` are drawn after Pixelarticons, as the launcher's are.
+The icon paths in `crates/mere-ui/tests/chrome.rs` and in the `widgets` cards (`demos/widgets/src/cards/icon_button.rs`, `tool_button.rs`) come from the launcher page (`index.html` in the outpost-tools repository), which draws them after Pixelarticons.
 
 ## Pixelarticons (the icons)
 
