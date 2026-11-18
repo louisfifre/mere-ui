@@ -32,6 +32,7 @@ pub mod button;
 pub mod cover;
 pub mod detail_tabs;
 pub mod fold;
+pub mod help;
 pub mod hover_box;
 pub mod icon_button;
 pub mod list_heads;
@@ -211,6 +212,7 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("cover", cover::card),
     ("detail-tabs", detail_tabs::card),
     ("fold", fold::card),
+    ("help", help::card),
     ("hover-box", hover_box::card),
     ("icon-button", icon_button::card),
     ("list-heads", list_heads::card),

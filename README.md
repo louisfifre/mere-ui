@@ -19,7 +19,7 @@ It grows piece by piece as its applications need it. Its applications are a worl
 | ![The scroll area card, dark](docs/shots/card-scroll-area-dark.png) | ![The scroll area card, light](docs/shots/card-scroll-area-light.png) |
 | ![The icon button card, dark](docs/shots/card-icon-button-dark.png) | ![The icon button card, light](docs/shots/card-icon-button-light.png) |
 
-Each picture is a card: one component in its variants, the same as the Design System's preview of it. `cargo test -p widgets` writes all twenty, in both themes, as `target/tmp/card_<name>_<theme>.png`; `docs/shots/card-*.png` are copies.
+Each picture is a card: one component in its variants, the same as the Design System's preview of it. `cargo test -p widgets` writes all twenty-one, in both themes, as `target/tmp/card_<name>_<theme>.png`; `docs/shots/card-*.png` are copies.
 
 ## Crates
 
