@@ -175,8 +175,8 @@ impl Ui {
     /// while it is open; it is not built otherwise. `open` is the caller's: a press on the trigger or Space on it flips
     /// it, Down or Up opens it, and Escape or a press outside the trigger and the list sets it false. When the list
     /// opens, a row takes the focus (`MenuOpts::start` after a press or Space, the first after Down, the last after
-    /// Up); when it closes, the trigger does,
-    /// unless the caller or a press outside gave the keyboard to something else. The focused line is framed in the text colour.
+    /// Up); when it closes, the trigger does, unless the caller or a press outside gave the keyboard to something
+    /// else. The focused line is framed in the text colour.
     pub fn menu(&mut self, key: &str, trigger: Trigger, open: &mut bool, opts: MenuOpts, rows: impl FnOnce(&mut Ui)) -> MenuResp {
         let id = self.key(key);
         let (mut opened, mut closed) = (false, false);
