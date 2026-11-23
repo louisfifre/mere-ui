@@ -1,11 +1,11 @@
-//! What the world preview's shell needed of the kit, without a GPU: wrapped text, the filled box, the select,
+//! What the world preview's shell needed of the kit, without a GPU: wrapped text, the filled box, the compact select,
 //! the `small` and `label` looks, and the detail tab without its second line. Numbers come from the page's
 //! CSS (preview.html lines 105, 109, 123, 127, 195-200, 580) and each is derived in its comment.
 
 use mere_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use mere_layout::{Dim, Style};
 use mere_ui::tokens::{CONTROL, CONTROL_COMPACT};
-use mere_ui::{Resp, TabOpts, TextLook, Theme, Tone, Ui, wrap_lines, wrap_lines_after};
+use mere_ui::{Resp, SelectOpts, TabOpts, TextLook, Theme, Tone, Ui, wrap_lines, wrap_lines_after};
 
 #[test]
 fn n1b_a_lead_is_taken_off_the_first_line_only() {
@@ -79,8 +79,11 @@ fn n3_paragraph_height() {
 
 fn select_frame(ui: &mut Ui) -> Resp {
     let mut r = None;
+    let options = ["4,096 blocks".to_string()];
+    let mut chosen = 0;
+    let opts = SelectOpts { height: Some(CONTROL_COMPACT), ..SelectOpts::default() };
     ui.begin_frame(SIZE);
-    ui.node("col", column(320.0), |ui| r = Some(ui.select("area", "4,096 blocks")));
+    ui.node("col", column(320.0), |ui| r = Some(ui.select_menu("area", &options, &mut chosen, opts).resp));
     ui.end_frame();
     r.unwrap()
 }
@@ -90,7 +93,7 @@ fn n4_select_size_and_click() {
     let mut ui = Ui::new(Theme::dark());
     let first = select_frame(&mut ui);
     let r = ui.rect(first.id).unwrap();
-    // The display-only select is the compact control: 1 border + 3 padding + 18 line + 3 padding + 1 border.
+    // The compact select: 1 border + 2 padding + 18 line + 2 padding + 1 border, as wide as its column.
     near(r.h, CONTROL_COMPACT);
     near(r.w, 320.0);
     let p = Vec2::new(r.x + 20.0, r.y + 10.0);

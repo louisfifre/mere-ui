@@ -7,11 +7,11 @@ use mere_layout::{Avail, Dim, Measured, NodeId, Overflow, Position, Style, Tree}
 
 use crate::edit::MemoryClipboard;
 use crate::field::{FieldPaint, Focus, Typed, paint_field};
+use crate::menu::Hung;
 use crate::id::Id;
 use crate::input::Input;
-use crate::menu::Menu;
+use crate::popup::Popup;
 use crate::scroll::{ArrowDir, BarHot, ScrollMetrics, ScrollPaint, arrow_rects, arrows_shown, chevron, thumb_rect, track_rect};
-use crate::tick::Hung;
 use crate::text::{TextLook, Tone, baseline, ellipsize, ellipsize_start, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
 
@@ -39,7 +39,7 @@ pub(crate) enum Paint {
     Flow { lead: String, lead_color: Color, gap: f32, text: String, look: TextLook, color: Color },
     /// The running generate button: its 1 px frame, then the bar from the padding box's left, `share` of its width.
     Running { frame: Color, bar: Color, share: f32 },
-    /// The select's arrow: 8 x 5 px, painted as filled 1 px rows, as Chrome's is at 1x.
+    /// The arrow of a line that opens a list: `CHEVRON` in size, painted as filled 1 px rows, as Chrome's is at 1x.
     Chevron { color: Color },
     /// A text field: its own frame, clip, selection, text and caret (field.rs).
     Field(Box<FieldPaint>),
@@ -56,7 +56,7 @@ pub(crate) enum Cut {
     None,
     /// At its end (`ellipsize`): a name.
     End,
-    /// At its start (`ellipsize_start`): a folder, whose end is what tells it apart.
+    /// At its start (`ellipsize_start`): a path, whose end is what tells it apart.
     Start,
 }
 
@@ -111,25 +111,29 @@ pub struct Ui {
     tip_since: f64,
     /// A press hid the tip; it stays hidden until another widget becomes the candidate.
     tip_hidden: bool,
-    /// The open select menu, if any (menu.rs), the row a press just picked, and the box built this frame
-    /// that the menu hangs from.
-    pub(crate) menu: Option<Menu>,
-    pub(crate) menu_pick: Option<(Id, usize)>,
-    pub(crate) menu_node: Option<NodeId>,
+    /// The open popup list of a select box or a strip tab, if any (popup.rs), the row a press just picked, and the box built this frame
+    /// that the list hangs from.
+    pub(crate) popup: Option<Popup>,
+    pub(crate) popup_pick: Option<(Id, usize)>,
+    pub(crate) popup_node: Option<NodeId>,
     /// The overlays built this frame (`Ui::overlay`), how deep the build is inside one, and where they were painted in
     /// the last frame: what lies under one is not hovered.
     lifts: Vec<NodeId>,
     lift_depth: u32,
     lift_rects: Vec<Rect>,
-    /// The open tick list as last built (tick.rs), whether one was built open this frame, the list that Escape or a
-    /// press outside closed (told when it is built), and, while a list's rows are built, their ids and whether the
-    /// first of them takes the focus.
-    pub(crate) tick_hung: Option<Hung>,
-    pub(crate) tick_built: bool,
-    pub(crate) tick_close: Option<Id>,
-    pub(crate) tick_rows: Option<Vec<Id>>,
-    pub(crate) tick_first: bool,
+    /// The open menu as last built (menu.rs), whether one was built open this frame, the menu that Escape
+    /// or a press outside closed (told when it is built), and, while a list's rows are built, their ids, whether the
+    /// first of them takes the focus, and the row Up or Down moves the focus from.
+    pub(crate) menu_hung: Option<Hung>,
+    pub(crate) menu_built: bool,
+    pub(crate) menu_close: Option<Id>,
+    pub(crate) menu_rows: Option<Vec<Id>>,
+    pub(crate) menu_first: bool,
+    pub(crate) menu_step: Option<(Id, i32)>,
 }
+
+/// The size of `Paint::Chevron`: its rows below are 8 px wide and 5 tall.
+pub(crate) const CHEVRON: Vec2 = Vec2::new(8.0, 5.0);
 
 /// How long the pointer rests on a titled widget before its tip shows (the browsers' own is about this).
 pub const TIP_DELAY: f64 = 0.5;
@@ -170,17 +174,18 @@ impl Ui {
             tip_id: None,
             tip_since: 0.0,
             tip_hidden: false,
-            menu: None,
-            menu_pick: None,
-            menu_node: None,
+            popup: None,
+            popup_pick: None,
+            popup_node: None,
             lifts: Vec::new(),
             lift_depth: 0,
             lift_rects: Vec::new(),
-            tick_hung: None,
-            tick_built: false,
-            tick_close: None,
-            tick_rows: None,
-            tick_first: false,
+            menu_hung: None,
+            menu_built: false,
+            menu_close: None,
+            menu_rows: None,
+            menu_first: false,
+            menu_step: None,
         }
     }
 
@@ -196,14 +201,14 @@ impl Ui {
     /// field, which reads them when it is built.
     pub fn event(&mut self, e: &Event) -> bool {
         match *e {
-            // An open menu takes Escape before any field does.
-            Event::Key { key: Key::Escape, .. } if self.menu.is_some() => {
-                self.menu = None;
+            // An open popup list takes Escape before any field does.
+            Event::Key { key: Key::Escape, .. } if self.popup.is_some() => {
+                self.popup = None;
                 true
             }
-            // Then an open tick list, which closes when it is built next.
-            Event::Key { key: Key::Escape, .. } if self.tick_hung.is_some() => {
-                self.tick_close = self.tick_hung.map(|h| h.id);
+            // Then an open menu, which closes when it is built next.
+            Event::Key { key: Key::Escape, .. } if self.menu_hung.is_some() => {
+                self.menu_close = self.menu_hung.map(|h| h.id);
                 true
             }
             Event::Key { key, mods } => {
@@ -233,10 +238,10 @@ impl Ui {
         self.focus.as_ref().map(|f| f.id)
     }
 
-    /// A select's or a tab's menu, or a tick list, is open: it takes Escape before anything else, so an application
-    /// that closes its own things with Escape leaves it to the menu.
+    /// A select's or a tab's popup list, or a menu, is open: it takes Escape before anything else, so an application
+    /// that closes its own things with Escape leaves it to the list.
     pub fn menu_open(&self) -> bool {
-        self.menu.is_some() || self.tick_hung.is_some()
+        self.popup.is_some() || self.menu_hung.is_some()
     }
 
     /// True when the frame just ended changed something that only the next frame shows (Tab moved the focus
@@ -268,11 +273,11 @@ impl Ui {
         self.tip_candidate = None;
         self.list = DrawList::default();
         self.size = size;
-        self.menu_node = None;
+        self.popup_node = None;
         self.lifts.clear();
         self.lift_depth = 0;
+        self.popup_begin_frame();
         self.menu_begin_frame();
-        self.tick_begin_frame();
     }
 
     /// The application's time in seconds. Tooltips are timed by it, so tests set it by hand.
@@ -381,10 +386,10 @@ impl Ui {
         id
     }
 
-    /// The pointer is over an open menu, or over an overlay while building what is not inside one: the widget being
+    /// The pointer is over an open popup list, or over an overlay while building what is not inside one: the widget being
     /// built lies under it.
     fn covered(&self) -> bool {
-        self.under_menu() || (self.lift_depth == 0 && self.input.pos.is_some_and(|p| self.lift_rects.iter().any(|r| r.contains(p))))
+        self.under_popup() || (self.lift_depth == 0 && self.input.pos.is_some_and(|p| self.lift_rects.iter().any(|r| r.contains(p))))
     }
 
     /// The application's time in seconds, as last given to `set_clock`.
@@ -458,10 +463,10 @@ impl Ui {
         }
         self.lift_rects = later.iter().map(|(n, _)| abs[n.0]).collect();
         // A list whose line was not built this frame (the page changed) is gone: nothing is left for Escape.
-        if !self.tick_built {
-            self.tick_hung = None;
+        if !self.menu_built {
+            self.menu_hung = None;
         }
-        self.paint_menu(&abs);
+        self.paint_popup(&abs);
         self.paint_tip();
         self.rects.clear();
         self.hits.clear();

@@ -1,7 +1,7 @@
 //! Label, button and toggle in the page's looks.
 
 use mere_base::{Cmd, Color, Cursor, Rect, Vec2, Weight};
-use mere_layout::{Align, Dim, Edges, Justify, Margin, Side, Style};
+use mere_layout::{Align, Dim, Edges, Justify, Style};
 
 use crate::text::{TextLook, Tone};
 use crate::tokens::*;
@@ -86,28 +86,6 @@ impl Ui {
     /// An unkeyed box painted in one colour: a one-side border, a rule, a slot.
     pub fn fill(&mut self, style: Style, color: Color) {
         self.add("fill", style, Paint::Box { fill: Some(color), frame: None });
-    }
-
-    /// `select.field` (lines 123 and 127), display only: it shows its value and an arrow and reports clicks.
-    /// Its menu is `select_menu`. The compact select: `control-compact` tall, the value `inset` from the frame.
-    pub fn select(&mut self, key: &str, value: &str) -> Resp {
-        let id = self.key(key);
-        let resp = self.interact(id, false, Cursor::Hand);
-        let t = *self.theme();
-        let pad = Edges::new(FRAME + INSET_HAIR, FRAME + INSET_TIGHT, FRAME + INSET_HAIR, FRAME + INSET);
-        let style = Style { h: Dim::Px(CONTROL_COMPACT), pad, align_items: Align::Center, ..Style::default() };
-        self.open(key, id, style, Paint::Box { fill: None, frame: Some(t.edge) });
-        self.add_text(value, TextLook::body(Tone::Text), t.text, false, Style::default());
-        let chevron = Style {
-            w: Dim::Px(8.0),
-            h: Dim::Px(5.0),
-            shrink: 0.0,
-            margin: Margin { left: Side::Auto, ..Margin::default() },
-            ..Style::default()
-        };
-        self.add("chevron", chevron, Paint::Chevron { color: t.text });
-        self.close();
-        resp
     }
 
     /// A text leaf that ends in an ellipsis when its box is narrower than the text. `min-width: 0` lets it

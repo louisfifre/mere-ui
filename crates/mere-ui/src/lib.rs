@@ -5,7 +5,7 @@
 //! 1. `Ui::event` for every event received since the last frame (pointer state is only stored);
 //! 2. `Ui::begin_frame(size)`;
 //! 3. the application's calls: `node`, `label`, `button`, `toggle`, `fold`, `tab`, `detail_tab`, `number`,
-//!    `text_field`, `ellipsis`, `scroll`, `list_row`, `list_head`, `trend_row`, `tick_box`, `tick_row`, `tick_list`...
+//!    `text_field`, `ellipsis`, `scroll`, `list_row`, `list_head`, `trend_row`, `selector`, `menu`, `menu_select`...
 //!    Each widget answers with what the
 //!    pointer did to it, judged against where the widget stood in the LAST frame (what the person saw and
 //!    pointed at), so the first frame of a widget has no interaction;
@@ -25,13 +25,15 @@ mod icon;
 mod id;
 mod input;
 mod number;
+mod line;
 mod list;
 mod menu;
+mod popup;
+mod selector;
 mod scroll;
 mod tab;
 mod text;
 mod theme;
-mod tick;
 pub mod tokens;
 mod ui;
 mod widgets;
@@ -41,8 +43,10 @@ pub use chrome::{CORNER, GRIP, IconLook, IconOpts, TOOL_GAP, TOOL_PAD_L, TOOL_PA
 pub use edit::MemoryClipboard;
 pub use icon::Icon;
 pub use field::{FieldLook, FieldOpts, FieldResp};
-pub use menu::{MENU_ROW, MenuResp, MenuRow, SelectOpts, SelectResp};
+pub use popup::{MENU_ROW, SelectOpts, SelectResp, TabMenuResp, TabMenuRow};
+pub use selector::{MARK_SIZE, MarkOpts, Selector, SelectorOpts};
 pub use list::{ListRow, PLOT_H, PartOpts, ROW_GAP, RowOpts, SHARE_MIN, SWATCH_W, WIDTH_MIN};
+pub use menu::{MenuOpts, MenuResp, SelectRow};
 pub use number::{NumberOpts, NumberSpec};
 pub use scroll::{ARROW, GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, THUMB_W, WHEEL_STEP, arrows_shown, scroll_style};
 pub use fold::FoldOpts;
@@ -52,6 +56,5 @@ pub use input::Input;
 pub use tab::{TabLook, TabOpts, choice_style, details_style, strip_style};
 pub use text::{ADVANCE_EM, ASCENT_EM, DESCENT_EM, TextLook, Tone, cells, cells_of, ellipsize, ellipsize_start, text_width, wrap_lines, wrap_lines_after};
 pub use theme::{Theme, mix};
-pub use tick::{TICK_BOX, TickListOpts, TickListResp, TickOpts, TickRow};
 pub use ui::{Resp, TIP_DELAY, Ui};
 pub use widgets::{ButtonLook, ButtonOpts, SWITCH_H, SWITCH_W, ToggleOpts};

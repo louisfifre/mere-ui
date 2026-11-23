@@ -8,8 +8,8 @@ use mere_layout::{Dim, Insets, Position, Style};
 use mere_ui::tokens::{FADE_DIM, FADE_DISABLED, FADE_LIT, FRAME, GAP_TIGHT, INSET, INSET_TIGHT};
 use mere_ui::{SWITCH_H, SWITCH_W};
 use mere_ui::{
-    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, NumberSpec, RowOpts, ScrollOpts, THUMB_W, TICK_BOX, TextLook, Theme,
-    TickListOpts, TickOpts, TickRow, Tone, Ui, scroll_style, text_width,
+    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, MARK_SIZE, MenuOpts, NumberSpec, SelectRow, Selector,
+    SelectorOpts, RowOpts, ScrollOpts, THUMB_W, TextLook, Theme, Tone, Ui, scroll_style, text_width,
 };
 use mere_win32::Renderer;
 
@@ -608,17 +608,18 @@ fn a_chosen_row_keeps_its_swatch_the_others_are_set_back_and_the_hovered_one_is_
     });
 }
 
-// ---- tick box, tick row, tick list ----
+// ---- selectors, selection rows, menu ----
 
 const SPACE: Event = Event::Char { ch: ' ' };
 
-/// The square of a tick box or a tick row: `TICK_BOX` on a side, at the row's left padding and `drop` below its top.
+/// The selector of a labelled selector or of a selection row: `MARK_SIZE` on a side, at the row's left padding and `drop`
+/// below its top.
 fn square(r: Rect, pad_x: f32, drop: f32) -> Rect {
-    Rect::new(r.x + pad_x, r.y + drop, TICK_BOX, TICK_BOX)
+    Rect::new(r.x + pad_x, r.y + drop, MARK_SIZE, MARK_SIZE)
 }
 
 #[test]
-fn a_tick_box_ticks_and_unticks_on_a_press_lights_under_the_pointer_and_does_nothing_when_disabled() {
+fn a_multiple_selector_reports_the_press_its_caller_flips_it_it_lights_under_the_pointer_and_does_nothing_when_disabled() {
     both(|t| {
         for disabled in [false, true] {
             let mut sc = Scene::new(t);
@@ -626,51 +627,111 @@ fn a_tick_box_ticks_and_unticks_on_a_press_lights_under_the_pointer_and_does_not
             let build = |sc: &mut Scene, v: &mut bool| {
                 let mut id = None;
                 let list = sc.frame(|ui| {
-                    ui.node("at", at(20.0, 20.0), |ui| id = Some(ui.tick_box("t", "Option", v, TickOpts { disabled }).id));
+                    ui.node("at", at(20.0, 20.0), |ui| {
+                        let r = ui.selector("c", "Option", Selector::Multiple, *v, SelectorOpts { disabled });
+                        // The caller's part: a press flips it.
+                        if r.clicked {
+                            *v = !*v;
+                        }
+                        id = Some(r.id);
+                    });
                 });
                 (list, id.unwrap())
             };
             let (_, id) = build(&mut sc, &mut v);
             let r = sc.rect(id);
             let build = |sc: &mut Scene, v: &mut bool| build(sc, v).0;
-            // The box is centred in the compact control's height.
-            let sq = square(r, 0.0, ((r.h - TICK_BOX) / 2.0).floor());
+            // The selector is centred in the compact control's height.
+            let sq = square(r, 0.0, ((r.h - MARK_SIZE) / 2.0).floor());
             let list = build(&mut sc, &mut v);
             let edge = if disabled { t.faded(t.edge, FADE_DISABLED) } else { t.edge };
             sc.pic(&list).is(sq.x, sq.y + 6.0, edge, "the resting frame");
-            sc.pic(&list).is(sq.x + 6.0, sq.y + 6.0, t.ground, "no tick");
+            sc.pic(&list).is(sq.x + 6.0, sq.y + 6.0, t.ground, "no check");
             sc.pointer(centre(r));
             let list = build(&mut sc, &mut v);
             sc.pic(&list).is(sq.x, sq.y + 6.0, if disabled { edge } else { t.text }, "the frame under the pointer");
             sc.click(centre(r), 1);
+            build(&mut sc, &mut v);
+            assert_eq!(v, !disabled, "a press asks and its caller checks it, unless it is disabled");
+            assert_eq!(sc.ui.want_redraw(), !disabled, "the caller's change asks for one more frame");
             let list = build(&mut sc, &mut v);
-            assert_eq!(v, !disabled, "a press ticks it, unless it is disabled");
             if !disabled {
-                sc.pic(&list).is(sq.x + 6.0, sq.y + 6.0, t.text, "the tick");
+                sc.pic(&list).is(sq.x + 6.0, sq.y + 6.0, t.text, "the check, in the next frame");
                 sc.click(centre(r), 1);
                 build(&mut sc, &mut v);
-                assert!(!v, "a second press unticks it");
+                assert!(!v, "a second press unchecks it");
             }
         }
     });
 }
 
-/// One tick row in a column 300 wide at (20, 20).
-fn tick_row_at(ui: &mut Ui, row: TickRow, v: &mut bool) -> Id {
+#[test]
+fn a_single_selector_reports_the_press_and_shows_the_value_its_caller_gives() {
+    both(|t| {
+        for disabled in [false, true] {
+            let mut sc = Scene::new(t);
+            let mut selected = false;
+            let build = |sc: &mut Scene, selected: &mut bool| {
+                let mut resp = None;
+                let list = sc.frame(|ui| {
+                    ui.node("at", at(20.0, 20.0), |ui| resp = Some(ui.selector("r", "Option", Selector::Single, *selected, SelectorOpts { disabled })));
+                });
+                let resp = resp.unwrap();
+                // The caller's part: a press selects this one.
+                if resp.clicked {
+                    *selected = true;
+                }
+                (list, resp)
+            };
+            let (_, resp) = build(&mut sc, &mut selected);
+            let r = sc.rect(resp.id);
+            let sq = square(r, 0.0, ((r.h - MARK_SIZE) / 2.0).floor());
+            let (list, _) = build(&mut sc, &mut selected);
+            let edge = if disabled { t.faded(t.edge, FADE_DISABLED) } else { t.edge };
+            let pic = sc.pic(&list);
+            pic.is(sq.x, sq.y + 5.0, edge, "the ring's left side");
+            pic.is(sq.x, sq.y, t.ground, "a round ring leaves its corner empty");
+            pic.is(sq.x + 6.0, sq.y + 6.0, t.ground, "no dot");
+            sc.click(centre(r), 1);
+            let (_, resp) = build(&mut sc, &mut selected);
+            assert_eq!(resp.clicked, !disabled, "a press is reported, unless it is disabled");
+            assert_eq!(sc.ui.want_redraw(), !disabled, "the caller's change asks for one more frame");
+            let (list, _) = build(&mut sc, &mut selected);
+            if !disabled {
+                let pic = sc.pic(&list);
+                pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the dot of the selected one");
+                pic.is(sq.x, sq.y + 5.0, t.text, "its ring in the text colour");
+                // A press on a selected single selector asks again; it never unselects by itself.
+                sc.click(centre(r), 1);
+                let (_, resp) = build(&mut sc, &mut selected);
+                assert!(resp.clicked && selected, "a second press is reported and the value stays the caller's");
+            }
+        }
+    });
+}
+
+/// One selection row in a column 300 wide at (20, 20); a press or Space flips `v`, as a caller of a multiple choice does.
+fn select_row_at(ui: &mut Ui, row: SelectRow, v: &mut bool) -> Id {
     let mut id = None;
-    ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| id = Some(ui.tick_row("r", row, v).id));
+    ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| {
+        let r = ui.menu_select("o", SelectRow { selected: *v, ..row });
+        if r.clicked {
+            *v = !*v;
+        }
+        id = Some(r.id);
+    });
     id.unwrap()
 }
 
 #[test]
-fn a_tick_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
+fn a_selection_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
     both(|t| {
-        let row = TickRow { name: "Exploration, your game", how: "Prism Launcher", path: r"C:\Games\exploration", disabled: false };
+        let row = SelectRow { label: "Reports", detail: "Archive", detail_tail: r"D:\Archive\2024\reports", selector: Selector::Multiple, ..SelectRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let id = {
             let mut id = None;
-            sc.frame(|ui| id = Some(tick_row_at(ui, row, &mut v)));
+            sc.frame(|ui| id = Some(select_row_at(ui, row, &mut v)));
             id.unwrap()
         };
         let r = sc.rect(id);
@@ -678,49 +739,53 @@ fn a_tick_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
         // Space does nothing before the row has the focus.
         sc.ui.event(&SPACE);
         sc.frame(|ui| {
-            tick_row_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         assert!(!v, "Space reaches no row without the focus");
-        // A press at the far right of the row, past its text, ticks it and gives it the focus.
+        // A press at the far right of the row, past its text, asks for it and gives it the focus.
         sc.click(Vec2::new(r.x + r.w - 2.0, r.y + r.h - 3.0), 1);
-        let list = sc.frame(|ui| {
-            tick_row_at(ui, row, &mut v);
+        sc.frame(|ui| {
+            select_row_at(ui, row, &mut v);
         });
         assert!(v, "the whole row takes the press");
+        assert!(sc.ui.want_redraw(), "the caller's change asks for one more frame");
         assert_eq!(sc.ui.focused(), Some(id), "the pressed row has the focus");
+        let list = sc.frame(|ui| {
+            select_row_at(ui, row, &mut v);
+        });
         let pic = sc.pic(&list);
         pic.is(r.x + r.w - 4.0, r.y + 2.0, t.select, "the focused row is filled with the selection colour");
         let sq = square(r, INSET, INSET_TIGHT + 4.0);
-        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the tick");
-        // Space unticks and ticks it again.
+        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the check");
+        // Space asks again, twice.
         sc.ui.event(&SPACE);
         sc.frame(|ui| {
-            tick_row_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
-        assert!(!v, "Space unticks the focused row");
+        assert!(!v, "Space on the focused row is a press");
         sc.ui.event(&SPACE);
         sc.frame(|ui| {
-            tick_row_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
-        assert!(v, "Space ticks it again");
+        assert!(v, "and again");
         // A press elsewhere takes the focus away.
         sc.click(Vec2::new(380.0, 280.0), 1);
         sc.frame(|ui| {
-            tick_row_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         assert_eq!(sc.ui.focused(), None, "a press outside the row takes its focus");
 
         // Disabled: no press, no focus, no Space.
-        let off = TickRow { disabled: true, ..row };
+        let off = SelectRow { disabled: true, ..row };
         let mut sc = Scene::new(t);
         let mut v = false;
         sc.frame(|ui| {
-            tick_row_at(ui, off, &mut v);
+            select_row_at(ui, off, &mut v);
         });
         sc.click(centre(r), 1);
         sc.ui.event(&SPACE);
         sc.frame(|ui| {
-            tick_row_at(ui, off, &mut v);
+            select_row_at(ui, off, &mut v);
         });
         assert!(!v && sc.ui.focused().is_none(), "a disabled row takes no press and no focus");
     });
@@ -738,30 +803,79 @@ fn texts_in(list: &DrawList, r: Rect) -> Vec<String> {
 }
 
 #[test]
-fn a_tick_rows_name_is_cut_at_its_end_and_its_path_at_its_start() {
-    let path = r"C:\Users\someone\AppData\Roaming\.minecraft-exploration";
-    let row = TickRow { name: "Exploration with the long winter settings, your game", how: "Minecraft Launcher", path, disabled: false };
+fn a_selection_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
+    let tail = r"D:\Archive\2024\reports\quarterly\final versions\signed";
+    let row = SelectRow { label: "Quarterly reports with every appendix and the signed copies", detail: "Archive", detail_tail: tail, selector: Selector::Multiple, ..SelectRow::default() };
     let mut sc = Scene::new(Theme::dark());
     let mut v = false;
     let mut id = None;
-    sc.frame(|ui| id = Some(tick_row_at(ui, row, &mut v)));
+    sc.frame(|ui| id = Some(select_row_at(ui, row, &mut v)));
     let list = sc.frame(|ui| {
-        tick_row_at(ui, row, &mut v);
+        select_row_at(ui, row, &mut v);
     });
     let texts = texts_in(&list, sc.rect(id.unwrap()));
-    let name = texts.iter().find(|s| s.starts_with("Exploration")).expect("the name is painted");
-    assert!(name.ends_with('\u{2026}') && name.len() < row.name.len(), "the name ends in an ellipsis: {name:?}");
-    assert!(texts.iter().any(|s| s == "Minecraft Launcher \u{b7} "), "the prefix is whole: {texts:?}");
-    let cut = texts.iter().find(|s| s.starts_with('\u{2026}')).expect("the path is cut at its start");
-    assert!(cut.ends_with("craft-exploration") && cut.len() < path.len(), "the path keeps its end: {cut:?}");
+    let label = texts.iter().find(|s| s.starts_with("Quarterly")).expect("the label is painted");
+    assert!(label.ends_with('\u{2026}') && label.len() < row.label.len(), "the label ends in an ellipsis: {label:?}");
+    assert!(texts.iter().any(|s| s == "Archive \u{b7} "), "the detail is whole: {texts:?}");
+    let cut = texts.iter().find(|s| s.starts_with('\u{2026}')).expect("the tail is cut at its start");
+    assert!(cut.ends_with("versions\\signed") && cut.len() < tail.len(), "the tail keeps its end: {cut:?}");
 }
 
-/// The corner of a panel: a tick list hung above its line, which sits at (20, 220) and is 240 wide, holding two
-/// places, a rule and an action; and a button at (300, 20), away from both.
+#[test]
+fn a_single_selection_row_with_a_detail_line_reports_its_press_and_paints_its_detail() {
+    both(|t| {
+        let row = SelectRow { label: "Weekly", detail: "Archive", detail_tail: r"D:\Archive\weekly", selector: Selector::Single, ..SelectRow::default() };
+        let mut sc = Scene::new(t);
+        let mut v = false;
+        let mut id = None;
+        sc.frame(|ui| id = Some(select_row_at(ui, row, &mut v)));
+        let r = sc.rect(id.unwrap());
+        assert_eq!(r.h, 2.0 * INSET_TIGHT + 18.0 + 16.0, "two lines on whole pixels");
+        // A press on the detail line, under the label, is the row's.
+        sc.click(Vec2::new(r.x + INSET + MARK_SIZE + 20.0, r.y + r.h - INSET_TIGHT - 4.0), 1);
+        sc.frame(|ui| {
+            select_row_at(ui, row, &mut v);
+        });
+        assert!(v, "the press is reported and its caller selects the row");
+        sc.click(Vec2::new(380.0, 280.0), 1);
+        let list = sc.frame(|ui| {
+            select_row_at(ui, row, &mut v);
+        });
+        let texts = texts_in(&list, r);
+        assert!(texts.iter().any(|s| s == "Archive \u{b7} ") && texts.iter().any(|s| s == r"D:\Archive\weekly"), "the detail is painted: {texts:?}");
+        let at = |s: &str| list.cmds.iter().find_map(|c| if let Cmd::Text { at, text, .. } = c { (text == s).then_some(*at) } else { None }).unwrap();
+        let (label, detail) = (at("Weekly"), at("Archive \u{b7} "));
+        assert!(detail.x == label.x && detail.y > label.y, "the detail sits under the label");
+        let sq = square(r, INSET, INSET_TIGHT + 4.0);
+        let pic = sc.pic(&list);
+        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the selected row's dot");
+        pic.is(sq.x, sq.y, t.ground, "a round selector, with empty corners");
+    });
+}
+
+/// The two kinds of choice a menu's selection rows serve.
+#[derive(Copy, Clone, PartialEq)]
+enum Kind {
+    /// Several, with multiple selectors.
+    Several,
+    /// One, with single selectors; the list closes on the pick.
+    One,
+}
+
+/// The corner of a panel: a menu hung above its line, which sits at (20, 220) and is 240 wide, holding two
+/// selection rows, a separator and an action; and a button at (300, 20), away from both. Its caller applies the presses as
+/// its kind wants.
 struct Corner {
     open: bool,
-    ticked: [bool; 2],
+    selected: [bool; 2],
     disabled: bool,
+    kind: Kind,
+}
+
+impl Corner {
+    fn new(kind: Kind) -> Corner {
+        Corner { open: false, selected: [false; 2], disabled: false, kind }
+    }
 }
 
 #[derive(Default)]
@@ -779,18 +893,39 @@ struct CornerOut {
 fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
     let mut out = CornerOut::default();
     ui.node("panel", Style { column: true, w: Dim::Px(240.0), ..at(20.0, 220.0) }, |ui| {
-        let opts = TickListOpts { up: true, disabled: c.disabled };
-        let ticked = &mut c.ticked;
+        let opts = MenuOpts { up: true, disabled: c.disabled };
+        let kind = c.kind;
+        let selector = match kind {
+            Kind::Several => Selector::Multiple,
+            Kind::One => Selector::Single,
+        };
+        let selected = c.selected;
+        let mut asked = None;
         let mut rows = Vec::new();
         let mut action = false;
-        let r = ui.tick_list("place", "To: Exploration", &mut c.open, opts, |ui| {
-            rows.push(ui.tick_row("p0", TickRow { name: "Exploration, your game", how: "Prism Launcher", path: r"C:\Games\a", disabled: false }, &mut ticked[0]).id);
-            rows.push(ui.tick_row("p1", TickRow { name: "Atelier, your game", how: "Prism Launcher", path: r"C:\Games\b", disabled: false }, &mut ticked[1]).id);
-            ui.tick_rule();
-            let a = ui.tick_action("choose", "Choose a folder\u{2026}");
+        let r = ui.menu("dd", "Back up: Reports", &mut c.open, opts, |ui| {
+            for (i, label) in ["Reports", "Notes"].into_iter().enumerate() {
+                let row = SelectRow { label, detail: "Archive", detail_tail: r"D:\Archive\2024", selector, selected: selected[i], disabled: false };
+                let resp = ui.menu_select(&format!("o{i}"), row);
+                rows.push(resp.id);
+                if resp.clicked {
+                    asked = Some(i);
+                }
+            }
+            ui.menu_separator();
+            let a = ui.menu_action("browse", "Browse\u{2026}");
             rows.push(a.id);
             action = a.clicked;
         });
+        if let Some(i) = asked {
+            match kind {
+                Kind::Several => c.selected[i] = !c.selected[i],
+                Kind::One => {
+                    c.selected = [i == 0, i == 1];
+                    c.open = false;
+                }
+            }
+        }
         out = CornerOut { line: Some(r.line.id), list: r.list, rows, action, enter: r.enter, opened: r.opened, closed: r.closed, button: false };
     });
     ui.node("else", at(300.0, 20.0), |ui| out.button = ui.button("b", "Other", ButtonLook::Plain).clicked);
@@ -798,9 +933,9 @@ fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
 }
 
 /// A corner built twice so that every widget has a rect, then opened by a press on its line.
-fn opened_corner(t: Theme) -> (Scene, Corner, CornerOut) {
+fn opened_corner(t: Theme, kind: Kind) -> (Scene, Corner, CornerOut) {
     let mut sc = Scene::new(t);
-    let mut c = Corner { open: false, ticked: [false; 2], disabled: false };
+    let mut c = Corner::new(kind);
     sc.frame(|ui| {
         corner(ui, &mut c);
     });
@@ -815,36 +950,42 @@ fn opened_corner(t: Theme) -> (Scene, Corner, CornerOut) {
 }
 
 #[test]
-fn the_tick_list_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_open_while_rows_are_ticked() {
+fn the_menu_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_open_while_rows_are_checked() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         let line = sc.rect(out.line.unwrap());
         let list = sc.rect(out.list.expect("the list is built while open"));
         assert_eq!((list.x, list.w), (line.x, line.w), "the list has exactly the line's width");
         assert_eq!(list.y + list.h + GAP_TIGHT, line.y, "the list ends 4 px above the line");
-        // No scrolling: the rows, the rule and the action follow one another inside the frame, nothing cut.
+        // No scrolling: the rows, the separator and the action follow one another inside the frame, nothing cut.
         let rows: Vec<Rect> = out.rows.iter().map(|id| sc.rect(*id)).collect();
         assert_eq!(rows[0].y, list.y + FRAME + INSET_TIGHT, "the first row starts under the frame and the padding");
         assert_eq!(rows[2].y + rows[2].h, list.y + list.h - FRAME - INSET_TIGHT, "the action ends at the padding: nothing is hidden");
         assert!(rows.iter().all(|r| r.x == list.x + FRAME && r.w == list.w - 2.0 * FRAME), "every row spans the list inside its frame");
         // The first row has the focus when the list opens.
         assert_eq!(sc.ui.focused(), Some(out.rows[0]), "the first row takes the focus on opening");
-        // Ticking rows leaves the list open.
+        // The action row leaves the selectors' column empty: its text starts where the labels do.
+        let painted = sc.frame(|ui| out = corner(ui, &mut c));
+        let at = |s: &str| painted.cmds.iter().find_map(|c| if let Cmd::Text { at, text, .. } = c { (text == s).then_some(at.x) } else { None });
+        assert!(at("Notes").is_some(), "the label is painted");
+        assert_eq!(at("Browse\u{2026}"), at("Notes"), "the action's text lines up with the labels");
+        // Checking rows leaves the list open.
         sc.click(centre(rows[1]), 1);
         sc.frame(|ui| out = corner(ui, &mut c));
         sc.click(centre(rows[0]), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
         let pic = {
             let list = sc.frame(|ui| out = corner(ui, &mut c));
             sc.pic(&list)
         };
-        assert_eq!(c.ticked, [true, true], "both rows ticked");
-        assert!(c.open && out.list.is_some(), "the list stays open while rows are ticked");
+        assert_eq!(c.selected, [true, true], "both rows checked");
+        assert!(c.open && out.list.is_some(), "the list stays open while rows are checked");
         let sq = square(rows[1], INSET, INSET_TIGHT + 4.0);
-        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the second row's tick");
-        // Unticking.
+        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the second row's check");
+        // Unchecking.
         sc.click(centre(rows[1]), 1);
         sc.frame(|ui| out = corner(ui, &mut c));
-        assert_eq!(c.ticked, [true, false], "a second press unticks");
+        assert_eq!(c.selected, [true, false], "a second press unchecks");
         // The action is reported and the list stays open.
         sc.click(centre(rows[2]), 1);
         sc.frame(|ui| out = corner(ui, &mut c));
@@ -853,9 +994,91 @@ fn the_tick_list_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_op
 }
 
 #[test]
-fn a_tick_list_its_caller_closes_gives_the_focus_back_to_its_line() {
+fn a_single_choice_selects_one_row_and_its_caller_closes_the_list() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::One);
+        let rows: Vec<Rect> = out.rows.iter().map(|id| sc.rect(*id)).collect();
+        let sq = square(rows[1], INSET, INSET_TIGHT + 4.0);
+        let pic = {
+            let list = sc.frame(|ui| out = corner(ui, &mut c));
+            sc.pic(&list)
+        };
+        pic.is(sq.x, sq.y + 5.0, t.edge, "a round selector, its ring in the edge colour");
+        pic.is(sq.x, sq.y, t.ground, "with empty corners");
+        sc.click(centre(rows[1]), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(c.selected, [false, true], "the pressed row is the one selected");
+        assert!(!c.open, "the caller closed the list on the pick");
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(out.closed && out.list.is_none(), "the list is reported closed");
+        assert_eq!(sc.ui.focused(), out.line, "the line has the focus back");
+        // Opened again, the dot is on the second row, and the first row's press moves it.
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        let pic = {
+            let list = sc.frame(|ui| out = corner(ui, &mut c));
+            sc.pic(&list)
+        };
+        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the selected row's dot");
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(c.selected, [true, false], "Space on the focused first row selects it alone");
+    });
+}
+
+#[test]
+fn up_and_down_move_the_focus_through_the_open_list_and_open_the_closed_line() {
+    both(|t| {
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
+        assert_eq!(sc.ui.focused(), Some(out.rows[0]));
+        sc.key(Key::Down, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), Some(out.rows[1]), "Down moves to the next row");
+        assert!(sc.ui.want_redraw(), "the moved focus asks for one more frame");
+        sc.key(Key::Down, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), Some(out.rows[2]), "past the separator to the action");
+        sc.key(Key::Down, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), Some(out.rows[2]), "Down stops at the last row");
+        sc.key(Key::Up, NONE, 2);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), Some(out.rows[1]), "one step a frame: two Ups in one frame move once");
+        sc.key(Key::Up, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        sc.key(Key::Up, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), Some(out.rows[0]), "Up stops at the first row");
+        let list = sc.frame(|ui| out = corner(ui, &mut c));
+        let r0 = sc.rect(out.rows[0]);
+        sc.pic(&list).is(r0.x + r0.w - 4.0, r0.y + 2.0, t.select, "the focused row is filled");
+        assert_eq!(c.selected, [false, false], "moving the focus chooses nothing");
+        // Closed, Down on the focused line opens the list on its first row, Up on its last.
+        sc.key(Key::Escape, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(!c.open && sc.ui.focused() == out.line);
+        sc.key(Key::Down, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(c.open && out.opened, "Down opens the list");
+        assert_eq!(sc.ui.focused(), Some(out.rows[0]), "on its first row");
+        sc.key(Key::Escape, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        sc.key(Key::Up, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(c.open && out.opened, "Up opens the list");
+        assert_eq!(sc.ui.focused(), Some(out.rows[2]), "on its last row");
+        // Disabled rows are skipped: none here, but the arrows never leave the list.
+        sc.key(Key::Down, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), Some(out.rows[2]));
+        assert!(!out.button, "nothing outside the list took the keys");
+    });
+}
+
+#[test]
+fn a_menu_its_caller_closes_gives_the_focus_back_to_its_line() {
+    both(|t| {
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         // Space on the action row, reached with Tab, as a keyboard would open a dialog from it.
         sc.key(Key::Tab, NONE, 1);
         sc.frame(|ui| out = corner(ui, &mut c));
@@ -875,10 +1098,10 @@ fn a_tick_list_its_caller_closes_gives_the_focus_back_to_its_line() {
 }
 
 #[test]
-fn escape_closes_the_tick_list_and_gives_the_focus_back_to_its_line() {
+fn escape_closes_the_menu_and_gives_the_focus_back_to_its_line() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t);
-        assert!(sc.ui.menu_open(), "an open tick list takes Escape first");
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
+        assert!(sc.ui.menu_open(), "an open menu takes Escape first");
         sc.key(Key::Escape, NONE, 1);
         let list = sc.frame(|ui| out = corner(ui, &mut c));
         assert!(!c.open && out.closed && out.list.is_none(), "Escape closes the list");
@@ -891,18 +1114,18 @@ fn escape_closes_the_tick_list_and_gives_the_focus_back_to_its_line() {
         sc.frame(|ui| out = corner(ui, &mut c));
         assert!(c.open && out.opened, "Space on the line opens the list");
         assert_eq!(sc.ui.focused(), Some(out.rows[0]), "the first row has the focus");
-        // Space now ticks that row.
+        // Space now asks for that row.
         sc.ui.event(&SPACE);
         sc.frame(|ui| out = corner(ui, &mut c));
-        assert_eq!(c.ticked, [true, false], "Space ticks the focused row");
+        assert_eq!(c.selected, [true, false], "Space checks the focused row");
         assert!(c.open, "and the list stays open");
     });
 }
 
 #[test]
-fn a_press_outside_closes_the_tick_list_reaches_nothing_and_focuses_the_line() {
+fn a_press_outside_closes_the_menu_reaches_nothing_and_focuses_the_line() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         let button = Vec2::new(310.0, 28.0);
         sc.click(button, 1);
         sc.frame(|ui| out = corner(ui, &mut c));
@@ -926,9 +1149,9 @@ fn a_press_outside_closes_the_tick_list_reaches_nothing_and_focuses_the_line() {
 }
 
 #[test]
-fn enter_in_the_tick_list_is_reported_and_leaves_it_open() {
+fn enter_in_the_menu_is_reported_and_leaves_it_open() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         sc.key(Key::Enter, NONE, 1);
         sc.frame(|ui| out = corner(ui, &mut c));
         assert!(out.enter, "Enter from a row of the list is reported");
@@ -955,14 +1178,15 @@ fn enter_in_the_tick_list_is_reported_and_leaves_it_open() {
 }
 
 #[test]
-fn a_disabled_tick_list_line_opens_nothing() {
+fn a_disabled_menu_line_opens_nothing() {
     both(|t| {
         let mut sc = Scene::new(t);
-        let mut c = Corner { open: false, ticked: [false; 2], disabled: true };
+        let mut c = Corner { disabled: true, ..Corner::new(Kind::Several) };
         let mut out = CornerOut::default();
         sc.frame(|ui| out = corner(ui, &mut c));
         let line = sc.rect(out.line.unwrap());
         sc.click(centre(line), 1);
+        sc.key(Key::Down, NONE, 1);
         let list = sc.frame(|ui| out = corner(ui, &mut c));
         assert!(!c.open && out.list.is_none() && sc.ui.focused().is_none(), "a disabled line opens nothing and takes no focus");
         sc.pic(&list).is(line.x, line.y + line.h / 2.0, t.faded(t.edge, FADE_DISABLED), "its frame is set back");
@@ -975,7 +1199,7 @@ fn a_status_sentence_in_the_failure_tone_is_painted_in_amber() {
         let mut sc = Scene::new(t);
         let list = sc.frame(|ui| {
             ui.node("s", Style { column: true, w: Dim::Px(200.0), ..at(20.0, 20.0) }, |ui| {
-                ui.paragraph("Not saved: the game is using the file.", TextLook::small(Tone::Warn));
+                ui.paragraph("Not saved: the file is in use elsewhere.", TextLook::small(Tone::Warn));
             });
         });
         let colors: Vec<Color> = list.cmds.iter().filter_map(|c| if let Cmd::Text { color, .. } = c { Some(*color) } else { None }).collect();

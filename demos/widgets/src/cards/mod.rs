@@ -37,17 +37,16 @@ pub mod hover_box;
 pub mod icon_button;
 pub mod list_heads;
 pub mod list_row;
+pub mod menu;
 pub mod number_field;
 pub mod scroll_area;
 pub mod select;
+pub mod selector;
 pub mod stop_button;
 pub mod tab_menu;
 pub mod tabs;
 pub mod text;
 pub mod text_field;
-pub mod tick_box;
-pub mod tick_list;
-pub mod tick_row;
 pub mod toggle;
 pub mod tool_button;
 pub mod tooltip;
@@ -220,17 +219,16 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("icon-button", icon_button::card),
     ("list-heads", list_heads::card),
     ("list-row", list_row::card),
+    ("menu", menu::card),
     ("number-field", number_field::card),
     ("scroll-area", scroll_area::card),
     ("select", select::card),
+    ("selector", selector::card),
     ("stop-button", stop_button::card),
     ("tab-menu", tab_menu::card),
     ("tabs", tabs::card),
     ("text", text::card),
     ("text-field", text_field::card),
-    ("tick-box", tick_box::card),
-    ("tick-list", tick_list::card),
-    ("tick-row", tick_row::card),
     ("toggle", toggle::card),
     ("tool-button", tool_button::card),
     ("tooltip", tooltip::card),
