@@ -1,2 +1,4 @@
 /target
 /out
+# What a launcher run writes: its log and the web view's data
+/run/
