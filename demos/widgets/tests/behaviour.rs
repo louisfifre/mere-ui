@@ -5,11 +5,11 @@
 
 use mere_base::{Button, Cmd, Color, DrawList, Event, Gfx, Ime, Key, Mods, Rect, Vec2};
 use mere_layout::{Dim, Insets, Position, Style};
-use mere_ui::tokens::{FADE_DIM, FADE_LIT, FRAME, INSET};
+use mere_ui::tokens::{FADE_DIM, FADE_DISABLED, FADE_LIT, FRAME, GAP_TIGHT, INSET, INSET_TIGHT};
 use mere_ui::{SWITCH_H, SWITCH_W};
 use mere_ui::{
-    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, NumberSpec, RowOpts, ScrollOpts, THUMB_W, Theme, Ui,
-    scroll_style, text_width,
+    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, NumberSpec, RowOpts, ScrollOpts, THUMB_W, TICK_BOX, TextLook, Theme,
+    TickListOpts, TickOpts, TickRow, Tone, Ui, scroll_style, text_width,
 };
 use mere_win32::Renderer;
 
@@ -605,5 +605,359 @@ fn a_chosen_row_keeps_its_swatch_the_others_are_set_back_and_the_hovered_one_is_
         let lines_in = |r: Rect| list.cmds.iter().filter(|c| matches!(c, Cmd::Fill { rect, color } if rect.h == 1.0 && *color == lit && rect.y >= r.y && rect.y < r.y + r.h)).count();
         assert_eq!(lines_in(rects[3]), 1, "the hovered row underlines its name");
         assert_eq!(lines_in(rects[1]), 0, "a row under no pointer has no underline");
+    });
+}
+
+// ---- tick box, tick row, tick list ----
+
+const SPACE: Event = Event::Char { ch: ' ' };
+
+/// The square of a tick box or a tick row: `TICK_BOX` on a side, at the row's left padding and `drop` below its top.
+fn square(r: Rect, pad_x: f32, drop: f32) -> Rect {
+    Rect::new(r.x + pad_x, r.y + drop, TICK_BOX, TICK_BOX)
+}
+
+#[test]
+fn a_tick_box_ticks_and_unticks_on_a_press_lights_under_the_pointer_and_does_nothing_when_disabled() {
+    both(|t| {
+        for disabled in [false, true] {
+            let mut sc = Scene::new(t);
+            let mut v = false;
+            let build = |sc: &mut Scene, v: &mut bool| {
+                let mut id = None;
+                let list = sc.frame(|ui| {
+                    ui.node("at", at(20.0, 20.0), |ui| id = Some(ui.tick_box("t", "Option", v, TickOpts { disabled }).id));
+                });
+                (list, id.unwrap())
+            };
+            let (_, id) = build(&mut sc, &mut v);
+            let r = sc.rect(id);
+            let build = |sc: &mut Scene, v: &mut bool| build(sc, v).0;
+            // The box is centred in the compact control's height.
+            let sq = square(r, 0.0, ((r.h - TICK_BOX) / 2.0).floor());
+            let list = build(&mut sc, &mut v);
+            let edge = if disabled { t.faded(t.edge, FADE_DISABLED) } else { t.edge };
+            sc.pic(&list).is(sq.x, sq.y + 6.0, edge, "the resting frame");
+            sc.pic(&list).is(sq.x + 6.0, sq.y + 6.0, t.ground, "no tick");
+            sc.pointer(centre(r));
+            let list = build(&mut sc, &mut v);
+            sc.pic(&list).is(sq.x, sq.y + 6.0, if disabled { edge } else { t.text }, "the frame under the pointer");
+            sc.click(centre(r), 1);
+            let list = build(&mut sc, &mut v);
+            assert_eq!(v, !disabled, "a press ticks it, unless it is disabled");
+            if !disabled {
+                sc.pic(&list).is(sq.x + 6.0, sq.y + 6.0, t.text, "the tick");
+                sc.click(centre(r), 1);
+                build(&mut sc, &mut v);
+                assert!(!v, "a second press unticks it");
+            }
+        }
+    });
+}
+
+/// One tick row in a column 300 wide at (20, 20).
+fn tick_row_at(ui: &mut Ui, row: TickRow, v: &mut bool) -> Id {
+    let mut id = None;
+    ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| id = Some(ui.tick_row("r", row, v).id));
+    id.unwrap()
+}
+
+#[test]
+fn a_tick_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
+    both(|t| {
+        let row = TickRow { name: "Exploration, your game", how: "Prism Launcher", path: r"C:\Games\exploration", disabled: false };
+        let mut sc = Scene::new(t);
+        let mut v = false;
+        let id = {
+            let mut id = None;
+            sc.frame(|ui| id = Some(tick_row_at(ui, row, &mut v)));
+            id.unwrap()
+        };
+        let r = sc.rect(id);
+        assert_eq!(r.h, 2.0 * INSET_TIGHT + 18.0 + 16.0, "two lines on whole pixels");
+        // Space does nothing before the row has the focus.
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| {
+            tick_row_at(ui, row, &mut v);
+        });
+        assert!(!v, "Space reaches no row without the focus");
+        // A press at the far right of the row, past its text, ticks it and gives it the focus.
+        sc.click(Vec2::new(r.x + r.w - 2.0, r.y + r.h - 3.0), 1);
+        let list = sc.frame(|ui| {
+            tick_row_at(ui, row, &mut v);
+        });
+        assert!(v, "the whole row takes the press");
+        assert_eq!(sc.ui.focused(), Some(id), "the pressed row has the focus");
+        let pic = sc.pic(&list);
+        pic.is(r.x + r.w - 4.0, r.y + 2.0, t.select, "the focused row is filled with the selection colour");
+        let sq = square(r, INSET, INSET_TIGHT + 4.0);
+        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the tick");
+        // Space unticks and ticks it again.
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| {
+            tick_row_at(ui, row, &mut v);
+        });
+        assert!(!v, "Space unticks the focused row");
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| {
+            tick_row_at(ui, row, &mut v);
+        });
+        assert!(v, "Space ticks it again");
+        // A press elsewhere takes the focus away.
+        sc.click(Vec2::new(380.0, 280.0), 1);
+        sc.frame(|ui| {
+            tick_row_at(ui, row, &mut v);
+        });
+        assert_eq!(sc.ui.focused(), None, "a press outside the row takes its focus");
+
+        // Disabled: no press, no focus, no Space.
+        let off = TickRow { disabled: true, ..row };
+        let mut sc = Scene::new(t);
+        let mut v = false;
+        sc.frame(|ui| {
+            tick_row_at(ui, off, &mut v);
+        });
+        sc.click(centre(r), 1);
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| {
+            tick_row_at(ui, off, &mut v);
+        });
+        assert!(!v && sc.ui.focused().is_none(), "a disabled row takes no press and no focus");
+    });
+}
+
+/// The texts painted inside `r`.
+fn texts_in(list: &DrawList, r: Rect) -> Vec<String> {
+    list.cmds
+        .iter()
+        .filter_map(|c| match c {
+            Cmd::Text { at, text, .. } if r.contains(*at) => Some(text.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_tick_rows_name_is_cut_at_its_end_and_its_path_at_its_start() {
+    let path = r"C:\Users\someone\AppData\Roaming\.minecraft-exploration";
+    let row = TickRow { name: "Exploration with the long winter settings, your game", how: "Minecraft Launcher", path, disabled: false };
+    let mut sc = Scene::new(Theme::dark());
+    let mut v = false;
+    let mut id = None;
+    sc.frame(|ui| id = Some(tick_row_at(ui, row, &mut v)));
+    let list = sc.frame(|ui| {
+        tick_row_at(ui, row, &mut v);
+    });
+    let texts = texts_in(&list, sc.rect(id.unwrap()));
+    let name = texts.iter().find(|s| s.starts_with("Exploration")).expect("the name is painted");
+    assert!(name.ends_with('\u{2026}') && name.len() < row.name.len(), "the name ends in an ellipsis: {name:?}");
+    assert!(texts.iter().any(|s| s == "Minecraft Launcher \u{b7} "), "the prefix is whole: {texts:?}");
+    let cut = texts.iter().find(|s| s.starts_with('\u{2026}')).expect("the path is cut at its start");
+    assert!(cut.ends_with("craft-exploration") && cut.len() < path.len(), "the path keeps its end: {cut:?}");
+}
+
+/// The corner of a panel: a tick list hung above its line, which sits at (20, 220) and is 240 wide, holding two
+/// places, a rule and an action; and a button at (300, 20), away from both.
+struct Corner {
+    open: bool,
+    ticked: [bool; 2],
+    disabled: bool,
+}
+
+#[derive(Default)]
+struct CornerOut {
+    line: Option<Id>,
+    list: Option<Id>,
+    rows: Vec<Id>,
+    action: bool,
+    enter: bool,
+    opened: bool,
+    closed: bool,
+    button: bool,
+}
+
+fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
+    let mut out = CornerOut::default();
+    ui.node("panel", Style { column: true, w: Dim::Px(240.0), ..at(20.0, 220.0) }, |ui| {
+        let opts = TickListOpts { up: true, disabled: c.disabled };
+        let ticked = &mut c.ticked;
+        let mut rows = Vec::new();
+        let mut action = false;
+        let r = ui.tick_list("place", "To: Exploration", &mut c.open, opts, |ui| {
+            rows.push(ui.tick_row("p0", TickRow { name: "Exploration, your game", how: "Prism Launcher", path: r"C:\Games\a", disabled: false }, &mut ticked[0]).id);
+            rows.push(ui.tick_row("p1", TickRow { name: "Atelier, your game", how: "Prism Launcher", path: r"C:\Games\b", disabled: false }, &mut ticked[1]).id);
+            ui.tick_rule();
+            let a = ui.tick_action("choose", "Choose a folder\u{2026}");
+            rows.push(a.id);
+            action = a.clicked;
+        });
+        out = CornerOut { line: Some(r.line.id), list: r.list, rows, action, enter: r.enter, opened: r.opened, closed: r.closed, button: false };
+    });
+    ui.node("else", at(300.0, 20.0), |ui| out.button = ui.button("b", "Other", ButtonLook::Plain).clicked);
+    out
+}
+
+/// A corner built twice so that every widget has a rect, then opened by a press on its line.
+fn opened_corner(t: Theme) -> (Scene, Corner, CornerOut) {
+    let mut sc = Scene::new(t);
+    let mut c = Corner { open: false, ticked: [false; 2], disabled: false };
+    sc.frame(|ui| {
+        corner(ui, &mut c);
+    });
+    let mut out = CornerOut::default();
+    sc.frame(|ui| out = corner(ui, &mut c));
+    let line = sc.rect(out.line.unwrap());
+    sc.click(centre(line), 1);
+    sc.frame(|ui| out = corner(ui, &mut c));
+    assert!(c.open && out.opened, "a press on the line opens the list");
+    sc.frame(|ui| out = corner(ui, &mut c));
+    (sc, c, out)
+}
+
+#[test]
+fn the_tick_list_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_open_while_rows_are_ticked() {
+    both(|t| {
+        let (mut sc, mut c, mut out) = opened_corner(t);
+        let line = sc.rect(out.line.unwrap());
+        let list = sc.rect(out.list.expect("the list is built while open"));
+        assert_eq!((list.x, list.w), (line.x, line.w), "the list has exactly the line's width");
+        assert_eq!(list.y + list.h + GAP_TIGHT, line.y, "the list ends 4 px above the line");
+        // No scrolling: the rows, the rule and the action follow one another inside the frame, nothing cut.
+        let rows: Vec<Rect> = out.rows.iter().map(|id| sc.rect(*id)).collect();
+        assert_eq!(rows[0].y, list.y + FRAME + INSET_TIGHT, "the first row starts under the frame and the padding");
+        assert_eq!(rows[2].y + rows[2].h, list.y + list.h - FRAME - INSET_TIGHT, "the action ends at the padding: nothing is hidden");
+        assert!(rows.iter().all(|r| r.x == list.x + FRAME && r.w == list.w - 2.0 * FRAME), "every row spans the list inside its frame");
+        // The first row has the focus when the list opens.
+        assert_eq!(sc.ui.focused(), Some(out.rows[0]), "the first row takes the focus on opening");
+        // Ticking rows leaves the list open.
+        sc.click(centre(rows[1]), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        sc.click(centre(rows[0]), 1);
+        let pic = {
+            let list = sc.frame(|ui| out = corner(ui, &mut c));
+            sc.pic(&list)
+        };
+        assert_eq!(c.ticked, [true, true], "both rows ticked");
+        assert!(c.open && out.list.is_some(), "the list stays open while rows are ticked");
+        let sq = square(rows[1], INSET, INSET_TIGHT + 4.0);
+        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the second row's tick");
+        // Unticking.
+        sc.click(centre(rows[1]), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(c.ticked, [true, false], "a second press unticks");
+        // The action is reported and the list stays open.
+        sc.click(centre(rows[2]), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(out.action && c.open, "the action row reports its press, the list stays open");
+    });
+}
+
+#[test]
+fn escape_closes_the_tick_list_and_gives_the_focus_back_to_its_line() {
+    both(|t| {
+        let (mut sc, mut c, mut out) = opened_corner(t);
+        assert!(sc.ui.menu_open(), "an open tick list takes Escape first");
+        sc.key(Key::Escape, NONE, 1);
+        let list = sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(!c.open && out.closed && out.list.is_none(), "Escape closes the list");
+        assert_eq!(sc.ui.focused(), out.line, "the line has the focus back");
+        assert!(!sc.ui.menu_open(), "nothing open is left for Escape");
+        let line = sc.rect(out.line.unwrap());
+        sc.pic(&list).is(line.x, line.y + line.h / 2.0, t.text, "the focused line is framed in the text colour");
+        // Space on the focused line opens the list again, its first row focused.
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(c.open && out.opened, "Space on the line opens the list");
+        assert_eq!(sc.ui.focused(), Some(out.rows[0]), "the first row has the focus");
+        // Space now ticks that row.
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(c.ticked, [true, false], "Space ticks the focused row");
+        assert!(c.open, "and the list stays open");
+    });
+}
+
+#[test]
+fn a_press_outside_closes_the_tick_list_reaches_nothing_and_focuses_the_line() {
+    both(|t| {
+        let (mut sc, mut c, mut out) = opened_corner(t);
+        let button = Vec2::new(310.0, 28.0);
+        sc.click(button, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(!c.open && out.closed, "a press outside closes the list");
+        assert!(!out.button, "the press reached nothing under it");
+        assert_eq!(sc.ui.focused(), out.line, "the line has the focus back");
+        // Closed, the same press reaches the button.
+        sc.click(button, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(out.button, "with the list closed the button takes the press");
+        // A press on the line itself closes an open list too.
+        let line = sc.rect(out.line.unwrap());
+        sc.click(centre(line), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(c.open, "opened again");
+        sc.frame(|ui| out = corner(ui, &mut c));
+        sc.click(centre(line), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(!c.open && out.closed && sc.ui.focused() == out.line, "a press on the line closes the list and keeps the focus on it");
+    });
+}
+
+#[test]
+fn enter_in_the_tick_list_is_reported_and_leaves_it_open() {
+    both(|t| {
+        let (mut sc, mut c, mut out) = opened_corner(t);
+        sc.key(Key::Enter, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(out.enter, "Enter from a row of the list is reported");
+        assert!(c.open, "Enter does not close the list: the caller decides");
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(!out.enter, "reported once");
+        // Tab moves the focus to the next row, from where Enter is reported too.
+        sc.key(Key::Tab, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), Some(out.rows[1]), "Tab walks to the next row");
+        sc.key(Key::Enter, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(out.enter, "Enter from the second row is reported");
+        // With no focus in the list, Enter is not the list's.
+        sc.click(Vec2::new(380.0, 280.0), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        sc.click(Vec2::new(380.0, 280.0), 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), None);
+        sc.key(Key::Enter, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(!out.enter, "Enter elsewhere is not reported");
+    });
+}
+
+#[test]
+fn a_disabled_tick_list_line_opens_nothing() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut c = Corner { open: false, ticked: [false; 2], disabled: true };
+        let mut out = CornerOut::default();
+        sc.frame(|ui| out = corner(ui, &mut c));
+        let line = sc.rect(out.line.unwrap());
+        sc.click(centre(line), 1);
+        let list = sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(!c.open && out.list.is_none() && sc.ui.focused().is_none(), "a disabled line opens nothing and takes no focus");
+        sc.pic(&list).is(line.x, line.y + line.h / 2.0, t.faded(t.edge, FADE_DISABLED), "its frame is set back");
+    });
+}
+
+#[test]
+fn a_status_sentence_in_the_failure_tone_is_painted_in_amber() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let list = sc.frame(|ui| {
+            ui.node("s", Style { column: true, w: Dim::Px(200.0), ..at(20.0, 20.0) }, |ui| {
+                ui.paragraph("Not saved: the game is using the file.", TextLook::small(Tone::Warn));
+            });
+        });
+        let colors: Vec<Color> = list.cmds.iter().filter_map(|c| if let Cmd::Text { color, .. } = c { Some(*color) } else { None }).collect();
+        assert!(!colors.is_empty() && colors.iter().all(|c| *c == t.warn), "every line of the sentence is in the warn colour");
+        assert_eq!(colors.len(), 2, "it wraps under the control's width");
     });
 }
