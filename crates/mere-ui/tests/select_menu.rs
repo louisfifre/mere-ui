@@ -2,8 +2,8 @@
 
 use mere_base::{Button, Cmd, DrawList, Event, Key, Mods, Rect, Vec2};
 use mere_layout::{Dim, Style};
-use mere_ui::tokens::CONTROL;
-use mere_ui::{ButtonLook, ButtonOpts, MENU_ROW, ScrollOpts, SelectOpts, SelectResp, Theme, Ui};
+use mere_ui::tokens::{CONTROL, GAP, GAP_TIGHT};
+use mere_ui::{ActionLook, ActionOpts, LIST_PAD, LIST_ROW, ScrollOpts, SelectOpts, SelectResp, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(400.0, 300.0);
 
@@ -38,7 +38,7 @@ impl Page {
         let mut body = |ui: &mut Ui| {
             // A button above the select: a press that closes the menu must not click it.
             if !in_scroll {
-                let r = ui.button_with("above", "Above", ButtonLook::Plain, ButtonOpts::default());
+                let r = ui.action_with("above", "Above", ActionLook::Plain, ActionOpts::default());
                 *under = Some(r.id);
                 if r.clicked {
                     *clicks += 1;
@@ -82,10 +82,15 @@ impl Page {
         self.click(Vec2::new(b.x + 20.0, b.y + 10.0));
     }
 
+    /// The top of row `i` of the open menu.
+    fn row_top(&self, i: usize) -> f32 {
+        let b = self.box_rect();
+        b.y + b.h + GAP_TIGHT + LIST_PAD + i as f32 * LIST_ROW
+    }
+
     /// The point on row `i` of the open menu.
     fn row(&self, i: usize) -> Vec2 {
-        let b = self.box_rect();
-        Vec2::new(b.x + 30.0, b.y + b.h + 1.0 + i as f32 * MENU_ROW + 10.0)
+        Vec2::new(self.box_rect().x + 30.0, self.row_top(i) + LIST_ROW / 2.0)
     }
 }
 
@@ -102,7 +107,7 @@ fn a_click_on_the_box_opens_and_a_second_closes() {
 }
 
 #[test]
-fn the_menu_opens_with_the_chosen_row_hot_and_paints_every_option() {
+fn the_menu_opens_with_the_chosen_row_focused_and_paints_every_option() {
     let mut p = Page::new();
     p.open();
     let texts: Vec<String> = p.list.cmds.iter().filter_map(|c| if let Cmd::Text { text, .. } = c { Some(text.clone()) } else { None }).collect();
@@ -112,20 +117,18 @@ fn the_menu_opens_with_the_chosen_row_hot_and_paints_every_option() {
     let t = Theme::dark();
     let hot: Vec<Rect> = p.list.cmds.iter().filter_map(|c| if let Cmd::Fill { rect, color } = c { (*color == t.select).then_some(*rect) } else { None }).collect();
     assert_eq!(hot.len(), 1);
-    let b = p.box_rect();
-    assert_eq!(hot[0].y, b.y + b.h + 1.0 + MENU_ROW, "row 1 (the chosen one) is hot");
+    assert_eq!(hot[0].y, p.row_top(1), "row 1 (the chosen one) has the focus");
 }
 
 #[test]
-fn the_pointer_over_a_row_makes_it_hot_and_a_press_picks_and_closes() {
+fn the_pointer_over_a_row_lights_it_and_a_press_picks_and_closes() {
     let mut p = Page::new();
     p.open();
     let at = p.row(2);
     p.at(at);
     let t = Theme::dark();
-    let hot_y = |p: &Page| p.list.cmds.iter().find_map(|c| if let Cmd::Fill { rect, color } = c { (*color == t.select).then_some(rect.y) } else { None }).unwrap();
-    let b = p.box_rect();
-    assert_eq!(hot_y(&p), b.y + b.h + 1.0 + 2.0 * MENU_ROW);
+    let lit_y = |p: &Page| p.list.cmds.iter().find_map(|c| if let Cmd::Fill { rect, color } = c { (*color == t.tint()).then_some(rect.y) } else { None }).unwrap();
+    assert_eq!(lit_y(&p), p.row_top(2));
     p.click(at);
     assert!(!p.last.unwrap().open);
     assert_eq!(p.chosen, 2);
@@ -173,7 +176,7 @@ fn the_menu_is_drawn_outside_a_scroll_areas_clip() {
     p.frame();
     p.open();
     assert!(p.last.unwrap().open);
-    // The scroll area is 40 px tall, the menu is 62: its ground fill must come at clip depth 0.
+    // The scroll area is 40 px tall, the menu is 88: its ground fill must come at clip depth 0.
     let t = Theme::dark();
     let mut depth = 0i32;
     let mut found = None;
@@ -197,4 +200,53 @@ fn a_disabled_select_does_not_open() {
     p.frame();
     p.open();
     assert!(!p.last.unwrap().open);
+}
+
+
+#[test]
+fn the_keyboard_opens_moves_and_picks_and_the_line_gets_the_focus_back() {
+    let mut p = Page::new();
+    // A press gives the line the focus and opens the list on the chosen row; Escape closes it.
+    p.open();
+    p.ui.event(&Event::Key { key: Key::Escape, mods: Mods::default() });
+    p.frame();
+    assert!(!p.last.unwrap().open);
+    let line = p.last.unwrap().resp.id;
+    assert_eq!(p.ui.focused(), Some(line), "the closed list gives the focus back to its line");
+    // Space opens it again, Down moves to the next row, Space picks it and closes.
+    p.ui.event(&Event::Char { ch: ' ' });
+    p.frame();
+    assert!(p.last.unwrap().open, "Space on the line opens the list");
+    p.ui.event(&Event::Key { key: Key::Down, mods: Mods::default() });
+    p.frame();
+    p.ui.event(&Event::Char { ch: ' ' });
+    p.frame();
+    assert_eq!(p.chosen, 2, "Down then Space picks the row after the chosen one");
+    p.frame();
+    assert!(!p.last.unwrap().open, "and closes the list");
+    assert_eq!(p.ui.focused(), Some(line));
+}
+
+/// A text cut short in a narrow select stops `gap` before the chevron: the chevron's one rule, whatever the trigger.
+#[test]
+fn a_cut_text_keeps_its_gap_before_the_chevron() {
+    let mut ui = Ui::new(Theme::dark());
+    let opts = vec!["An option with a name far too long for its line".to_string()];
+    let mut chosen = 0;
+    let mut list = DrawList::default();
+    for _ in 0..2 {
+        ui.begin_frame(SIZE);
+        ui.node("col", Style { w: Dim::Px(140.0), column: true, ..Style::default() }, |ui| {
+            ui.select_menu("sel", &opts, &mut chosen, SelectOpts::default());
+        });
+        list = ui.end_frame().clone();
+    }
+    let (end, size) = list
+        .cmds
+        .iter()
+        .find_map(|c| if let Cmd::Text { at, text, size, .. } = c { text.contains('\u{2026}').then(|| (at.x + mere_ui::text_width(text, *size), *size)) } else { None })
+        .expect("the text is cut");
+    assert!(size > 0.0);
+    let chevron = list.cmds.iter().filter_map(|c| if let Cmd::Fill { rect, .. } = c { (rect.h == 1.0 && rect.w <= 8.0).then_some(rect.x) } else { None }).fold(f32::MAX, f32::min);
+    assert!(chevron - end >= GAP - 0.5, "the text ends at {end}, the chevron starts at {chevron}");
 }

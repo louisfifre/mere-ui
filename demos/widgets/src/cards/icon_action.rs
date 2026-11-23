@@ -16,7 +16,7 @@ fn cell(path: &'static str, look: IconLook, state: State, pressed: bool, disable
     Some(Cell::new(state, move |ui: &mut Ui, _| {
         let marker = marker.then(|| ui.theme().warn);
         let icon = Icon::parse(path, 24.0).expect("the card's icon parses");
-        ui.icon_button("b", &icon, look, IconOpts { pressed, disabled, joined: false, marker }).id
+        ui.icon_action("b", &icon, look, IconOpts { pressed, disabled, joined: false, marker }).id
     }))
 }
 

@@ -6,7 +6,7 @@
 use mere_ui::tokens::*;
 use mere_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use mere_layout::{Dim, Style};
-use mere_ui::{ButtonLook, ButtonOpts, Resp, Theme, Ui};
+use mere_ui::{ActionLook, ActionOpts, Resp, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(600.0, 400.0);
 
@@ -34,8 +34,8 @@ fn running(ui: &mut Ui, share: f32, disabled: bool) -> (DrawList, Rect) {
     let mut id = None;
     ui.begin_frame(SIZE);
     ui.node("col", column(300.0), |ui| {
-        let opts = ButtonOpts { disabled, grow: 1.0 };
-        id = Some(ui.button_with("generate", "Generating\u{2026}", ButtonLook::Running { share }, opts).id);
+        let opts = ActionOpts { disabled, grow: 1.0 };
+        id = Some(ui.action_with("generate", "Generating\u{2026}", ActionLook::Running { share }, opts).id);
     });
     let list = ui.end_frame().clone();
     (list, ui.rect(id.unwrap()).unwrap())
@@ -79,7 +79,7 @@ fn stop(ui: &mut Ui, disabled: bool) -> (DrawList, Resp) {
     let mut resp = None;
     ui.begin_frame(SIZE);
     ui.node("row", Style { w: Dim::Px(300.0), ..Style::default() }, |ui| {
-        resp = Some(ui.stop_button("stop", disabled));
+        resp = Some(ui.stop_action("stop", disabled));
     });
     (ui.end_frame().clone(), resp.unwrap())
 }

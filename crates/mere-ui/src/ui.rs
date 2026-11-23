@@ -10,7 +10,6 @@ use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::menu::Hung;
 use crate::id::Id;
 use crate::input::Input;
-use crate::popup::Popup;
 use crate::scroll::{ArrowDir, BarHot, ScrollMetrics, ScrollPaint, arrow_rects, arrows_shown, chevron, thumb_rect, track_rect};
 use crate::text::{TextLook, Tone, baseline, ellipsize, ellipsize_start, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
@@ -63,10 +62,10 @@ pub(crate) enum Cut {
 pub struct Ui {
     theme: Theme,
     pub(crate) input: Input,
-    tree: Tree,
+    pub(crate) tree: Tree,
     root: NodeId,
     /// Open containers, innermost last, with their ids.
-    stack: Vec<(NodeId, Id)>,
+    pub(crate) stack: Vec<(NodeId, Id)>,
     /// Indexed by `NodeId.0`.
     paints: Vec<Paint>,
     /// Nodes built with a key this frame.
@@ -111,25 +110,29 @@ pub struct Ui {
     tip_since: f64,
     /// A press hid the tip; it stays hidden until another widget becomes the candidate.
     tip_hidden: bool,
-    /// The open popup list of a select box or a strip tab, if any (popup.rs), the row a press just picked, and the box built this frame
-    /// that the list hangs from.
-    pub(crate) popup: Option<Popup>,
-    pub(crate) popup_pick: Option<(Id, usize)>,
-    pub(crate) popup_node: Option<NodeId>,
+    /// The lists that keep their own open state (`select_menu`, `tab_menu`) and are open; one not built in a frame
+    /// is forgotten.
+    pub(crate) opened: HashSet<Id>,
+    /// The last group built in the container that was open then (group.rs): a group that follows it is parted from it.
+    pub(crate) last_group: Option<NodeId>,
     /// The overlays built this frame (`Ui::overlay`), how deep the build is inside one, and where they were painted in
     /// the last frame: what lies under one is not hovered.
-    lifts: Vec<NodeId>,
+    pub(crate) lifts: Vec<NodeId>,
     lift_depth: u32,
     lift_rects: Vec<Rect>,
     /// The open menu as last built (menu.rs), whether one was built open this frame, the menu that Escape
-    /// or a press outside closed (told when it is built), and, while a list's rows are built, their ids, whether the
-    /// first of them takes the focus, and the row Up or Down moves the focus from.
+    /// or a press outside closed (told when it is built), and, while a list's rows are built, their ids, which of
+    /// them (in build order) takes the focus, and the row Up or Down moves the focus from.
     pub(crate) menu_hung: Option<Hung>,
     pub(crate) menu_built: bool,
     pub(crate) menu_close: Option<Id>,
     pub(crate) menu_rows: Option<Vec<Id>>,
-    pub(crate) menu_first: bool,
+    pub(crate) menu_first: Option<usize>,
     pub(crate) menu_step: Option<(Id, i32)>,
+    /// The widest row of the list being built, its texts whole: what a list as wide as its rows takes.
+    pub(crate) menu_want: f32,
+    /// The rows of the list last built open: the keyboard a closing list gives back to its trigger is theirs.
+    pub(crate) menu_last_rows: Vec<Id>,
 }
 
 /// The size of `Paint::Chevron`: its rows below are 8 px wide and 5 tall.
@@ -174,9 +177,8 @@ impl Ui {
             tip_id: None,
             tip_since: 0.0,
             tip_hidden: false,
-            popup: None,
-            popup_pick: None,
-            popup_node: None,
+            opened: HashSet::new(),
+            last_group: None,
             lifts: Vec::new(),
             lift_depth: 0,
             lift_rects: Vec::new(),
@@ -184,8 +186,10 @@ impl Ui {
             menu_built: false,
             menu_close: None,
             menu_rows: None,
-            menu_first: false,
+            menu_first: None,
             menu_step: None,
+            menu_want: 0.0,
+            menu_last_rows: Vec::new(),
         }
     }
 
@@ -201,12 +205,7 @@ impl Ui {
     /// field, which reads them when it is built.
     pub fn event(&mut self, e: &Event) -> bool {
         match *e {
-            // An open popup list takes Escape before any field does.
-            Event::Key { key: Key::Escape, .. } if self.popup.is_some() => {
-                self.popup = None;
-                true
-            }
-            // Then an open menu, which closes when it is built next.
+            // An open menu takes Escape before any field does; it closes when it is built next.
             Event::Key { key: Key::Escape, .. } if self.menu_hung.is_some() => {
                 self.menu_close = self.menu_hung.map(|h| h.id);
                 true
@@ -238,10 +237,11 @@ impl Ui {
         self.focus.as_ref().map(|f| f.id)
     }
 
-    /// A select's or a tab's popup list, or a menu, is open: it takes Escape before anything else, so an application
-    /// that closes its own things with Escape leaves it to the list.
+    /// A menu (a select's or a tab's list among them) is open: it takes Escape before anything else, so an
+    /// application that closes its own things with Escape leaves it to the list.
     pub fn menu_open(&self) -> bool {
-        self.popup.is_some() || self.menu_hung.is_some()
+        // A menu Escape closed is closed now, though it hears so only when it is built next.
+        self.menu_hung.is_some() && self.menu_close.is_none()
     }
 
     /// True when the frame just ended changed something that only the next frame shows (Tab moved the focus
@@ -273,10 +273,9 @@ impl Ui {
         self.tip_candidate = None;
         self.list = DrawList::default();
         self.size = size;
-        self.popup_node = None;
+        self.last_group = None;
         self.lifts.clear();
         self.lift_depth = 0;
-        self.popup_begin_frame();
         self.menu_begin_frame();
     }
 
@@ -386,10 +385,9 @@ impl Ui {
         id
     }
 
-    /// The pointer is over an open popup list, or over an overlay while building what is not inside one: the widget being
-    /// built lies under it.
+    /// The pointer is over an overlay while building what is not inside one: the widget being built lies under it.
     fn covered(&self) -> bool {
-        self.under_popup() || (self.lift_depth == 0 && self.input.pos.is_some_and(|p| self.lift_rects.iter().any(|r| r.contains(p))))
+        self.lift_depth == 0 && self.input.pos.is_some_and(|p| self.lift_rects.iter().any(|r| r.contains(p)))
     }
 
     /// The application's time in seconds, as last given to `set_clock`.
@@ -466,7 +464,8 @@ impl Ui {
         if !self.menu_built {
             self.menu_hung = None;
         }
-        self.paint_popup(&abs);
+        let seen = &self.seen;
+        self.opened.retain(|id| seen.contains(id));
         self.paint_tip();
         self.rects.clear();
         self.hits.clear();
@@ -698,6 +697,12 @@ impl Ui {
             Tone::Muted => self.theme.muted,
             Tone::Warn => self.theme.warn,
         }
+    }
+
+    /// The id `key` takes in the open container, without counting it as used: for a widget that reads its own state
+    /// before the call that keys it.
+    pub(crate) fn peek_key(&self, key: &str) -> Id {
+        self.stack.last().expect("the root is always open").1.child(key)
     }
 
     pub(crate) fn key(&mut self, key: &str) -> Id {

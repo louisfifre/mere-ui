@@ -3,6 +3,7 @@
 use mere_layout::{Align, Dim, Edges, Margin, Side, Style};
 use mere_base::{Cursor, Vec2, Weight};
 
+use crate::rule::Rule;
 use crate::text::TextLook;
 use crate::tokens::{GAP, GAP_WIDE, INSET_HAIR};
 use crate::ui::{Paint, Resp, Ui};
@@ -38,9 +39,9 @@ impl Ui {
         let id = self.key(key);
         let container_style = Style { column: true, shrink: 0.0, min_h: Dim::Px(0.0), ..Style::default() };
         let container = self.open(key, id, container_style, Paint::None);
-        // The border-top: a 1 px fill takes the same room and paints the same pixels.
+        // The border-top: the section rule that opens it.
         if !opts.bare {
-            self.add("rule", Style { h: Dim::Px(1.0), shrink: 0.0, ..Style::default() }, Paint::Box { fill: Some(t.edge), frame: None });
+            self.rule(Rule::Section, Edges::default());
         }
 
         let head_id = self.key("head");

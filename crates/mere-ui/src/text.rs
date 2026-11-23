@@ -10,6 +10,11 @@ pub const ADVANCE_EM: f32 = 0.6;
 pub const ASCENT_EM: f32 = 1.025;
 /// Descent in em. UNVERIFIED against the font tables, and not checked by any test.
 pub const DESCENT_EM: f32 = 0.275;
+/// The lowercase letters' height in em: IBM Plex Mono's x-height, 516 units of 1000. UNVERIFIED against the font
+/// tables; it only places a selection row's selector on the middle of its label's letters.
+pub const XHEIGHT_EM: f32 = 0.516;
+/// The body's line height in px (`font: 12px/1.5`): a one-line row of a list is this and its padding.
+pub const BODY_LINE: f32 = 18.0;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Tone {
@@ -32,7 +37,7 @@ pub struct TextLook {
 impl TextLook {
     /// The body: `font: 12px/1.5`.
     pub fn body(tone: Tone) -> TextLook {
-        TextLook { size: 12.0, line: 18.0, weight: Weight::Regular, tone, tracking: 0.0 }
+        TextLook { size: 12.0, line: BODY_LINE, weight: Weight::Regular, tone, tracking: 0.0 }
     }
     /// `#status`, line 189: `font-size: 11px; line-height: 16px`.
     pub fn status(tone: Tone) -> TextLook {

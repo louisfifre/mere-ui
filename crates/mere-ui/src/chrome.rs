@@ -8,21 +8,21 @@ use crate::icon::{Icon, icon_shape};
 use crate::id::Id;
 use crate::text::{TextLook, Tone};
 use crate::theme::mix;
-use crate::tokens::{CONTROL, FADE_DISABLED, FADE_LIT, FADE_TINT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
+use crate::tokens::{CONTROL, FADE_LIT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
 use crate::ui::{Paint, Resp, Ui};
 
-/// A tool button with its name (`Ui::tool_button`): `inset` inside the frame before the icon, `gap` between the
+/// A tool action with its name (`Ui::tool_action`): `inset` inside the frame before the icon, `gap` between the
 /// icon and the word, `inset-wide` after; the paddings count the frame.
 pub const TOOL_PAD_L: f32 = FRAME + INSET;
 pub const TOOL_GAP: f32 = GAP;
 pub const TOOL_PAD_R: f32 = FRAME + INSET_WIDE;
-/// The marker: a 4 px square, 4 px in from the button's top right corner.
+/// The marker: a 4 px square, 4 px in from the action's top right corner.
 const MARKER: f32 = 4.0;
-/// The icon-only tool button's width.
+/// The icon-only tool action's width.
 const TOOL_W: f32 = 36.0;
 
-/// How wide a tool button with this name is: what the bar measures before it builds.
-pub fn tool_button_width(label: &str) -> f32 {
+/// How wide a tool action with this name is: what the bar measures before it builds.
+pub fn tool_action_width(label: &str) -> f32 {
     TOOL_PAD_L + ICON + TOOL_GAP + TextLook::body(Tone::Text).width(label) + TOOL_PAD_R
 }
 
@@ -76,7 +76,7 @@ pub fn chrome_hit(ui: &Ui, pos: Vec2, size: Vec2, maximized: bool, bar: Id, butt
     }
 }
 
-/// The icon buttons of the bars and of the launcher's Home.
+/// The icon actions of the bars and of the launcher's Home.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum IconLook {
     /// `.strip button` with an icon (lines 110-112, 122): 36 x 28, framed, drawn in reverse when pressed.
@@ -100,14 +100,14 @@ pub struct IconOpts {
     pub disabled: bool,
     /// `.icon + .icon` (line 162): pulled 1 px over the one before, so the two share a hairline.
     pub joined: bool,
-    /// A 4 x 4 square on the button's top right corner, 4 px in (the launcher's `.marker`, line 129), in this
+    /// A 4 x 4 square on the action's top right corner, 4 px in (the launcher's `.marker`, line 129), in this
     /// colour: where a run of the preview stands while it is not on screen.
     pub marker: Option<mere_base::Color>,
 }
 
 impl Ui {
-    /// An icon button. `Resp.clicked` is the click; the app decides what it does and which one is pressed.
-    pub fn icon_button(&mut self, key: &str, icon: &Icon, look: IconLook, opts: IconOpts) -> Resp {
+    /// An icon action. `Resp.clicked` is the click; the app decides what it does and which one is pressed.
+    pub fn icon_action(&mut self, key: &str, icon: &Icon, look: IconLook, opts: IconOpts) -> Resp {
         let id = self.key(key);
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
@@ -118,7 +118,7 @@ impl Ui {
                     w: Dim::Px(TOOL_W),
                     h: Dim::Px(CONTROL),
                     shrink: 0.0,
-                    margin: Margin { left: Side::Px(-1.0), ..Margin::default() },
+                    margin: Margin { left: Side::Px(-FRAME), ..Margin::default() },
                     align_items: Align::Center,
                     justify: Justify::Center,
                     // As the strip's tabs: the pressed one is painted over its neighbours' hairlines.
@@ -171,17 +171,14 @@ impl Ui {
                     ..Style::default()
                 };
                 if lit {
-                    (style, Some(mix(t.text, FADE_TINT, t.ground)), None, t.text)
+                    (style, Some(t.tint()), None, t.text)
                 } else {
                     (style, None, None, t.muted)
                 }
             }
         };
-        let (fill, frame, color) = if opts.disabled {
-            (fill.map(|c| t.faded(c, FADE_DISABLED)), frame.map(|c| t.faded(c, FADE_DISABLED)), t.faded(color, FADE_DISABLED))
-        } else {
-            (fill, frame, color)
-        };
+        let off = |c| t.disabled_if(c, opts.disabled);
+        let (fill, frame, color) = (fill.map(off), frame.map(off), off(color));
         self.open(key, id, style, Paint::Box { fill, frame });
         let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
         let mut cmds = vec![icon_shape(icon, ICON, color, icon.axis_aligned())];
@@ -196,8 +193,8 @@ impl Ui {
     }
 
     /// A tool of the bar as an icon and its name: the look of `IconLook::Tool` (framed, reversed when pressed),
-    /// as wide as its word. The marker sits on the icon's top right corner, where the icon-only button has it.
-    pub fn tool_button(&mut self, key: &str, icon: &Icon, label: &str, opts: IconOpts) -> Resp {
+    /// as wide as its word. The marker sits on the icon's top right corner, where the icon-only action has it.
+    pub fn tool_action(&mut self, key: &str, icon: &Icon, label: &str, opts: IconOpts) -> Resp {
         let id = self.key(key);
         let resp = self.interact(id, false, Cursor::Hand);
         let t = *self.theme();
@@ -207,7 +204,7 @@ impl Ui {
             pad: mere_layout::Edges::new(0.0, TOOL_PAD_R, 0.0, TOOL_PAD_L),
             gap: Vec2::new(TOOL_GAP, 0.0),
             shrink: 0.0,
-            margin: Margin { left: Side::Px(-1.0), ..Margin::default() },
+            margin: Margin { left: Side::Px(-FRAME), ..Margin::default() },
             align_items: Align::Center,
             position: if opts.pressed { Position::Relative } else { Position::Static },
             ..Style::default()
@@ -217,7 +214,7 @@ impl Ui {
         let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
         let mut cmds = vec![icon_shape(icon, ICON, color, icon.axis_aligned())];
         if let Some(m) = opts.marker {
-            // On the icon's top right corner, where the icon-only button has it.
+            // On the icon's top right corner, where the icon-only action has it.
             cmds.push(Cmd::Fill { rect: Rect::new(ICON, -MARKER / 2.0, MARKER, MARKER), color: m });
         }
         self.add("icon", slot, Paint::Cmds(cmds));

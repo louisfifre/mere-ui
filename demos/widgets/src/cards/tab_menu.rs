@@ -3,15 +3,15 @@
 
 use mere_base::Event;
 use mere_layout::{Dim, Style};
-use mere_ui::tokens::FRAME;
-use mere_ui::{MENU_ROW, TabMenuRow, Theme, Ui, strip_style};
+use mere_ui::tokens::GAP_TIGHT;
+use mere_ui::{LIST_PAD, LIST_ROW, TabMenuRow, Theme, Ui, strip_style};
 
 use super::select::{Probe, centre, click};
 use super::{Block, Card, Cell, State, render};
 
-/// Room under the tab for the open list, as the preview's `min-height` leaves it: its rows and its frame.
+/// Room under the tab for the open list: the gap under the tab, its rows, and its frame and padding.
 fn room(rows: usize) -> f32 {
-    rows as f32 * MENU_ROW + 2.0 * FRAME
+    GAP_TIGHT + rows as f32 * LIST_ROW + 2.0 * LIST_PAD
 }
 
 fn rows() -> Vec<TabMenuRow> {

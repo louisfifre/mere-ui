@@ -39,8 +39,8 @@ pub struct PartOpts {
     pub pressed: bool,
     /// `:first-child`: 2 px above instead of 12.
     pub first: bool,
-    /// A button (a part of structures) or a plain note (the absent biomes).
-    pub button: bool,
+    /// An action (a part of structures) or a plain note (the absent biomes).
+    pub action: bool,
 }
 
 /// The swatch column and the gap between a row's columns, and the least widths of the width and share columns (8 ch
@@ -66,10 +66,10 @@ fn end_cell(min_w: f32) -> Style {
 }
 
 impl Ui {
-    /// One `.biome` row. `Resp.clicked` is false for an absent row, which the page does not make a button.
+    /// One `.biome` row. `Resp.clicked` is false for an absent row, which the page does not make an action.
     pub fn list_row(&mut self, key: &str, row: &ListRow, opts: RowOpts) -> Resp {
         let id = self.key(key);
-        // An absent row is no button: it keeps the arrow.
+        // An absent row is no action: it keeps the arrow.
         let mut resp = self.interact(id, false, if opts.absent { Cursor::Arrow } else { Cursor::Hand });
         if opts.absent {
             resp.clicked = false;
@@ -118,12 +118,12 @@ impl Ui {
     /// it the head is only a note.
     pub fn list_part(&mut self, key: &str, name: &str, share: &str, opts: PartOpts) -> Resp {
         let id = self.key(key);
-        let mut resp = self.interact(id, !opts.button, Cursor::Hand);
-        if !opts.button {
+        let mut resp = self.interact(id, !opts.action, Cursor::Hand);
+        if !opts.action {
             resp.clicked = false;
         }
         let t = *self.theme();
-        let look = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Text) };
+        let look = TextLook::small(Tone::Text);
         let color = if opts.pressed { t.text } else { t.muted };
         let style = Style {
             align_items: Align::Baseline,
@@ -132,7 +132,7 @@ impl Ui {
         };
         self.open(key, id, style, Paint::None);
         self.add("pad", Style { w: Dim::Px(12.0), ..Style::default() }, Paint::None);
-        self.add_ellipsis(name, look, color, opts.button && resp.hovered);
+        self.add_ellipsis(name, look, color, opts.action && resp.hovered);
         self.add("gap", Style::default(), Paint::None);
         self.cell("share", end_cell(39.6), share, look, color);
         self.close();
@@ -145,7 +145,7 @@ impl Ui {
     pub fn list_head(&mut self, key: &str, column: &str, width: &str, share: &str) -> [Id; 2] {
         let id = self.key(key);
         let t = *self.theme();
-        let look = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Muted) };
+        let look = TextLook::small(Tone::Muted);
         self.open(key, id, grid(Edges::default()), Paint::None);
         self.add("pad", Style { w: Dim::Px(12.0), ..Style::default() }, Paint::None);
         self.add_text(column, look, t.muted, false, Style::default());

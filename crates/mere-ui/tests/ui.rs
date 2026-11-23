@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use mere_base::{Button, Cmd, Color, DrawList, Event, Vec2, Weight, log};
 use mere_layout::{Align, Dim, Display, Edges, Style, Track, Tracks};
 use mere_base::Rect;
-use mere_ui::{ButtonLook, ButtonOpts, Resp, SWITCH_W, SWITCH_H, TextLook, Theme, ToggleOpts, Tone, Ui};
+use mere_ui::{ActionLook, ActionOpts, Resp, TOGGLE_W, TOGGLE_H, TextLook, Theme, ToggleOpts, Tone, Ui};
 
 const SIZE: Vec2 = Vec2::new(600.0, 300.0);
 
@@ -26,10 +26,10 @@ fn row180() -> Style {
 }
 
 /// One Primary button in a 180 px row.
-fn primary(ui: &mut Ui, opts: ButtonOpts) -> (Resp, DrawList) {
+fn primary(ui: &mut Ui, opts: ActionOpts) -> (Resp, DrawList) {
     let mut r = None;
     let list = frame(ui, |ui| {
-        ui.node("row", row180(), |ui| r = Some(ui.button_with("go", "Generate preview", ButtonLook::Primary, opts)));
+        ui.node("row", row180(), |ui| r = Some(ui.action_with("go", "Generate preview", ActionLook::Primary, opts)));
     });
     (r.unwrap(), list)
 }
@@ -112,63 +112,63 @@ fn theme_dark_and_light_are_the_page_variables() {
 #[test]
 fn button_clicks_on_release_inside() {
     let mut ui = dark();
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     assert!(!r.clicked);
     let c = centre(&ui, &r);
     mv(&mut ui, c);
     down(&mut ui, c);
     up(&mut ui, c);
-    assert!(primary(&mut ui, ButtonOpts::default()).0.clicked);
-    assert!(!primary(&mut ui, ButtonOpts::default()).0.clicked);
+    assert!(primary(&mut ui, ActionOpts::default()).0.clicked);
+    assert!(!primary(&mut ui, ActionOpts::default()).0.clicked);
 }
 
 #[test]
 fn press_inside_release_outside_is_no_click() {
     let mut ui = dark();
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     let c = centre(&ui, &r);
     mv(&mut ui, c);
     down(&mut ui, c);
-    assert!(primary(&mut ui, ButtonOpts::default()).0.held);
+    assert!(primary(&mut ui, ActionOpts::default()).0.held);
     let out = Vec2::new(500.0, 250.0);
     mv(&mut ui, out);
     up(&mut ui, out);
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     assert!(!r.clicked && !r.held);
 }
 
 #[test]
 fn press_outside_then_enter_while_down_neither_hovers_nor_clicks() {
     let mut ui = dark();
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     let c = centre(&ui, &r);
     let out = Vec2::new(500.0, 250.0);
     mv(&mut ui, out);
     down(&mut ui, out);
-    primary(&mut ui, ButtonOpts::default());
+    primary(&mut ui, ActionOpts::default());
     mv(&mut ui, c);
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     assert!(!r.hovered && !r.held && !r.clicked);
     up(&mut ui, c);
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     assert!(!r.clicked);
 }
 
 #[test]
 fn hover_follows_the_pointer() {
     let mut ui = dark();
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     let c = centre(&ui, &r);
     mv(&mut ui, c);
-    assert!(primary(&mut ui, ButtonOpts::default()).0.hovered);
+    assert!(primary(&mut ui, ActionOpts::default()).0.hovered);
     mv(&mut ui, Vec2::new(500.0, 250.0));
-    assert!(!primary(&mut ui, ButtonOpts::default()).0.hovered);
+    assert!(!primary(&mut ui, ActionOpts::default()).0.hovered);
 }
 
 #[test]
 fn disabled_ignores_the_pointer() {
     let t = Theme::dark();
-    let off = ButtonOpts { disabled: true, grow: 0.0 };
+    let off = ActionOpts { disabled: true, grow: 0.0 };
     let mut ui = dark();
     let (r, _) = primary(&mut ui, off);
     let c = centre(&ui, &r);
@@ -211,21 +211,21 @@ fn first_frame_has_no_interaction() {
         mv(&mut ui, p);
         down(&mut ui, p);
         up(&mut ui, p);
-        let (r, _) = primary(&mut ui, ButtonOpts::default());
+        let (r, _) = primary(&mut ui, ActionOpts::default());
         assert!(r.rect.is_none() && !r.hovered && !r.held && !r.clicked);
     }
 }
 #[test]
 fn active_is_dropped_when_its_widget_goes() {
     let mut ui = dark();
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     let c = centre(&ui, &r);
     mv(&mut ui, c);
     down(&mut ui, c);
-    assert!(primary(&mut ui, ButtonOpts::default()).0.held);
+    assert!(primary(&mut ui, ActionOpts::default()).0.held);
     frame(&mut ui, |_| {});
     up(&mut ui, c);
-    let (r, _) = primary(&mut ui, ButtonOpts::default());
+    let (r, _) = primary(&mut ui, ActionOpts::default());
     assert!(!r.held && !r.clicked);
 }
 
@@ -254,10 +254,10 @@ fn sizes_match_the_page() {
     let mut ids = None;
     let list = frame(&mut ui, |ui| {
         let (mut a, mut b, mut c) = (None, None, None);
-        ui.node("row", row180(), |ui| a = Some(ui.button_with("go", "Generate preview", ButtonLook::Primary, ButtonOpts { grow: 1.0, ..Default::default() }).id));
+        ui.node("row", row180(), |ui| a = Some(ui.action_with("go", "Generate preview", ActionLook::Primary, ActionOpts { grow: 1.0, ..Default::default() }).id));
         ui.node("plain-row", Style { align_items: Align::Start, ..Style::default() }, |ui| {
-            b = Some(ui.button("detail", "16 blocks", ButtonLook::Plain).id);
-            c = Some(ui.button("export", "Export", ButtonLook::Link).id);
+            b = Some(ui.action("detail", "16 blocks", ActionLook::Plain).id);
+            c = Some(ui.action("export", "Export", ActionLook::Link).id);
         });
         ids = Some((a.unwrap(), b.unwrap(), c.unwrap()));
     });
@@ -291,10 +291,10 @@ fn sizes_match_the_page() {
     let (row, tg) = (ui.rect(row).unwrap(), ui.rect(toggle).unwrap());
     near(tg.x - row.x, 122.4);
     // The switch, 8 px, then the word, in the cell's own width and not stretched to the cell.
-    near(tg.w, SWITCH_W + 8.0 + 3.0 * 7.2);
+    near(tg.w, TOGGLE_W + 8.0 + 3.0 * 7.2);
     near(tg.h, 24.0);
     let off = texts(&list).into_iter().find(|t| t.1 == "OFF").unwrap();
-    near(off.0.x, tg.x + SWITCH_W + 8.0);
+    near(off.0.x, tg.x + TOGGLE_W + 8.0);
 }
 
 #[test]
@@ -302,21 +302,21 @@ fn colours_follow_state() {
     let t = Theme::dark();
     // Primary.
     let mut ui = dark();
-    let (r, normal) = primary(&mut ui, ButtonOpts::default());
+    let (r, normal) = primary(&mut ui, ActionOpts::default());
     assert_eq!(fills(&normal)[0], t.fill);
     let c = centre(&ui, &r);
     mv(&mut ui, c);
-    let (_, hover) = primary(&mut ui, ButtonOpts::default());
+    let (_, hover) = primary(&mut ui, ActionOpts::default());
     assert_eq!(fills(&hover)[0], t.faded(t.fill, FADE_LIT));
     down(&mut ui, c);
-    let (r, held) = primary(&mut ui, ButtonOpts::default());
+    let (r, held) = primary(&mut ui, ActionOpts::default());
     assert!(r.held);
     assert_eq!(fills(&held)[0], fills(&hover)[0]);
     // Plain.
     let plain = |ui: &mut Ui| {
         let mut r = None;
         let l = frame(ui, |ui| {
-            ui.node("row", Style { align_items: Align::Start, ..Style::default() }, |ui| r = Some(ui.button("d", "16 blocks", ButtonLook::Plain)));
+            ui.node("row", Style { align_items: Align::Start, ..Style::default() }, |ui| r = Some(ui.action("d", "16 blocks", ActionLook::Plain)));
         });
         (r.unwrap(), l)
     };
@@ -359,8 +359,8 @@ fn a_key_used_twice_is_reported() {
     let mut ui = dark();
     frame(&mut ui, |ui| {
         ui.node("n", Style::default(), |ui| {
-            ui.button("dup-probe", "A", ButtonLook::Plain);
-            ui.button("dup-probe", "B", ButtonLook::Plain);
+            ui.action("dup-probe", "A", ActionLook::Plain);
+            ui.action("dup-probe", "B", ActionLook::Plain);
         });
     });
     assert!(SEEN.lock().unwrap().iter().any(|m| m.contains("dup-probe")));
@@ -398,7 +398,7 @@ fn an_off_switch_is_an_outline_with_an_outlined_knob_on_the_left() {
     assert_eq!(parts.len(), 2, "a frame and a knob, nothing filled: {parts:?}");
     let ((frame, fc, f_fill), (knob, kc, k_fill)) = (parts[0], parts[1]);
     assert!(!f_fill && !k_fill, "outlines only");
-    assert_eq!((frame.w, frame.h), (SWITCH_W, SWITCH_H));
+    assert_eq!((frame.w, frame.h), (TOGGLE_W, TOGGLE_H));
     assert_eq!((fc, kc), (t.edge, t.muted));
     assert!(knob.w == knob.h && knob.w < frame.h, "a square knob inside the frame");
     assert!(knob.x < frame.x + frame.w / 2.0, "the knob is on the left: {knob:?}");

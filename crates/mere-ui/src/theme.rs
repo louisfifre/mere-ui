@@ -3,6 +3,7 @@
 use mere_base::Color;
 
 use crate::tokens::palette::*;
+use crate::tokens::{FADE_DISABLED, FADE_TINT};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Theme {
@@ -80,6 +81,19 @@ impl Theme {
     /// is true for every faded thing of the page's columns.
     pub fn faded(&self, c: Color, opacity: f32) -> Color {
         mix(c, opacity, self.ground)
+    }
+
+    /// The disabled look, the one rule every piece follows: each of its colours, fill and frame included, faded to
+    /// `FADE_DISABLED` over the ground; `c` itself when `disabled` is false. A piece passes every colour it paints
+    /// through here instead of fading by hand, so that "disabled" means the same thing everywhere.
+    pub fn disabled_if(&self, c: Color, disabled: bool) -> Color {
+        if disabled { self.faded(c, FADE_DISABLED) } else { c }
+    }
+
+    /// `bg-tint`: the faint fill of what lies under the pointer without being pressed (a window button, a hover box, an
+    /// immediate-selection row), and of the selected immediate-selection row: the text colour at `FADE_TINT`.
+    pub fn tint(&self) -> Color {
+        mix(self.text, FADE_TINT, self.ground)
     }
 }
 

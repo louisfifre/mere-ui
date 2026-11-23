@@ -5,7 +5,8 @@ use std::cell::Cell as Memo;
 
 use mere_base::{Button, Event, Rect, Vec2};
 use mere_layout::{Dim, Style};
-use mere_ui::{Id, MENU_ROW, SelectOpts, Theme, Ui};
+use mere_ui::tokens::GAP_TIGHT;
+use mere_ui::{Id, LIST_PAD, LIST_ROW, SelectOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 
@@ -84,7 +85,7 @@ fn select(list: &[&str], opts: SelectOpts, open: bool, width: Option<f32>) -> Ce
         if let Some(r) = due {
             // The list opened under the box; the pointer goes to its third row, where the list's hot row
             // follows it on the next build.
-            ui.event(&Event::PointerMoved { pos: Vec2::new(r.x + 12.0, r.y + r.h + 1.0 + 2.5 * MENU_ROW) });
+            ui.event(&Event::PointerMoved { pos: Vec2::new(r.x + 12.0, r.y + r.h + GAP_TIGHT + LIST_PAD + 2.5 * LIST_ROW) });
         }
         id.unwrap()
     })
@@ -95,7 +96,7 @@ pub fn blocks() -> Vec<Block> {
     let long = ["Option one", "An option with a very long name", "Option three"];
     let compact = SelectOpts { height: Some(COMPACT), ..SelectOpts::default() };
     let off = SelectOpts { disabled: true, ..SelectOpts::default() };
-    let compact_off = SelectOpts { height: Some(COMPACT), disabled: true };
+    let compact_off = SelectOpts { height: Some(COMPACT), disabled: true, up: false };
     vec![
         Block::sparse(vec![
             vec![

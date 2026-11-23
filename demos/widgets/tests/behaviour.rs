@@ -6,9 +6,9 @@
 use mere_base::{Button, Cmd, Color, DrawList, Event, Gfx, Ime, Key, Mods, Rect, Vec2};
 use mere_layout::{Dim, Insets, Position, Style};
 use mere_ui::tokens::{FADE_DIM, FADE_DISABLED, FADE_LIT, FRAME, GAP_TIGHT, INSET, INSET_TIGHT};
-use mere_ui::{SWITCH_H, SWITCH_W};
+use mere_ui::{TOGGLE_H, TOGGLE_W};
 use mere_ui::{
-    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, MARK_SIZE, MenuOpts, NumberSpec, SelectRow, Selector,
+    ActionLook, ActionOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ImmediateRow, ListRow, MARK_SIZE, MenuOpts, NumberSpec, Trigger, SelectionRow, Selector,
     SelectorOpts, RowOpts, ScrollOpts, THUMB_W, TextLook, Theme, Tone, Ui, scroll_style, text_width,
 };
 use mere_win32::Renderer;
@@ -115,7 +115,7 @@ fn primary(theme: Theme, disabled: bool, pointer: bool, held: bool) -> (Pic, Rec
     let build = |ui: &mut Ui| {
         let w = Style { w: Dim::Px(180.0), ..at(20.0, 20.0) };
         let mut id = None;
-        ui.node("go", w, |ui| id = Some(ui.button_with("generate", "Generate", ButtonLook::Primary, ButtonOpts { disabled, grow: 1.0 }).id));
+        ui.node("go", w, |ui| id = Some(ui.action_with("generate", "Generate", ActionLook::Primary, ActionOpts { disabled, grow: 1.0 }).id));
         id.unwrap()
     };
     let id = {
@@ -186,9 +186,9 @@ fn the_off_switch_frame_takes_the_text_colour_under_the_pointer() {
     both(|t| {
         let (rest, r) = toggle(t, false, false);
         // The frame's top line, away from the corners; the switch is the box's left part, centred in its height.
-        let (x, top) = (r.x + SWITCH_W / 2.0, r.y + (r.h - SWITCH_H) / 2.0);
+        let (x, top) = (r.x + TOGGLE_W / 2.0, r.y + (r.h - TOGGLE_H) / 2.0);
         rest.is(x, top, t.edge, "switch frame at rest");
-        rest.is(x, top + SWITCH_H / 2.0, t.ground, "an off switch is hollow");
+        rest.is(x, top + TOGGLE_H / 2.0, t.ground, "an off switch is hollow");
         let (hover, _) = toggle(t, false, true);
         hover.is(x, top, t.text, "switch frame on hover");
     });
@@ -198,22 +198,22 @@ fn the_off_switch_frame_takes_the_text_colour_under_the_pointer() {
 fn the_on_switch_is_filled_with_a_square_knob_on_the_right() {
     both(|t| {
         let (pic, r) = toggle(t, true, false);
-        let top = r.y + (r.h - SWITCH_H) / 2.0;
-        let mid = top + SWITCH_H / 2.0;
+        let top = r.y + (r.h - TOGGLE_H) / 2.0;
+        let mid = top + TOGGLE_H / 2.0;
         pic.is(r.x + 2.0, mid, t.fill, "the fill, left of the knob");
-        pic.is(r.x + SWITCH_W - 8.0, mid, t.on_fill, "the knob's body, right");
+        pic.is(r.x + TOGGLE_W - 8.0, mid, t.on_fill, "the knob's body, right");
         pic.is(r.x + 8.0, mid, t.fill, "no knob on the left");
     });
 }
 const PLAY: &str = "M15 11h-2V9h2zm0 4h-2v-2h2zm-2 2h-2v-2h2zm0-8h-2V7h2zm-2-2H9V5h2zM9 21H7V3h2zm6-8h2v-2h-2zm-6 4h2v2H9z";
 
-fn icon_button(theme: Theme, look: IconLook, pressed: bool, pointer: bool) -> (Pic, Rect) {
+fn icon_action(theme: Theme, look: IconLook, pressed: bool, pointer: bool) -> (Pic, Rect) {
     let mut sc = Scene::new(theme);
     let icon = Icon::parse(PLAY, 24.0).unwrap();
     let opts = IconOpts { pressed, disabled: false, joined: false, marker: None };
     let mut id = None;
     sc.frame(|ui| {
-        ui.node("i", at(20.0, 20.0), |ui| id = Some(ui.icon_button("b", &icon, look, opts).id));
+        ui.node("i", at(20.0, 20.0), |ui| id = Some(ui.icon_action("b", &icon, look, opts).id));
     });
     let r = sc.rect(id.unwrap());
     if pointer {
@@ -221,7 +221,7 @@ fn icon_button(theme: Theme, look: IconLook, pressed: bool, pointer: bool) -> (P
     }
     let list = sc.frame(|ui| {
         ui.node("i", at(20.0, 20.0), |ui| {
-            ui.icon_button("b", &icon, look, opts);
+            ui.icon_action("b", &icon, look, opts);
         });
     });
     (sc.pic(&list), r)
@@ -232,19 +232,19 @@ fn the_icon_buttons_frame_fill_and_lighten_as_the_design_says() {
     both(|t| {
         // Square: framed in the edge, the frame and the icon take the text colour under the pointer, and a
         // pressed one is filled in reverse.
-        let (rest, r) = icon_button(t, IconLook::Square, false, false);
+        let (rest, r) = icon_action(t, IconLook::Square, false, false);
         rest.is(r.x + r.w / 2.0, r.y, t.edge, "square rest frame");
-        let (hover, _) = icon_button(t, IconLook::Square, false, true);
+        let (hover, _) = icon_action(t, IconLook::Square, false, true);
         hover.is(r.x + r.w / 2.0, r.y, t.text, "square hover frame");
-        let (pressed, _) = icon_button(t, IconLook::Square, true, false);
+        let (pressed, _) = icon_action(t, IconLook::Square, true, false);
         pressed.is(r.x + 3.0, r.y + 3.0, t.fill, "square pressed fill");
         // Filled: the fill at rest, lit under the pointer.
-        let (rest, r) = icon_button(t, IconLook::Filled, false, false);
+        let (rest, r) = icon_action(t, IconLook::Filled, false, false);
         rest.is(r.x + 3.0, r.y + 3.0, t.fill, "filled rest");
-        let (hover, _) = icon_button(t, IconLook::Filled, false, true);
+        let (hover, _) = icon_action(t, IconLook::Filled, false, true);
         hover.is(r.x + 3.0, r.y + 3.0, t.faded(t.fill, FADE_LIT), "filled hover");
         // Caption: no frame and no fill at rest.
-        let (rest, r) = icon_button(t, IconLook::Caption, false, false);
+        let (rest, r) = icon_action(t, IconLook::Caption, false, false);
         rest.is(r.x, r.y, t.ground, "caption rest has no frame");
     });
 }
@@ -711,10 +711,10 @@ fn a_single_selector_reports_the_press_and_shows_the_value_its_caller_gives() {
 }
 
 /// One selection row in a column 300 wide at (20, 20); a press or Space flips `v`, as a caller of a multiple choice does.
-fn select_row_at(ui: &mut Ui, row: SelectRow, v: &mut bool) -> Id {
+fn select_row_at(ui: &mut Ui, row: SelectionRow, v: &mut bool) -> Id {
     let mut id = None;
     ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| {
-        let r = ui.menu_select("o", SelectRow { selected: *v, ..row });
+        let r = ui.selection_row("o", SelectionRow { selected: *v, ..row });
         if r.clicked {
             *v = !*v;
         }
@@ -726,7 +726,7 @@ fn select_row_at(ui: &mut Ui, row: SelectRow, v: &mut bool) -> Id {
 #[test]
 fn a_selection_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
     both(|t| {
-        let row = SelectRow { label: "Reports", detail: "Archive", detail_tail: r"C:\Code\archive\2024\reports", selector: Selector::Multiple, ..SelectRow::default() };
+        let row = SelectionRow { label: "Reports", detail: "Archive", detail_tail: r"C:\Code\archive\2024\reports", selector: Selector::Multiple, ..SelectionRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let id = {
@@ -776,7 +776,7 @@ fn a_selection_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
         assert_eq!(sc.ui.focused(), None, "a press outside the row takes its focus");
 
         // Disabled: no press, no focus, no Space.
-        let off = SelectRow { disabled: true, ..row };
+        let off = SelectionRow { disabled: true, ..row };
         let mut sc = Scene::new(t);
         let mut v = false;
         sc.frame(|ui| {
@@ -805,7 +805,7 @@ fn texts_in(list: &DrawList, r: Rect) -> Vec<String> {
 #[test]
 fn a_selection_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
     let tail = r"C:\Code\archive\2024\reports\quarterly\final versions\signed";
-    let row = SelectRow { label: "Quarterly reports with every appendix and the signed copies", detail: "Archive", detail_tail: tail, selector: Selector::Multiple, ..SelectRow::default() };
+    let row = SelectionRow { label: "Quarterly reports with every appendix and the signed copies", detail: "Archive", detail_tail: tail, selector: Selector::Multiple, ..SelectionRow::default() };
     let mut sc = Scene::new(Theme::dark());
     let mut v = false;
     let mut id = None;
@@ -824,7 +824,7 @@ fn a_selection_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
 #[test]
 fn a_single_selection_row_with_a_detail_line_reports_its_press_and_paints_its_detail() {
     both(|t| {
-        let row = SelectRow { label: "Weekly", detail: "Archive", detail_tail: r"C:\Code\archive\weekly", selector: Selector::Single, ..SelectRow::default() };
+        let row = SelectionRow { label: "Weekly", detail: "Archive", detail_tail: r"C:\Code\archive\weekly", selector: Selector::Single, ..SelectionRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let mut id = None;
@@ -893,7 +893,7 @@ struct CornerOut {
 fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
     let mut out = CornerOut::default();
     ui.node("panel", Style { column: true, w: Dim::Px(240.0), ..at(20.0, 220.0) }, |ui| {
-        let opts = MenuOpts { up: true, disabled: c.disabled };
+        let opts = MenuOpts { up: true, disabled: c.disabled, ..MenuOpts::default() };
         let kind = c.kind;
         let selector = match kind {
             Kind::Several => Selector::Multiple,
@@ -903,19 +903,22 @@ fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
         let mut asked = None;
         let mut rows = Vec::new();
         let mut action = false;
-        let r = ui.menu("dd", "Back up: Reports", &mut c.open, opts, |ui| {
-            for (i, label) in ["Reports", "Notes"].into_iter().enumerate() {
-                let row = SelectRow { label, detail: "Archive", detail_tail: r"C:\Code\archive\2024", selector, selected: selected[i], disabled: false };
-                let resp = ui.menu_select(&format!("o{i}"), row);
-                rows.push(resp.id);
-                if resp.clicked {
-                    asked = Some(i);
+        let r = ui.menu("dd", Trigger::Line("Back up: Reports"), &mut c.open, opts, |ui| {
+            ui.group("folders", |ui| {
+                for (i, label) in ["Reports", "Notes"].into_iter().enumerate() {
+                    let row = SelectionRow { label, detail: "Archive", detail_tail: r"C:\Code\archive\2024", selector, selected: selected[i], disabled: false };
+                    let resp = ui.selection_row(&format!("o{i}"), row);
+                    rows.push(resp.id);
+                    if resp.clicked {
+                        asked = Some(i);
+                    }
                 }
-            }
-            ui.menu_separator();
-            let a = ui.menu_action("browse", "Browse\u{2026}");
-            rows.push(a.id);
-            action = a.clicked;
+            });
+            ui.group("more", |ui| {
+                let a = ui.action_row("browse", "Browse\u{2026}");
+                rows.push(a.id);
+                action = a.clicked;
+            });
         });
         if let Some(i) = asked {
             match kind {
@@ -928,7 +931,7 @@ fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
         }
         out = CornerOut { line: Some(r.line.id), list: r.list, rows, action, enter: r.enter, opened: r.opened, closed: r.closed, button: false };
     });
-    ui.node("else", at(300.0, 20.0), |ui| out.button = ui.button("b", "Other", ButtonLook::Plain).clicked);
+    ui.node("else", at(300.0, 20.0), |ui| out.button = ui.action("b", "Other", ActionLook::Plain).clicked);
     out
 }
 
@@ -1205,5 +1208,164 @@ fn a_status_sentence_in_the_failure_tone_is_painted_in_amber() {
         let colors: Vec<Color> = list.cmds.iter().filter_map(|c| if let Cmd::Text { color, .. } = c { Some(*color) } else { None }).collect();
         assert!(!colors.is_empty() && colors.iter().all(|c| *c == t.warn), "every line of the sentence is in the warn colour");
         assert_eq!(colors.len(), 2, "it wraps under the control's width");
+    });
+}
+/// Three immediate-selection rows in a column 300 wide at (20, 20), the last one disabled; a press makes the pressed
+/// row the selected one, as a caller does. Answers the rows' ids.
+fn immediate_rows_at(ui: &mut Ui, selected: &mut usize) -> Vec<Id> {
+    let mut ids = Vec::new();
+    ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| {
+        for (i, label) in ["Headphones", "Speakers", "Monitor"].into_iter().enumerate() {
+            let r = ui.immediate_row(&format!("r{i}"), ImmediateRow { label, selected: i == *selected, disabled: i == 2, ..ImmediateRow::default() });
+            if r.clicked {
+                *selected = i;
+            }
+            ids.push(r.id);
+        }
+    });
+    ids
+}
+
+#[test]
+fn an_immediate_row_applies_on_its_press_and_the_selected_one_is_lit_and_marked() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut selected = 0;
+        let mut ids = Vec::new();
+        sc.frame(|ui| ids = immediate_rows_at(ui, &mut selected));
+        let rows: Vec<Rect> = ids.iter().map(|&id| sc.rect(id)).collect();
+        assert_eq!(rows[0].h, 2.0 * INSET_TIGHT + 18.0, "one line");
+        // The selected row is lit with the tint and carries the indicator; the others have neither.
+        let list = sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        let pic = sc.pic(&list);
+        let mark = |r: Rect| Vec2::new(r.x + INSET + 1.0, r.y + r.h / 2.0);
+        pic.is(rows[0].x + rows[0].w - 2.0, rows[0].y + 2.0, t.tint(), "the selected row is lit");
+        let m = mark(rows[0]);
+        pic.is(m.x, m.y, t.text, "its indicator");
+        pic.is(rows[1].x + rows[1].w - 2.0, rows[1].y + 2.0, t.ground, "an unselected row is not");
+        let m = mark(rows[1]);
+        pic.is(m.x, m.y, t.ground, "and has no indicator");
+        // A press on the second row applies it at once.
+        sc.click(Vec2::new(rows[1].x + rows[1].w - 4.0, rows[1].y + 4.0), 1);
+        sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        assert_eq!(selected, 1, "the press selects, nothing to validate");
+        assert_eq!(sc.ui.focused(), Some(ids[1]), "and gives the row the focus");
+        // Space on the focused row asks for it again; it stays selected.
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        assert_eq!(selected, 1);
+        // The disabled row takes no press.
+        sc.click(centre(rows[2]), 1);
+        sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        assert_eq!(selected, 1, "a disabled row takes no press");
+        // Away from the pointer and the focus, the newly selected row is lit and marked.
+        sc.ui.event(&Event::PointerMoved { pos: Vec2::new(380.0, 280.0) });
+        let list = sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        let pic = sc.pic(&list);
+        assert_eq!(sc.ui.focused(), None, "the press on the disabled row took the focus away");
+        let m = mark(rows[1]);
+        pic.is(m.x, m.y, t.text, "the indicator moved with the selection");
+        pic.is(rows[0].x + rows[0].w - 2.0, rows[0].y + 2.0, t.ground, "the row it left is no longer lit");
+    });
+}
+
+#[test]
+fn a_group_parts_itself_from_the_group_it_follows_and_from_nothing_else() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut ids = Vec::new();
+        let build = |ui: &mut Ui, ids: &mut Vec<Id>| {
+            ids.clear();
+            ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| {
+                ids.push(ui.group("a", |ui| {
+                    ui.selection_row("o", SelectionRow { label: "Reports", ..SelectionRow::default() });
+                }));
+                ids.push(ui.group("b", |ui| {
+                    ui.action_row("x", "Browse\u{2026}");
+                }));
+                ids.push(ui.titled_group("c", "View", |_| {}, |ui| {
+                    ui.selection_row("o", SelectionRow { label: "Grid", ..SelectionRow::default() });
+                }).group);
+            });
+        };
+        sc.frame(|ui| build(ui, &mut ids));
+        let list = sc.frame(|ui| build(ui, &mut ids));
+        let [a, b, c] = [0, 1, 2].map(|i| sc.rect(ids[i]));
+        assert_eq!(a.y, 20.0, "nothing above the first group");
+        assert_eq!(b.y - (a.y + a.h), 2.0 * INSET_TIGHT + FRAME, "a separator between two groups, inset-tight above and below");
+        let pic = sc.pic(&list);
+        let rule_y = a.y + a.h + INSET_TIGHT;
+        pic.is(a.x + INSET + 2.0, rule_y, t.line, "the separator, in the line colour");
+        pic.is(a.x + 2.0, rule_y, t.ground, "inset as the rows' texts are");
+        assert_eq!(c.y, b.y + b.h, "a titled group needs no separator above it");
+        // Its title stands gap-wide below the group it follows.
+        let title = texts_in(&list, Rect::new(c.x, c.y, c.w, mere_ui::tokens::GAP_WIDE + 18.0));
+        assert_eq!(title.concat(), "VIEW", "the title, in capitals (drawn letter by letter, it is tracked), gap-wide down");
+    });
+}
+
+#[test]
+fn a_value_row_shows_its_mark_under_the_pointer_and_reports_a_press_on_it() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut v = 10.0;
+        let mut out = None;
+        let build = |sc: &mut Scene, v: &mut f64, out: &mut Option<mere_ui::ValueResp>| {
+            sc.frame(|ui| {
+                ui.node("col", Style { column: true, w: Dim::Px(280.0), ..at(20.0, 20.0) }, |ui| {
+                    let row = mere_ui::ValueRow { label: "Hill height", note: "", mark: "?", width: 280.0, control_w: 64.0, gutter: 0.0 };
+                    *out = Some(ui.value_row("h", row, None, |ui| {
+                        ui.number("field", v, NumberSpec { min: 0.0, max: 100.0, step: 1.0 });
+                    }));
+                });
+            })
+        };
+        build(&mut sc, &mut v, &mut out);
+        let list = build(&mut sc, &mut v, &mut out);
+        let r = out.unwrap();
+        assert!(texts_in(&list, sc.rect(r.row)).iter().all(|s| s != "?"), "no mark at rest");
+        sc.ui.event(&Event::PointerMoved { pos: centre(sc.rect(r.label)) });
+        build(&mut sc, &mut v, &mut out);
+        let list = build(&mut sc, &mut v, &mut out);
+        assert!(texts_in(&list, sc.rect(r.row)).iter().any(|s| s == "?"), "the mark shows while the pointer is on the row");
+        let mark = sc.rect(out.unwrap().mark.id);
+        sc.click(centre(mark), 1);
+        build(&mut sc, &mut v, &mut out);
+        assert!(out.unwrap().mark.clicked, "a press on the mark is reported");
+        assert_eq!(sc.rect(out.unwrap().row).w, 280.0);
+    });
+}
+
+#[test]
+fn a_split_grip_reports_its_press_and_a_double_press_resets() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut g = None;
+        let build = |sc: &mut Scene, g: &mut Option<mere_ui::GripResp>| {
+            sc.frame(|ui| {
+                ui.node("row", Style { h: Dim::Px(100.0), ..at(20.0, 20.0) }, |ui| *g = Some(ui.split_grip("gap", 28.0)));
+            })
+        };
+        build(&mut sc, &mut g);
+        build(&mut sc, &mut g);
+        let r = sc.rect(g.unwrap().resp.id);
+        assert_eq!((r.w, r.h), (mere_ui::SPLIT_GRIP_W, 100.0), "as tall as what holds it");
+        assert_eq!(r.x, 20.0 + (28.0 - mere_ui::SPLIT_GRIP_W) / 2.0, "in the middle of its gap");
+        sc.ui.event(&Event::PointerMoved { pos: centre(r) });
+        let list = build(&mut sc, &mut g);
+        sc.pic(&list).is(r.x + (r.w / 2.0).floor(), r.y + 50.0, t.muted, "the line under the pointer");
+        sc.ui.event(&Event::PointerDown { pos: centre(r), button: Button::Left, clicks: 2 });
+        build(&mut sc, &mut g);
+        assert!(g.unwrap().resp.pressed && g.unwrap().reset, "a double press asks for the natural width");
     });
 }

@@ -162,10 +162,10 @@ Frame order: build the tree through closures (layout inputs), call `Tree::comput
 monospaced and a text width is arithmetic (`text_width`, `ADVANCE_EM` 0.6); a leaf's measure closure owns its string.
 `Ui::new(theme)`, `event(&Event) -> bool`, `begin_frame(size)`, `end_frame() -> &DrawList`; `node(key: &str, style, children)
 -> Id` takes a key, not an `Id`, and ids are the hash of the keys down from the root (a repeated key in one frame logs a
-warning). `rect(id)` is the widget's absolute rect of the last frame. `button(key, text, ButtonLook) -> Resp` and
-`button_with(key, text, look, ButtonOpts { disabled, grow })`; `Resp { id, rect, hovered, held, clicked }`.
+warning). `rect(id)` is the widget's absolute rect of the last frame. `action(key, text, ActionLook) -> Resp` and
+`action_with(key, text, look, ActionOpts { disabled, grow })`; `Resp { id, rect, hovered, held, clicked }`.
 `toggle(key, &mut bool, on_word, off_word) -> Resp` takes both words, which come from the application's catalog, and flips
-the value before painting. It is drawn as a switch, not a box: a square-cornered 28 by 16 frame (`SWITCH_W`, `SWITCH_H`; the kit has no
+the value before painting. It is drawn as a switch, not a box: a square-cornered 28 by 16 frame (`TOGGLE_W`, `TOGGLE_H`; the kit has no
 rounded corner) with a square 8 px knob 3 px inside the line, and the word beside it, 8 px away and in capitals (the
 widget uppercases the catalog word, as a fold does its title). Off is an outline with an outlined knob on the left, the
 frame in `--edge`, the knob and the word `--muted`. On is the frame filled with `--fill`, the knob on the right in

@@ -14,7 +14,7 @@ use crate::compose::{self, Compose};
 use crate::edit::{Accept, Edit, Outcome};
 use crate::number::{self, NumberSpec, js_number};
 use crate::text::{ASCENT_EM, DESCENT_EM, TextLook, Tone, baseline, cells, cells_of, half_leading};
-use crate::tokens::{FADE_DISABLED, FRAME, INSET, INSET_HAIR, INSET_TIGHT};
+use crate::tokens::{FRAME, INSET, INSET_HAIR, INSET_TIGHT};
 use crate::ui::{Paint, Resp, Ui};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -379,9 +379,9 @@ impl Ui {
             placeholder: placeholder.to_string(),
             right,
             scroll,
-            frame: if disabled { t.faded(t.edge, FADE_DISABLED) } else if focused { t.text } else { t.edge },
-            text_color: if disabled { t.faded(t.text, FADE_DISABLED) } else { t.text },
-            muted: if disabled { t.faded(t.muted, FADE_DISABLED) } else { t.muted },
+            frame: t.disabled_if(if focused && !disabled { t.text } else { t.edge }, disabled),
+            text_color: t.disabled_if(t.text, disabled),
+            muted: t.disabled_if(t.muted, disabled),
             select: t.select,
             select_text: t.select_text,
             caret,

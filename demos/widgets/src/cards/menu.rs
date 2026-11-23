@@ -1,12 +1,12 @@
 //! The Menu card: the line closed and disabled; then open in each kind of choice, several with multiple selectors and
 //! one with single selectors (one row disabled); then the same two with two-line rows whose long detail is cut at its start,
-//! a separator and an action row; and a list hung above its line. The Design System has no preview of it yet. An open
+//! then a second group (an action row) parted by its separator; and a list hung above its line. The Design System has no preview of it yet. An open
 //! list is opened by a press on its line, so its first row has the focus, as it does when the list opens.
 
 use std::cell::Cell as Memo;
 
 use mere_layout::{Dim, Justify, Style};
-use mere_ui::{Id, MenuOpts, SelectRow, Selector, Theme, Ui};
+use mere_ui::{Id, MenuOpts, SelectionRow, Selector, Theme, Trigger, Ui};
 
 use super::select::{Probe, centre, click};
 use super::{Block, Card, Cell, State, render};
@@ -14,24 +14,24 @@ use super::{Block, Card, Cell, State, render};
 /// A panel's width.
 const COL: f32 = 280.0;
 
-/// What a list holds, in order.
+/// What a list holds, in order: rows, and the start of a new group.
 #[derive(Copy, Clone)]
 enum Item {
-    Row(SelectRow<'static>),
-    Separator,
+    Row(SelectionRow<'static>),
+    Group,
     Action(&'static str),
 }
 
 const fn row(label: &'static str, selector: Selector, selected: bool) -> Item {
-    Item::Row(SelectRow { label, detail: "", detail_tail: "", selector, selected, disabled: false })
+    Item::Row(SelectionRow { label, detail: "", detail_tail: "", selector, selected, disabled: false })
 }
 
 const fn off(label: &'static str, selector: Selector) -> Item {
-    Item::Row(SelectRow { label, detail: "", detail_tail: "", selector, selected: false, disabled: true })
+    Item::Row(SelectionRow { label, detail: "", detail_tail: "", selector, selected: false, disabled: true })
 }
 
 const fn two(label: &'static str, detail: &'static str, detail_tail: &'static str, selector: Selector, selected: bool) -> Item {
-    Item::Row(SelectRow { label, detail, detail_tail, selector, selected, disabled: false })
+    Item::Row(SelectionRow { label, detail, detail_tail, selector, selected, disabled: false })
 }
 
 const TOPPINGS: &[Item] = &[row("Cheese", Selector::Multiple, true), row("Tomato", Selector::Multiple, false), row("Basil", Selector::Multiple, true), row("Olives", Selector::Multiple, false)];
@@ -40,14 +40,14 @@ const BACKUP: &[Item] = &[
     two("Reports", "Archive", r"C:\Code\archive\2024\reports\quarterly\final versions", Selector::Multiple, true),
     two("Sketches", "Code", r"C:\Code\sketches\2024\interface studies", Selector::Multiple, false),
     two("Notes", "", "", Selector::Multiple, true),
-    Item::Separator,
+    Item::Group,
     Item::Action("Browse\u{2026}"),
 ];
 const SAVE_TO: &[Item] = &[
     two("Documents", "This computer", r"C:\Users\someone\Documents\Letters\2024\drafts", Selector::Single, true),
     two("Projects", "This computer", r"C:\Code\projects", Selector::Single, false),
     two("Archive", "This computer", r"C:\Code\archive\2024", Selector::Single, false),
-    Item::Separator,
+    Item::Group,
     Item::Action("Choose a folder\u{2026}"),
 ];
 const SORT: &[Item] = &[row("Name", Selector::Single, true), row("Date modified", Selector::Single, false), row("Size", Selector::Single, false)];
@@ -70,17 +70,22 @@ fn list(line: &'static str, items: &'static [Item], opts: MenuOpts, open: bool, 
         let mut id = None;
         ui.node("box", style, |ui| {
             let mut o = shown.get();
-            let r = ui.menu("menu", line, &mut o, opts, |ui| {
-                for (i, item) in items.iter().enumerate() {
-                    match *item {
-                        Item::Row(row) => {
-                            ui.menu_select(&format!("o{i}"), row);
+            let r = ui.menu("menu", Trigger::Line(line), &mut o, opts, |ui| {
+                // Each group is the rows up to the next `Item::Group`; the groups place their separators.
+                for (g, group) in items.split(|i| matches!(i, Item::Group)).enumerate() {
+                    ui.group(&format!("g{g}"), |ui| {
+                        for (i, item) in group.iter().enumerate() {
+                            match *item {
+                                Item::Row(row) => {
+                                    ui.selection_row(&format!("o{i}"), row);
+                                }
+                                Item::Action(text) => {
+                                    ui.action_row(&format!("a{i}"), text);
+                                }
+                                Item::Group => {}
+                            }
                         }
-                        Item::Separator => ui.menu_separator(),
-                        Item::Action(text) => {
-                            ui.menu_action(&format!("a{i}"), text);
-                        }
-                    }
+                    });
                 }
             });
             shown.set(o);

@@ -6,6 +6,7 @@ use mere_base::{Color, Cursor};
 use mere_layout::{Align, Dim, Display, Edges, Margin, NodeId, Position, Side, Style, Track, Tracks};
 use mere_base::Vec2;
 
+use crate::id::Id;
 use crate::text::{TextLook, Tone};
 use crate::theme::mix;
 use crate::tokens::*;
@@ -49,7 +50,7 @@ pub fn details_style() -> Style {
 }
 
 fn overlap() -> Margin {
-    Margin { left: Side::Px(-1.0), ..Margin::default() }
+    Margin { left: Side::Px(-FRAME), ..Margin::default() }
 }
 
 impl Ui {
@@ -66,10 +67,17 @@ impl Ui {
     pub(crate) fn tab_open(&mut self, key: &str, text: &str, look: TabLook, opts: TabOpts) -> (Resp, NodeId, Color) {
         let id = self.key(key);
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
+        let (node, word) = self.tab_box(key, id, resp.hovered || resp.held, text, look, opts, overlap());
+        (resp, node, word)
+    }
+
+    /// The box of a tab, keyed `id`, whose pointer the caller judged (`lit`: hovered or held), left open. `margin` is
+    /// the strip's overlap of its neighbour's frame, or none when the caller already placed the box. Answers the
+    /// box's node and the colour its word took.
+    pub(crate) fn tab_box(&mut self, key: &str, id: Id, lit: bool, text: &str, look: TabLook, opts: TabOpts, margin: Margin) -> (NodeId, Color) {
         let t = *self.theme();
-        let lit = resp.hovered || resp.held;
         // Disabled fades the whole box: every colour, fill included.
-        let fade = |c: Color| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
+        let fade = |c: Color| t.disabled_if(c, opts.disabled);
         // DELIBERATE DIFFERENCE: in the page's cascade `.strip button:hover:not(:disabled)` (0,3,1) beats
         // `[aria-pressed=true]` (0,2,1), so hovering the pressed strip tab paints its word in --text on a
         // --text ground and the word vanishes. We keep the pressed word on hover.
@@ -86,7 +94,7 @@ impl Ui {
                 Style {
                     h: Dim::Px(CONTROL),
                     pad: Edges::vh(FRAME, FRAME + INSET_WIDE),
-                    margin: overlap(),
+                    margin,
                     align_items: Align::Center,
                     position: if opts.pressed { Position::Relative } else { Position::Static },
                     ..Style::default()
@@ -97,7 +105,7 @@ impl Ui {
         };
         let node = self.open(key, id, style, Paint::Box { fill, frame });
         self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
-        (resp, node, fade(word))
+        (node, fade(word))
     }
 
     /// `#details button` (lines 195-200): a word and its wait on a second, smaller line. No hover rule
@@ -106,7 +114,7 @@ impl Ui {
         let id = self.key(key);
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
-        let fade = |c: Color| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
+        let fade = |c: Color| t.disabled_if(c, opts.disabled);
         let style = Style {
             column: true,
             pad: Edges::vh(FRAME + INSET_TIGHT, FRAME + INSET),
@@ -121,7 +129,7 @@ impl Ui {
         let word = if opts.pressed { t.on_fill } else { t.text };
         self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
         // `small` inherits the unitless 1.5 line height; pressed, colour inherit at opacity .7 over the fill.
-        let small = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Text) };
+        let small = TextLook::small(Tone::Text);
         let sub_color = if opts.pressed { mix(t.on_fill, 0.7, t.fill) } else { t.muted };
         // An empty small block is 0 high, so the button has one line then: no leaf at all.
         if !sub.is_empty() {
