@@ -1208,7 +1208,7 @@ fn a_status_sentence_in_the_failure_tone_is_painted_in_amber() {
         let mut sc = Scene::new(t);
         let list = sc.frame(|ui| {
             ui.node("s", Style { column: true, w: Dim::Px(200.0), ..at(20.0, 20.0) }, |ui| {
-                ui.paragraph("Not saved: the game is using the file.", TextLook::small(Tone::Warn));
+                ui.paragraph("Not saved: the file is in use elsewhere.", TextLook::small(Tone::Warn));
             });
         });
         let colors: Vec<Color> = list.cmds.iter().filter_map(|c| if let Cmd::Text { color, .. } = c { Some(*color) } else { None }).collect();
