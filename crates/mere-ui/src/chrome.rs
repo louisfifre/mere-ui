@@ -118,7 +118,7 @@ impl Ui {
                     w: Dim::Px(TOOL_W),
                     h: Dim::Px(CONTROL),
                     shrink: 0.0,
-                    margin: Margin { left: Side::Px(-1.0), ..Margin::default() },
+                    margin: Margin { left: Side::Px(-FRAME), ..Margin::default() },
                     align_items: Align::Center,
                     justify: Justify::Center,
                     // As the strip's tabs: the pressed one is painted over its neighbours' hairlines.
@@ -204,7 +204,7 @@ impl Ui {
             pad: mere_layout::Edges::new(0.0, TOOL_PAD_R, 0.0, TOOL_PAD_L),
             gap: Vec2::new(TOOL_GAP, 0.0),
             shrink: 0.0,
-            margin: Margin { left: Side::Px(-1.0), ..Margin::default() },
+            margin: Margin { left: Side::Px(-FRAME), ..Margin::default() },
             align_items: Align::Center,
             position: if opts.pressed { Position::Relative } else { Position::Static },
             ..Style::default()

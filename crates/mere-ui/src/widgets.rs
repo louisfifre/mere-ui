@@ -180,7 +180,7 @@ impl Ui {
             ButtonLook::Pick | ButtonLook::PickNone => {
                 let none = look == ButtonLook::PickNone;
                 let style = Style { grow: opts.grow, ..Style::default() };
-                let small = TextLook { size: 11.0, line: 16.5, ..body };
+                let small = TextLook::small(Tone::Text);
                 (style, Paint::None, small, t.text, none, !none && lit)
             }
         };

@@ -123,7 +123,7 @@ impl Ui {
             resp.clicked = false;
         }
         let t = *self.theme();
-        let look = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Text) };
+        let look = TextLook::small(Tone::Text);
         let color = if opts.pressed { t.text } else { t.muted };
         let style = Style {
             align_items: Align::Baseline,
@@ -145,7 +145,7 @@ impl Ui {
     pub fn list_head(&mut self, key: &str, column: &str, width: &str, share: &str) -> [Id; 2] {
         let id = self.key(key);
         let t = *self.theme();
-        let look = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Muted) };
+        let look = TextLook::small(Tone::Muted);
         self.open(key, id, grid(Edges::default()), Paint::None);
         self.add("pad", Style { w: Dim::Px(12.0), ..Style::default() }, Paint::None);
         self.add_text(column, look, t.muted, false, Style::default());

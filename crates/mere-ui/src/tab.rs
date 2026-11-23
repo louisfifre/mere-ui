@@ -50,7 +50,7 @@ pub fn details_style() -> Style {
 }
 
 fn overlap() -> Margin {
-    Margin { left: Side::Px(-1.0), ..Margin::default() }
+    Margin { left: Side::Px(-FRAME), ..Margin::default() }
 }
 
 impl Ui {
@@ -129,7 +129,7 @@ impl Ui {
         let word = if opts.pressed { t.on_fill } else { t.text };
         self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
         // `small` inherits the unitless 1.5 line height; pressed, colour inherit at opacity .7 over the fill.
-        let small = TextLook { size: 11.0, line: 16.5, ..TextLook::body(Tone::Text) };
+        let small = TextLook::small(Tone::Text);
         let sub_color = if opts.pressed { mix(t.on_fill, 0.7, t.fill) } else { t.muted };
         // An empty small block is 0 high, so the button has one line then: no leaf at all.
         if !sub.is_empty() {
