@@ -19,24 +19,8 @@ use crate::ui::{Paint, Resp, Ui};
 pub const MARK_SIZE: f32 = SWATCH;
 /// The check: 1 px squares inside the frame, the boards' 10 px glyph moved in by the frame.
 const CHECK: [(f32, f32); 7] = [(9.0, 3.0), (8.0, 4.0), (7.0, 5.0), (6.0, 6.0), (5.0, 7.0), (4.0, 6.0), (3.0, 5.0)];
-/// The single selector's ring as blocks of whole pixels `(x, y, w, h)`, a circle of `MARK_SIZE`: no antialiasing,
-/// so that it stays as sharp as the multiple selector's frame beside it.
-const RING: [(f32, f32, f32, f32); 12] = [
-    (4.0, 0.0, 4.0, 1.0),
-    (2.0, 1.0, 2.0, 1.0),
-    (8.0, 1.0, 2.0, 1.0),
-    (1.0, 2.0, 1.0, 2.0),
-    (10.0, 2.0, 1.0, 2.0),
-    (0.0, 4.0, 1.0, 4.0),
-    (11.0, 4.0, 1.0, 4.0),
-    (1.0, 8.0, 1.0, 2.0),
-    (10.0, 8.0, 1.0, 2.0),
-    (2.0, 10.0, 2.0, 1.0),
-    (8.0, 10.0, 2.0, 1.0),
-    (4.0, 11.0, 4.0, 1.0),
-];
-/// The selected single selector's dot, 6 px across and centred in the ring, in the same blocks.
-const DOT: [(f32, f32, f32, f32); 5] = [(5.0, 3.0, 2.0, 1.0), (4.0, 4.0, 4.0, 1.0), (3.0, 5.0, 6.0, 2.0), (4.0, 7.0, 4.0, 1.0), (5.0, 8.0, 2.0, 1.0)];
+/// The selected single selector's dot: a disc this wide, centred in the outline, painted by the same rule as it.
+const DOT: f32 = 6.0;
 
 /// The kind of choice a selector stands for.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -66,8 +50,52 @@ pub struct SelectorOpts {
     pub disabled: bool,
 }
 
-fn blocks(blocks: &[(f32, f32, f32, f32)], color: Color) -> impl Iterator<Item = Cmd> + '_ {
-    blocks.iter().map(move |&(x, y, w, h)| Cmd::Fill { rect: Rect::new(x, y, w, h), color })
+impl Selector {
+    /// The corner radius of the outline: exactly half the side for the single selector, which makes it a circle, and
+    /// none for the multiple selector, a square. The kind changes only this and the mark inside: the outline, its
+    /// width, its colours and its states are one and the same.
+    pub fn radius(self) -> f32 {
+        match self {
+            Selector::Single => MARK_SIZE / 2.0,
+            Selector::Multiple => 0.0,
+        }
+    }
+}
+
+/// Whether the pixel whose centre is `(x, y)` lies in the square at `at` of `side` with corners rounded to `r`.
+fn inside(x: f32, y: f32, at: f32, side: f32, r: f32) -> bool {
+    let (lo, hi) = (at + r, at + side - r);
+    let (dx, dy) = (x - x.clamp(lo, hi), y - y.clamp(lo, hi));
+    x >= at && x <= at + side && y >= at && y <= at + side && dx * dx + dy * dy <= r * r
+}
+
+/// A shape of whole pixels inside `MARK_SIZE`: each pixel whose centre `keep` accepts, painted in runs along its row.
+/// Whole pixels and no antialiasing, so that the round outline is as sharp as the square one beside it.
+fn pixels(color: Color, keep: impl Fn(f32, f32) -> bool) -> Vec<Cmd> {
+    let n = MARK_SIZE as usize;
+    let mut cmds = Vec::new();
+    for row in 0..n {
+        let y = row as f32 + 0.5;
+        let mut run: Option<usize> = None;
+        for col in 0..=n {
+            let on = col < n && keep(col as f32 + 0.5, y);
+            match (on, run) {
+                (true, None) => run = Some(col),
+                (false, Some(from)) => {
+                    cmds.push(Cmd::Fill { rect: Rect::new(from as f32, row as f32, (col - from) as f32, 1.0), color });
+                    run = None;
+                }
+                _ => {}
+            }
+        }
+    }
+    cmds
+}
+
+/// The outline of a selector: the band `FRAME` wide inside a square of `MARK_SIZE` whose corners are rounded to `r`.
+fn outline(r: f32, color: Color) -> Vec<Cmd> {
+    let inner = (r - FRAME).max(0.0);
+    pixels(color, |x, y| inside(x, y, 0.0, MARK_SIZE, r) && !inside(x, y, FRAME, MARK_SIZE - 2.0 * FRAME, inner))
 }
 
 impl Ui {
@@ -85,18 +113,13 @@ impl Ui {
         };
         let fade = |c| t.disabled_if(c, opts.disabled);
         let (line, inner) = (fade(line), selected.then(|| fade(t.text)));
-        let mut cmds = Vec::new();
-        match kind {
-            Selector::Multiple => {
-                cmds.push(Cmd::Frame { rect: Rect::new(0.0, 0.0, MARK_SIZE, MARK_SIZE), width_px: FRAME, color: line });
-                if let Some(c) = inner {
-                    cmds.extend(CHECK.into_iter().map(|(x, y)| Cmd::Fill { rect: Rect::new(x, y, 1.0, 1.0), color: c }));
-                }
-            }
-            Selector::Single => {
-                cmds.extend(blocks(&RING, line));
-                if let Some(c) = inner {
-                    cmds.extend(blocks(&DOT, c));
+        let mut cmds = outline(kind.radius(), line);
+        if let Some(c) = inner {
+            match kind {
+                Selector::Multiple => cmds.extend(CHECK.into_iter().map(|(x, y)| Cmd::Fill { rect: Rect::new(x, y, 1.0, 1.0), color: c })),
+                Selector::Single => {
+                    let at = (MARK_SIZE - DOT) / 2.0;
+                    cmds.extend(pixels(c, |x, y| inside(x, y, at, DOT, DOT / 2.0)));
                 }
             }
         }
