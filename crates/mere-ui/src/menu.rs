@@ -199,23 +199,7 @@ impl Ui {
         let muted = fade(t.muted);
         self.node("lines", Style { column: true, min_w: Dim::Px(0.0), ..Style::default() }, |ui| {
             ui.add_ellipsis(row.label, TextLook::body(Tone::Text), label_color, false);
-            if !(row.detail.is_empty() && row.detail_tail.is_empty()) {
-                // The status look (11 px on 16) keeps a two-line row on whole pixels, which the small look's 16.5 does not.
-                let look = TextLook::status(Tone::Muted);
-                ui.node("detail", Style { min_w: Dim::Px(0.0), ..Style::default() }, |ui| {
-                    let lead = match (row.detail.is_empty(), row.detail_tail.is_empty()) {
-                        (false, false) => format!("{} \u{b7} ", row.detail),
-                        (false, true) => row.detail.to_string(),
-                        _ => String::new(),
-                    };
-                    if !lead.is_empty() {
-                        ui.add_text(&lead, look, muted, false, Style { shrink: 0.0, ..Style::default() });
-                    }
-                    if !row.detail_tail.is_empty() {
-                        ui.add_ellipsis_start(row.detail_tail, look, muted);
-                    }
-                });
-            }
+            ui.detail_line(row.detail, row.detail_tail, muted);
         });
         self.close();
         resp

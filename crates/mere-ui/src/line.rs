@@ -1,5 +1,6 @@
-//! The line a list opens from, made once for every component that opens one: the select box (`select_menu`) and the
-//! menu (`menu`) draw it here, and a strip tab that opens a list (`tab_menu`) takes its chevron.
+//! Lines made once and assembled by several components. The line a list opens from: the select box (`select_menu`)
+//! and the menu (`menu`) draw it here, and a strip tab that opens a list (`tab_menu`) takes its chevron. And the
+//! detail line, the muted second line under a label (a menu's selection row).
 
 use mere_base::Color;
 use mere_layout::{Align, Dim, Edges, Margin, NodeId, Side, Style};
@@ -49,5 +50,28 @@ impl Ui {
         self.add_chevron(Side::Auto, fade(t.text));
         self.close();
         node
+    }
+
+    /// The detail line: `detail` and `tail` joined by " · " in `color`, `detail` kept whole and `tail` cut at its
+    /// start, so that the end of a long path or address stays readable. Nothing when both are empty.
+    pub(crate) fn detail_line(&mut self, detail: &str, tail: &str, color: Color) {
+        if detail.is_empty() && tail.is_empty() {
+            return;
+        }
+        // The status look (11 px on 16) keeps a two-line row on whole pixels, which the small look's 16.5 does not.
+        let look = TextLook::status(Tone::Muted);
+        self.node("detail", Style { min_w: Dim::Px(0.0), ..Style::default() }, |ui| {
+            let lead = match (detail.is_empty(), tail.is_empty()) {
+                (false, false) => format!("{detail} \u{b7} "),
+                (false, true) => detail.to_string(),
+                _ => String::new(),
+            };
+            if !lead.is_empty() {
+                ui.add_text(&lead, look, color, false, Style { shrink: 0.0, ..Style::default() });
+            }
+            if !tail.is_empty() {
+                ui.add_ellipsis_start(tail, look, color);
+            }
+        });
     }
 }
