@@ -7,7 +7,7 @@ use mere_layout::{Align, Dim, Edges, Margin, NodeId, Side, Style};
 
 use crate::id::Id;
 use crate::text::{TextLook, Tone};
-use crate::tokens::{FRAME, INSET, INSET_TIGHT};
+use crate::tokens::{FRAME, GAP, INSET, INSET_TIGHT};
 use crate::ui::{CHEVRON, Paint, Ui};
 
 /// What a line differs by between the components that draw it.
@@ -22,9 +22,13 @@ pub(crate) struct LineLook {
 }
 
 impl Ui {
-    /// The chevron that says a list opens here, `CHEVRON` in size, `margin_left` after what comes before it.
-    pub(crate) fn add_chevron(&mut self, margin_left: Side, color: Color) {
-        let style = Style { w: Dim::Px(CHEVRON.x), h: Dim::Px(CHEVRON.y), shrink: 0.0, margin: Margin { left: margin_left, ..Margin::default() }, ..Style::default() };
+    /// The chevron that says a list opens here, `CHEVRON` in size, always `gap` after the text before it: the one rule
+    /// of every trigger, so that a text cut short never touches it. `at_end` pushes it to the end of its box, the room
+    /// left over going before it, as the line does.
+    pub(crate) fn add_chevron(&mut self, at_end: bool, color: Color) {
+        self.add("chevron_gap", Style { w: Dim::Px(GAP), shrink: 0.0, ..Style::default() }, Paint::None);
+        let left = if at_end { Side::Auto } else { Side::Px(0.0) };
+        let style = Style { w: Dim::Px(CHEVRON.x), h: Dim::Px(CHEVRON.y), shrink: 0.0, margin: Margin { left, ..Margin::default() }, ..Style::default() };
         self.add("chevron", style, Paint::Chevron { color });
     }
 
@@ -45,7 +49,7 @@ impl Ui {
         };
         let node = self.open(key, id, style, Paint::Box { fill: None, frame: Some(frame) });
         self.add_ellipsis(text, TextLook::body(Tone::Text), fade(t.text), false);
-        self.add_chevron(Side::Auto, fade(t.text));
+        self.add_chevron(true, fade(t.text));
         self.close();
         node
     }

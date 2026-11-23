@@ -39,7 +39,7 @@ use crate::field::{Focus, Typed};
 use crate::id::Id;
 use crate::line::LineLook;
 use crate::tab::{TabLook, TabOpts};
-use crate::tokens::{CONTROL_COMPACT, FRAME, GAP, GAP_TIGHT, INSET_TIGHT};
+use crate::tokens::{CONTROL_COMPACT, FRAME, GAP_TIGHT, INSET_TIGHT};
 use crate::ui::{Paint, Resp, Ui};
 
 /// What opens a menu.
@@ -238,7 +238,7 @@ impl Ui {
             Trigger::Tab(word) => {
                 let lit = resp.hovered || resp.held;
                 let (_, color) = self.tab_box("line", lid, lit, word, TabLook::Strip, TabOpts { pressed: *open, disabled: opts.disabled }, Margin::default());
-                self.add_chevron(Side::Px(GAP), color);
+                self.add_chevron(false, color);
                 self.close();
             }
         }

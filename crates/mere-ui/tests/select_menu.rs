@@ -2,7 +2,7 @@
 
 use mere_base::{Button, Cmd, DrawList, Event, Key, Mods, Rect, Vec2};
 use mere_layout::{Dim, Style};
-use mere_ui::tokens::{CONTROL, GAP_TIGHT};
+use mere_ui::tokens::{CONTROL, GAP, GAP_TIGHT};
 use mere_ui::{ActionLook, ActionOpts, LIST_PAD, LIST_ROW, ScrollOpts, SelectOpts, SelectResp, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(400.0, 300.0);
@@ -227,3 +227,26 @@ fn the_keyboard_opens_moves_and_picks_and_the_line_gets_the_focus_back() {
     assert_eq!(p.ui.focused(), Some(line));
 }
 
+/// A text cut short in a narrow select stops `gap` before the chevron: the chevron's one rule, whatever the trigger.
+#[test]
+fn a_cut_text_keeps_its_gap_before_the_chevron() {
+    let mut ui = Ui::new(Theme::dark());
+    let opts = vec!["An option with a name far too long for its line".to_string()];
+    let mut chosen = 0;
+    let mut list = DrawList::default();
+    for _ in 0..2 {
+        ui.begin_frame(SIZE);
+        ui.node("col", Style { w: Dim::Px(140.0), column: true, ..Style::default() }, |ui| {
+            ui.select_menu("sel", &opts, &mut chosen, SelectOpts::default());
+        });
+        list = ui.end_frame().clone();
+    }
+    let (end, size) = list
+        .cmds
+        .iter()
+        .find_map(|c| if let Cmd::Text { at, text, size, .. } = c { text.contains('\u{2026}').then(|| (at.x + mere_ui::text_width(text, *size), *size)) } else { None })
+        .expect("the text is cut");
+    assert!(size > 0.0);
+    let chevron = list.cmds.iter().filter_map(|c| if let Cmd::Fill { rect, .. } = c { (rect.h == 1.0 && rect.w <= 8.0).then_some(rect.x) } else { None }).fold(f32::MAX, f32::min);
+    assert!(chevron - end >= GAP - 0.5, "the text ends at {end}, the chevron starts at {chevron}");
+}
