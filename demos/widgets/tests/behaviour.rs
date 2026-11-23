@@ -726,7 +726,7 @@ fn select_row_at(ui: &mut Ui, row: SelectRow, v: &mut bool) -> Id {
 #[test]
 fn a_selection_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
     both(|t| {
-        let row = SelectRow { label: "Reports", detail: "Archive", detail_tail: r"C:\Coderchive\2024\reports", selector: Selector::Multiple, ..SelectRow::default() };
+        let row = SelectRow { label: "Reports", detail: "Archive", detail_tail: r"C:\Code\archive\2024\reports", selector: Selector::Multiple, ..SelectRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let id = {
@@ -804,7 +804,7 @@ fn texts_in(list: &DrawList, r: Rect) -> Vec<String> {
 
 #[test]
 fn a_selection_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
-    let tail = r"C:\Coderchive\2024\reports\quarterly\final versions\signed";
+    let tail = r"C:\Code\archive\2024\reports\quarterly\final versions\signed";
     let row = SelectRow { label: "Quarterly reports with every appendix and the signed copies", detail: "Archive", detail_tail: tail, selector: Selector::Multiple, ..SelectRow::default() };
     let mut sc = Scene::new(Theme::dark());
     let mut v = false;
@@ -824,7 +824,7 @@ fn a_selection_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
 #[test]
 fn a_single_selection_row_with_a_detail_line_reports_its_press_and_paints_its_detail() {
     both(|t| {
-        let row = SelectRow { label: "Weekly", detail: "Archive", detail_tail: r"C:\Coderchive\weekly", selector: Selector::Single, ..SelectRow::default() };
+        let row = SelectRow { label: "Weekly", detail: "Archive", detail_tail: r"C:\Code\archive\weekly", selector: Selector::Single, ..SelectRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let mut id = None;
@@ -842,7 +842,7 @@ fn a_single_selection_row_with_a_detail_line_reports_its_press_and_paints_its_de
             select_row_at(ui, row, &mut v);
         });
         let texts = texts_in(&list, r);
-        assert!(texts.iter().any(|s| s == "Archive \u{b7} ") && texts.iter().any(|s| s == r"C:\Coderchive\weekly"), "the detail is painted: {texts:?}");
+        assert!(texts.iter().any(|s| s == "Archive \u{b7} ") && texts.iter().any(|s| s == r"C:\Code\archive\weekly"), "the detail is painted: {texts:?}");
         let at = |s: &str| list.cmds.iter().find_map(|c| if let Cmd::Text { at, text, .. } = c { (text == s).then_some(*at) } else { None }).unwrap();
         let (label, detail) = (at("Weekly"), at("Archive \u{b7} "));
         assert!(detail.x == label.x && detail.y > label.y, "the detail sits under the label");
@@ -905,7 +905,7 @@ fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
         let mut action = false;
         let r = ui.menu("dd", "Back up: Reports", &mut c.open, opts, |ui| {
             for (i, label) in ["Reports", "Notes"].into_iter().enumerate() {
-                let row = SelectRow { label, detail: "Archive", detail_tail: r"C:\Coderchive\2024", selector, selected: selected[i], disabled: false };
+                let row = SelectRow { label, detail: "Archive", detail_tail: r"C:\Code\archive\2024", selector, selected: selected[i], disabled: false };
                 let resp = ui.menu_select(&format!("o{i}"), row);
                 rows.push(resp.id);
                 if resp.clicked {
