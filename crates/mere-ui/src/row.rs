@@ -55,7 +55,8 @@ pub struct SelectionRow<'a> {
 }
 
 /// An immediate-selection row: a choice that applies as soon as it is pressed, with no selector and nothing to
-/// validate after. The whole row is the target; the selected one is lit and marked by the indicator on its side.
+/// validate after. The whole row is the target; the selected one is lit and marked by the indicator on its side,
+/// which stands in the lead column where a selection row has its selector, so that the texts of both line up.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct ImmediateRow<'a> {
     pub label: &'a str,
@@ -157,7 +158,8 @@ impl Ui {
     /// An action row ("Choose a folder…"): no selector, its text in the text column so that it lines up with the
     /// labels of the rows around it, underlined under the pointer, filled when focused. A press, or Space once
     /// focused, is `Resp.clicked`: the caller runs the action, and closes the menu that holds it if the action wants
-    /// (the line then has the focus back).
+    /// (the line then has the focus back). It has no disabled state yet: no application offers an action it cannot
+    /// run in a list; one would take `Theme::disabled_if` as the other rows do.
     pub fn action_row(&mut self, key: &str, text: &str) -> Resp {
         let id = self.key(key);
         let mut resp = self.interact(id, false, Cursor::Hand);

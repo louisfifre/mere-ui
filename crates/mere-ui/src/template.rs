@@ -1,5 +1,6 @@
 //! The panel and the stage template, the top of the kit's levels: a template only places the panels and the stage,
-//! the application filling them.
+//! the application filling them. A panel is deliberately no piece of its own: a column with no frame and no fill
+//! that holds groups, placed by the template.
 //!
 //! The stage template: a stage in the centre and up to two side panels, a panel on each side that is open.
 //!

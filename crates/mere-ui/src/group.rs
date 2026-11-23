@@ -1,8 +1,8 @@
 //! The group: rows stacked, with no frame and no fill, so that it can be placed anywhere (in a menu's list, in a
 //! panel, alone). What parts two groups is decided here once, from what the group follows, never by its caller:
 //!
-//! - a group that follows another group in the same container is parted from it: by a separator (a thin rule, inset
-//!   as the rows' texts are) when it has no title, by `gap-wide` when it has one, its title's own rule parting it;
+//! - a group that follows another group in the same container is parted from it: by a separator (a thin rule,
+//!   `inset` from the group's sides) when it has no title, by `gap-wide` when it has one, its title's own rule parting it;
 //! - the first group of a container has nothing above it but, when titled, the short space over its title.
 //!
 //! So a menu of three groups gets its two separators and a panel of titled groups its spacing without either

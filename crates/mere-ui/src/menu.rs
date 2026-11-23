@@ -61,8 +61,9 @@ pub struct MenuOpts {
     pub disabled: bool,
     /// A line's height, its frame included: `control-compact` when None.
     pub height: Option<f32>,
-    /// The row, in build order, that takes the focus when a press or Space opens the list: the first when None. A
-    /// list of one choice gives its chosen row, as a list box does.
+    /// The row that takes the focus when a press or Space opens the list, counted among the rows that can take
+    /// the focus (a disabled row is skipped), in build order: the first when None. A list of one choice gives its
+    /// chosen row, as a list box does.
     pub start: Option<usize>,
 }
 
@@ -112,9 +113,8 @@ impl Ui {
     }
 
     /// The focus of what is not a field: in Tab's walk unless disabled, taken by a press on it, lost to a press
-    /// elsewhere. Inside an open menu the one `MenuOpts::start` names (the first by default) takes it on the frame the list
-    /// opens. True when it has the
-    /// focus after this.
+    /// elsewhere. Inside an open menu the one `MenuOpts::start` names (the first by default) takes it on the frame
+    /// the list opens. True when it has the focus after this.
     pub(crate) fn focusable(&mut self, resp: &Resp, disabled: bool) -> bool {
         let id = resp.id;
         if disabled {

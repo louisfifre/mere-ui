@@ -39,7 +39,7 @@ pub struct PartOpts {
     pub pressed: bool,
     /// `:first-child`: 2 px above instead of 12.
     pub first: bool,
-    /// A button (a part of structures) or a plain note (the absent biomes).
+    /// An action (a part of structures) or a plain note (the absent biomes).
     pub action: bool,
 }
 
@@ -66,10 +66,10 @@ fn end_cell(min_w: f32) -> Style {
 }
 
 impl Ui {
-    /// One `.biome` row. `Resp.clicked` is false for an absent row, which the page does not make a button.
+    /// One `.biome` row. `Resp.clicked` is false for an absent row, which the page does not make an action.
     pub fn list_row(&mut self, key: &str, row: &ListRow, opts: RowOpts) -> Resp {
         let id = self.key(key);
-        // An absent row is no button: it keeps the arrow.
+        // An absent row is no action: it keeps the arrow.
         let mut resp = self.interact(id, false, if opts.absent { Cursor::Arrow } else { Cursor::Hand });
         if opts.absent {
             resp.clicked = false;

@@ -60,7 +60,7 @@ Former name cell gives the stem and the others follow it.
 | `detail_tab` | A strip option with a second, smaller line | — | keep (follows `tab`) | `tab` | — |
 | `LIST_ROW`, `LIST_PAD` | Height of a one-line row; space from a list's frame to its first row | — | chosen by the session | — | — |
 | `list_row`, `ListRow`, `RowOpts` | A legend row: swatch, name, width, share; pressed when chosen | — | keep | `option` / `listitem` | Carbon: structured list row |
-| `list_part`, `PartOpts` | The head of a part of the legend, a button or a plain note | — | keep | `heading` or `button` | — |
+| `list_part`, `PartOpts` | The head of a part of the legend, an action or a plain note | — | keep | `heading` or `button` | — |
 | `list_head` | The column heads of the legend | — | keep | `columnheader` | Carbon: table header |
 | `trend_row` | A history row: name, value and a plotted line | — | keep | `row` | — |
 | `SWATCH_W`, `ROW_GAP`, `WIDTH_MIN`, `SHARE_MIN`, `PLOT_H` | Column and plot measures a panel reads for its natural width | — | keep | — | — |

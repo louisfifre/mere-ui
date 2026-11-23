@@ -121,7 +121,8 @@ pub struct Ui {
     lift_depth: u32,
     lift_rects: Vec<Rect>,
     /// The open menu as last built (menu.rs), whether one was built open this frame, the menu that Escape
-    /// or a press outside closed (told when it is built), and, while a list's rows are built, their ids, which of them (in build order) takes the focus, and the row Up or Down moves the focus from.
+    /// or a press outside closed (told when it is built), and, while a list's rows are built, their ids, which of
+    /// them (in build order) takes the focus, and the row Up or Down moves the focus from.
     pub(crate) menu_hung: Option<Hung>,
     pub(crate) menu_built: bool,
     pub(crate) menu_close: Option<Id>,

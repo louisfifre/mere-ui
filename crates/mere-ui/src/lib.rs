@@ -4,7 +4,7 @@
 //! One frame, in this order:
 //! 1. `Ui::event` for every event received since the last frame (pointer state is only stored);
 //! 2. `Ui::begin_frame(size)`;
-//! 3. the application's calls: `node`, `label`, `button`, `toggle`, `fold`, `tab`, `detail_tab`, `number`,
+//! 3. the application's calls: `node`, `label`, `action`, `toggle`, `fold`, `tab`, `detail_tab`, `number`,
 //!    `text_field`, `ellipsis`, `scroll`, `list_row`, `list_head`, `trend_row`, `selector`, `menu`, `group`, `selection_row`...
 //!    Each widget answers with what the
 //!    pointer did to it, judged against where the widget stood in the LAST frame (what the person saw and

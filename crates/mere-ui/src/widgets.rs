@@ -1,4 +1,4 @@
-//! Label, button and toggle in the page's looks.
+//! Label, action and toggle in the page's looks.
 
 use mere_base::{Cmd, Color, Cursor, Rect, Vec2, Weight};
 use mere_layout::{Align, Dim, Edges, Justify, Style};
