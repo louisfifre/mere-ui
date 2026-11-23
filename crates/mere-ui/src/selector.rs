@@ -2,7 +2,7 @@
 //! several, a multiple selector (square) one of several choices that can be taken together.
 //!
 //! The mark alone (`selector_mark`) is the atom: it paints a state and takes no press. Beside a label it is the
-//! labelled selector (`selector`), which takes the press; in a menu's selection row (`menu_select`) it faces a label
+//! labelled selector (`selector`), which takes the press; in a menu's selection row (`selection_row`) it faces a label
 //! and an optional detail line. Every piece that shows a selector paints it with `selector_mark`.
 //!
 //! A selector asks and its caller decides, whatever its kind: `Resp.clicked` means the person asked for the choice

@@ -8,7 +8,7 @@ use mere_layout::{Dim, Insets, Position, Style};
 use mere_ui::tokens::{FADE_DIM, FADE_DISABLED, FADE_LIT, FRAME, GAP_TIGHT, INSET, INSET_TIGHT};
 use mere_ui::{SWITCH_H, SWITCH_W};
 use mere_ui::{
-    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, MARK_SIZE, MenuOpts, NumberSpec, SelectRow, Selector,
+    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, MARK_SIZE, MenuOpts, NumberSpec, Trigger, SelectionRow, Selector,
     SelectorOpts, RowOpts, ScrollOpts, THUMB_W, TextLook, Theme, Tone, Ui, scroll_style, text_width,
 };
 use mere_win32::Renderer;
@@ -711,10 +711,10 @@ fn a_single_selector_reports_the_press_and_shows_the_value_its_caller_gives() {
 }
 
 /// One selection row in a column 300 wide at (20, 20); a press or Space flips `v`, as a caller of a multiple choice does.
-fn select_row_at(ui: &mut Ui, row: SelectRow, v: &mut bool) -> Id {
+fn select_row_at(ui: &mut Ui, row: SelectionRow, v: &mut bool) -> Id {
     let mut id = None;
     ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| {
-        let r = ui.menu_select("o", SelectRow { selected: *v, ..row });
+        let r = ui.selection_row("o", SelectionRow { selected: *v, ..row });
         if r.clicked {
             *v = !*v;
         }
@@ -726,7 +726,7 @@ fn select_row_at(ui: &mut Ui, row: SelectRow, v: &mut bool) -> Id {
 #[test]
 fn a_selection_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
     both(|t| {
-        let row = SelectRow { label: "Reports", detail: "Archive", detail_tail: r"C:\Code\archive\2024\reports", selector: Selector::Multiple, ..SelectRow::default() };
+        let row = SelectionRow { label: "Reports", detail: "Archive", detail_tail: r"C:\Code\archive\2024\reports", selector: Selector::Multiple, ..SelectionRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let id = {
@@ -776,7 +776,7 @@ fn a_selection_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
         assert_eq!(sc.ui.focused(), None, "a press outside the row takes its focus");
 
         // Disabled: no press, no focus, no Space.
-        let off = SelectRow { disabled: true, ..row };
+        let off = SelectionRow { disabled: true, ..row };
         let mut sc = Scene::new(t);
         let mut v = false;
         sc.frame(|ui| {
@@ -805,7 +805,7 @@ fn texts_in(list: &DrawList, r: Rect) -> Vec<String> {
 #[test]
 fn a_selection_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
     let tail = r"C:\Code\archive\2024\reports\quarterly\final versions\signed";
-    let row = SelectRow { label: "Quarterly reports with every appendix and the signed copies", detail: "Archive", detail_tail: tail, selector: Selector::Multiple, ..SelectRow::default() };
+    let row = SelectionRow { label: "Quarterly reports with every appendix and the signed copies", detail: "Archive", detail_tail: tail, selector: Selector::Multiple, ..SelectionRow::default() };
     let mut sc = Scene::new(Theme::dark());
     let mut v = false;
     let mut id = None;
@@ -824,7 +824,7 @@ fn a_selection_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
 #[test]
 fn a_single_selection_row_with_a_detail_line_reports_its_press_and_paints_its_detail() {
     both(|t| {
-        let row = SelectRow { label: "Weekly", detail: "Archive", detail_tail: r"C:\Code\archive\weekly", selector: Selector::Single, ..SelectRow::default() };
+        let row = SelectionRow { label: "Weekly", detail: "Archive", detail_tail: r"C:\Code\archive\weekly", selector: Selector::Single, ..SelectionRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let mut id = None;
@@ -893,7 +893,7 @@ struct CornerOut {
 fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
     let mut out = CornerOut::default();
     ui.node("panel", Style { column: true, w: Dim::Px(240.0), ..at(20.0, 220.0) }, |ui| {
-        let opts = MenuOpts { up: true, disabled: c.disabled };
+        let opts = MenuOpts { up: true, disabled: c.disabled, ..MenuOpts::default() };
         let kind = c.kind;
         let selector = match kind {
             Kind::Several => Selector::Multiple,
@@ -903,19 +903,22 @@ fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
         let mut asked = None;
         let mut rows = Vec::new();
         let mut action = false;
-        let r = ui.menu("dd", "Back up: Reports", &mut c.open, opts, |ui| {
-            for (i, label) in ["Reports", "Notes"].into_iter().enumerate() {
-                let row = SelectRow { label, detail: "Archive", detail_tail: r"C:\Code\archive\2024", selector, selected: selected[i], disabled: false };
-                let resp = ui.menu_select(&format!("o{i}"), row);
-                rows.push(resp.id);
-                if resp.clicked {
-                    asked = Some(i);
+        let r = ui.menu("dd", Trigger::Line("Back up: Reports"), &mut c.open, opts, |ui| {
+            ui.group("folders", |ui| {
+                for (i, label) in ["Reports", "Notes"].into_iter().enumerate() {
+                    let row = SelectionRow { label, detail: "Archive", detail_tail: r"C:\Code\archive\2024", selector, selected: selected[i], disabled: false };
+                    let resp = ui.selection_row(&format!("o{i}"), row);
+                    rows.push(resp.id);
+                    if resp.clicked {
+                        asked = Some(i);
+                    }
                 }
-            }
-            ui.menu_separator();
-            let a = ui.menu_action("browse", "Browse\u{2026}");
-            rows.push(a.id);
-            action = a.clicked;
+            });
+            ui.group("more", |ui| {
+                let a = ui.action_row("browse", "Browse\u{2026}");
+                rows.push(a.id);
+                action = a.clicked;
+            });
         });
         if let Some(i) = asked {
             match kind {

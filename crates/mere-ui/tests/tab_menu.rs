@@ -3,7 +3,8 @@
 
 use mere_base::{Button, Cmd, Event, Rect, Vec2};
 use mere_layout::{Dim, Style};
-use mere_ui::{MENU_ROW, TabMenuResp, TabMenuRow, TabLook, TabOpts, Theme, Ui};
+use mere_ui::tokens::GAP_TIGHT;
+use mere_ui::{LIST_PAD, LIST_ROW, TabMenuResp, TabMenuRow, TabLook, TabOpts, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(400.0, 300.0);
 
@@ -59,7 +60,7 @@ impl Page {
 
     fn row(&self, i: usize) -> Vec2 {
         let b = self.tab();
-        Vec2::new(b.x + 20.0, b.y + b.h + 1.0 + i as f32 * MENU_ROW + 10.0)
+        Vec2::new(b.x + 20.0, b.y + b.h + GAP_TIGHT + LIST_PAD + (i as f32 + 0.5) * LIST_ROW)
     }
 
     /// The list's frame: the rectangle painted in the edge colour under the tab.
@@ -85,8 +86,9 @@ fn the_list_is_as_wide_as_its_longest_row_and_starts_at_the_tab() {
     let (b, l) = (p.tab(), p.list_rect());
     assert!(b.w < 11.0 * 7.2, "the tab is narrower than the longest row ({})", b.w);
     assert!(l.w >= 11.0 * 7.2, "{l:?}");
-    assert_eq!(l.x, b.x);
-    assert_eq!(l.y, b.y + b.h);
+    // An overlay lies on whole pixels: the tab, after words of fractional widths, may not.
+    assert_eq!(l.x, b.x.round());
+    assert_eq!(l.y, (b.y + b.h + GAP_TIGHT).round());
 }
 
 #[test]

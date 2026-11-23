@@ -1,5 +1,5 @@
-//! Lines made once and assembled by several components. The line a list opens from: the select box (`select_menu`)
-//! and the menu (`menu`) draw it here, and a strip tab that opens a list (`tab_menu`) takes its chevron. And the
+//! Lines made once and assembled by several components. The line a list opens from (`Trigger::Line` of the menu,
+//! which `select_menu` is built on), and the chevron a strip tab that opens a list (`Trigger::Tab`) takes. And the
 //! detail line, the muted second line under a label (a menu's selection row).
 
 use mere_base::Color;
@@ -15,8 +15,6 @@ use crate::ui::{CHEVRON, Paint, Ui};
 pub(crate) struct LineLook {
     /// The box's height, its frame included.
     pub height: f32,
-    /// The padding above and below the text, inside the frame.
-    pub pad_v: f32,
     /// Faded to `FADE_DISABLED`.
     pub disabled: bool,
     /// Framed in the text colour instead of the edge: the line has the keyboard.
@@ -37,11 +35,11 @@ impl Ui {
         let t = *self.theme();
         let fade = |c| t.disabled_if(c, look.disabled);
         let frame = fade(if look.focused { t.text } else { t.edge });
-        let v = FRAME + look.pad_v;
+        // The text is centred in the height: what is above and below it follows from the height alone.
         let style = Style {
             w: Dim::Pct(100.0),
             h: Dim::Px(look.height),
-            pad: Edges::new(v, FRAME + INSET_TIGHT, v, FRAME + INSET),
+            pad: Edges::new(FRAME, FRAME + INSET_TIGHT, FRAME, FRAME + INSET),
             align_items: Align::Center,
             ..Style::default()
         };

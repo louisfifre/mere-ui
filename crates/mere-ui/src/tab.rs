@@ -6,6 +6,7 @@ use mere_base::{Color, Cursor};
 use mere_layout::{Align, Dim, Display, Edges, Margin, NodeId, Position, Side, Style, Track, Tracks};
 use mere_base::Vec2;
 
+use crate::id::Id;
 use crate::text::{TextLook, Tone};
 use crate::theme::mix;
 use crate::tokens::*;
@@ -66,8 +67,15 @@ impl Ui {
     pub(crate) fn tab_open(&mut self, key: &str, text: &str, look: TabLook, opts: TabOpts) -> (Resp, NodeId, Color) {
         let id = self.key(key);
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
+        let (node, word) = self.tab_box(key, id, resp.hovered || resp.held, text, look, opts, overlap());
+        (resp, node, word)
+    }
+
+    /// The box of a tab, keyed `id`, whose pointer the caller judged (`lit`: hovered or held), left open. `margin` is
+    /// the strip's overlap of its neighbour's frame, or none when the caller already placed the box. Answers the
+    /// box's node and the colour its word took.
+    pub(crate) fn tab_box(&mut self, key: &str, id: Id, lit: bool, text: &str, look: TabLook, opts: TabOpts, margin: Margin) -> (NodeId, Color) {
         let t = *self.theme();
-        let lit = resp.hovered || resp.held;
         // Disabled fades the whole box: every colour, fill included.
         let fade = |c: Color| t.disabled_if(c, opts.disabled);
         // DELIBERATE DIFFERENCE: in the page's cascade `.strip button:hover:not(:disabled)` (0,3,1) beats
@@ -86,7 +94,7 @@ impl Ui {
                 Style {
                     h: Dim::Px(CONTROL),
                     pad: Edges::vh(FRAME, FRAME + INSET_WIDE),
-                    margin: overlap(),
+                    margin,
                     align_items: Align::Center,
                     position: if opts.pressed { Position::Relative } else { Position::Static },
                     ..Style::default()
@@ -97,7 +105,7 @@ impl Ui {
         };
         let node = self.open(key, id, style, Paint::Box { fill, frame });
         self.add_text(text, TextLook::body(Tone::Text), fade(word), false, Style::default());
-        (resp, node, fade(word))
+        (node, fade(word))
     }
 
     /// `#details button` (lines 195-200): a word and its wait on a second, smaller line. No hover rule

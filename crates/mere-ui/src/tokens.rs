@@ -80,7 +80,6 @@ pub const REGION: f32 = SPACE_48;
 pub const SWATCH: f32 = 12.0;
 pub const ICON: f32 = 16.0;
 pub const CONTROL_COMPACT: f32 = 24.0;
-pub const MENU_ROW: f32 = 24.0;
 pub const CONTROL: f32 = 28.0;
 pub const ICON_SQUARE: f32 = 32.0;
 pub const CONTROL_LARGE: f32 = 36.0;
