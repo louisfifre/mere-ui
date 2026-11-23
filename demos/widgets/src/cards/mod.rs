@@ -29,7 +29,6 @@ use mere_ui::tokens::{SPACE_48, SPACE_64, SPACE_96};
 use mere_ui::{Id, Theme, Ui};
 
 pub mod button;
-pub mod checkbox;
 pub mod cover;
 pub mod detail_tabs;
 pub mod fold;
@@ -40,9 +39,9 @@ pub mod list_heads;
 pub mod list_row;
 pub mod menu;
 pub mod number_field;
-pub mod radio;
 pub mod scroll_area;
 pub mod select;
+pub mod selector;
 pub mod stop_button;
 pub mod tab_menu;
 pub mod tabs;
@@ -212,7 +211,6 @@ pub fn render(theme: Theme, blocks: Vec<Block>) -> Card {
 /// Every card, by its kebab-case name.
 pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("button", button::card),
-    ("checkbox", checkbox::card),
     ("cover", cover::card),
     ("detail-tabs", detail_tabs::card),
     ("fold", fold::card),
@@ -223,9 +221,9 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("list-row", list_row::card),
     ("menu", menu::card),
     ("number-field", number_field::card),
-    ("radio", radio::card),
     ("scroll-area", scroll_area::card),
     ("select", select::card),
+    ("selector", selector::card),
     ("stop-button", stop_button::card),
     ("tab-menu", tab_menu::card),
     ("tabs", tabs::card),
