@@ -5,7 +5,7 @@
 //! 1. `Ui::event` for every event received since the last frame (pointer state is only stored);
 //! 2. `Ui::begin_frame(size)`;
 //! 3. the application's calls: `node`, `label`, `button`, `toggle`, `fold`, `tab`, `detail_tab`, `number`,
-//!    `text_field`, `ellipsis`, `scroll`, `list_row`, `list_head`, `trend_row`, `tick_box`, `tick_row`, `tick_list`...
+//!    `text_field`, `ellipsis`, `scroll`, `list_row`, `list_head`, `trend_row`, `checkbox`, `radio`, `dropdown`, `option`...
 //!    Each widget answers with what the
 //!    pointer did to it, judged against where the widget stood in the LAST frame (what the person saw and
 //!    pointed at), so the first frame of a widget has no interaction;
@@ -17,6 +17,7 @@
 mod anim;
 mod chrome;
 mod compose;
+mod dropdown;
 mod edit;
 mod field;
 mod fold;
@@ -31,13 +32,13 @@ mod scroll;
 mod tab;
 mod text;
 mod theme;
-mod tick;
 pub mod tokens;
 mod ui;
 mod widgets;
 
 pub use anim::{SLIDE_SECONDS, Slide, ease};
 pub use chrome::{CORNER, GRIP, IconLook, IconOpts, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, chrome_hit, grip, tool_button_width};
+pub use dropdown::{CheckboxOpts, DropdownOpts, DropdownResp, MARK_SIZE, Mark, OptionRow, RadioOpts};
 pub use edit::MemoryClipboard;
 pub use icon::Icon;
 pub use field::{FieldLook, FieldOpts, FieldResp};
@@ -52,6 +53,5 @@ pub use input::Input;
 pub use tab::{TabLook, TabOpts, choice_style, details_style, strip_style};
 pub use text::{ADVANCE_EM, ASCENT_EM, DESCENT_EM, TextLook, Tone, cells, cells_of, ellipsize, ellipsize_start, text_width, wrap_lines, wrap_lines_after};
 pub use theme::{Theme, mix};
-pub use tick::{TICK_BOX, TickListOpts, TickListResp, TickOpts, TickRow};
 pub use ui::{Resp, TIP_DELAY, Ui};
 pub use widgets::{ButtonLook, ButtonOpts, SWITCH_H, SWITCH_W, ToggleOpts};

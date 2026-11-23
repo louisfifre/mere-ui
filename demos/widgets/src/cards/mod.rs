@@ -29,8 +29,10 @@ use mere_ui::tokens::{SPACE_48, SPACE_64, SPACE_96};
 use mere_ui::{Id, Theme, Ui};
 
 pub mod button;
+pub mod checkbox;
 pub mod cover;
 pub mod detail_tabs;
+pub mod dropdown;
 pub mod fold;
 pub mod help;
 pub mod hover_box;
@@ -38,6 +40,7 @@ pub mod icon_button;
 pub mod list_heads;
 pub mod list_row;
 pub mod number_field;
+pub mod radio;
 pub mod scroll_area;
 pub mod select;
 pub mod stop_button;
@@ -45,9 +48,6 @@ pub mod tab_menu;
 pub mod tabs;
 pub mod text;
 pub mod text_field;
-pub mod tick_box;
-pub mod tick_list;
-pub mod tick_row;
 pub mod toggle;
 pub mod tool_button;
 pub mod tooltip;
@@ -212,8 +212,10 @@ pub fn render(theme: Theme, blocks: Vec<Block>) -> Card {
 /// Every card, by its kebab-case name.
 pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("button", button::card),
+    ("checkbox", checkbox::card),
     ("cover", cover::card),
     ("detail-tabs", detail_tabs::card),
+    ("dropdown", dropdown::card),
     ("fold", fold::card),
     ("help", help::card),
     ("hover-box", hover_box::card),
@@ -221,6 +223,7 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("list-heads", list_heads::card),
     ("list-row", list_row::card),
     ("number-field", number_field::card),
+    ("radio", radio::card),
     ("scroll-area", scroll_area::card),
     ("select", select::card),
     ("stop-button", stop_button::card),
@@ -228,9 +231,6 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("tabs", tabs::card),
     ("text", text::card),
     ("text-field", text_field::card),
-    ("tick-box", tick_box::card),
-    ("tick-list", tick_list::card),
-    ("tick-row", tick_row::card),
     ("toggle", toggle::card),
     ("tool-button", tool_button::card),
     ("tooltip", tooltip::card),
