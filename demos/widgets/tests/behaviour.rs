@@ -1313,3 +1313,59 @@ fn a_group_parts_itself_from_the_group_it_follows_and_from_nothing_else() {
         assert_eq!(title.concat(), "VIEW", "the title, in capitals (drawn letter by letter, it is tracked), gap-wide down");
     });
 }
+
+#[test]
+fn a_value_row_shows_its_mark_under_the_pointer_and_reports_a_press_on_it() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut v = 10.0;
+        let mut out = None;
+        let mut build = |sc: &mut Scene, v: &mut f64, out: &mut Option<mere_ui::ValueResp>| {
+            sc.frame(|ui| {
+                ui.node("col", Style { column: true, w: Dim::Px(280.0), ..at(20.0, 20.0) }, |ui| {
+                    let row = mere_ui::ValueRow { label: "Hill height", note: "", mark: "?", width: 280.0, control_w: 64.0, gutter: 0.0 };
+                    *out = Some(ui.value_row("h", row, None, |ui| {
+                        ui.number("field", v, NumberSpec { min: 0.0, max: 100.0, step: 1.0 });
+                    }));
+                });
+            })
+        };
+        build(&mut sc, &mut v, &mut out);
+        let list = build(&mut sc, &mut v, &mut out);
+        let r = out.unwrap();
+        assert!(texts_in(&list, sc.rect(r.row)).iter().all(|s| s != "?"), "no mark at rest");
+        sc.ui.event(&Event::PointerMoved { pos: centre(sc.rect(r.label)) });
+        build(&mut sc, &mut v, &mut out);
+        let list = build(&mut sc, &mut v, &mut out);
+        assert!(texts_in(&list, sc.rect(r.row)).iter().any(|s| s == "?"), "the mark shows while the pointer is on the row");
+        let mark = sc.rect(out.unwrap().mark.id);
+        sc.click(centre(mark), 1);
+        build(&mut sc, &mut v, &mut out);
+        assert!(out.unwrap().mark.clicked, "a press on the mark is reported");
+        assert_eq!(sc.rect(out.unwrap().row).w, 280.0);
+    });
+}
+
+#[test]
+fn a_split_grip_reports_its_press_and_a_double_press_resets() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut g = None;
+        let mut build = |sc: &mut Scene, g: &mut Option<mere_ui::GripResp>| {
+            sc.frame(|ui| {
+                ui.node("row", Style { h: Dim::Px(100.0), ..at(20.0, 20.0) }, |ui| *g = Some(ui.split_grip("gap", 28.0)));
+            })
+        };
+        build(&mut sc, &mut g);
+        build(&mut sc, &mut g);
+        let r = sc.rect(g.unwrap().resp.id);
+        assert_eq!((r.w, r.h), (mere_ui::SPLIT_GRIP_W, 100.0), "as tall as what holds it");
+        assert_eq!(r.x, 20.0 + (28.0 - mere_ui::SPLIT_GRIP_W) / 2.0, "in the middle of its gap");
+        sc.ui.event(&Event::PointerMoved { pos: centre(r) });
+        let list = build(&mut sc, &mut g);
+        sc.pic(&list).is(r.x + (r.w / 2.0).floor(), r.y + 50.0, t.muted, "the line under the pointer");
+        sc.ui.event(&Event::PointerDown { pos: centre(r), button: Button::Left, clicks: 2 });
+        build(&mut sc, &mut g);
+        assert!(g.unwrap().resp.pressed && g.unwrap().reset, "a double press asks for the natural width");
+    });
+}

@@ -44,6 +44,7 @@ pub mod menu;
 pub mod number_field;
 pub mod rule;
 pub mod scroll_area;
+pub mod stage_template;
 pub mod select;
 pub mod selection_row;
 pub mod selector;
@@ -56,6 +57,7 @@ pub mod toggle;
 pub mod tool_button;
 pub mod tooltip;
 pub mod trend_row;
+pub mod value_row;
 
 /// A card as a draw list and its size in pixels.
 pub struct Card {
@@ -231,6 +233,7 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("number-field", number_field::card),
     ("rule", rule::card),
     ("scroll-area", scroll_area::card),
+    ("stage-template", stage_template::card),
     ("select", select::card),
     ("selection-row", selection_row::card),
     ("selector", selector::card),
@@ -243,6 +246,7 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("tool-button", tool_button::card),
     ("tooltip", tooltip::card),
     ("trend-row", trend_row::card),
+    ("value-row", value_row::card),
 ];
 
 pub fn find(name: &str) -> Option<fn(Theme) -> Card> {
