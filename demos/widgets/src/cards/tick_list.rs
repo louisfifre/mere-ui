@@ -21,7 +21,7 @@ const PRISM: TickRow = TickRow { name: "Exploration, your game", how: "Prism Lau
 const VANILLA: TickRow = TickRow { name: "Exploration, your game", how: "Minecraft Launcher", path: r"%APPDATA%\.minecraft-exploration", disabled: false };
 const ATELIER: TickRow = TickRow { name: "Atelier, your game", how: "Prism Launcher", path: r"%APPDATA%\PrismLauncher\instances\Atelier", disabled: false };
 const SERVER: TickRow = TickRow { name: "Test server, shared with everyone who joins", how: "Dedicated server", path: r"C:\Games\server", disabled: false };
-const SOURCE: TickRow = TickRow { name: "Pack source folder, for its next version", how: "Repository", path: r"C:\Code\minecraft-pack", disabled: false };
+const SOURCE: TickRow = TickRow { name: "Pack source folder, for its next version", how: "Repository", path: r"C:\Code\pack", disabled: false };
 
 /// A tick list in a box `COL` wide and `h` tall, its line at the bottom when the list opens up, at the top when it
 /// opens down. `open` presses the line once.
