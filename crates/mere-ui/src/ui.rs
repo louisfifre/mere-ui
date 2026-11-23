@@ -123,13 +123,12 @@ pub struct Ui {
     lift_rects: Vec<Rect>,
     /// The open dropdown as last built (dropdown.rs), whether one was built open this frame, the dropdown that Escape
     /// or a press outside closed (told when it is built), and, while a list's rows are built, their ids, whether the
-    /// first of them takes the focus, whether one of them has a mark, and the row Up or Down moves the focus from.
+    /// first of them takes the focus, and the row Up or Down moves the focus from.
     pub(crate) dropdown_hung: Option<Hung>,
     pub(crate) dropdown_built: bool,
     pub(crate) dropdown_close: Option<Id>,
     pub(crate) dropdown_rows: Option<Vec<Id>>,
     pub(crate) dropdown_first: bool,
-    pub(crate) dropdown_marked: bool,
     pub(crate) dropdown_step: Option<(Id, i32)>,
 }
 
@@ -183,7 +182,6 @@ impl Ui {
             dropdown_close: None,
             dropdown_rows: None,
             dropdown_first: false,
-            dropdown_marked: false,
             dropdown_step: None,
         }
     }

@@ -1,7 +1,7 @@
 //! Selection controls: the checkbox and the radio button alone with their labels (`checkbox`, `radio`), and the
 //! dropdown (`dropdown`): a line in the compact select's look that opens a list of option rows (`option`) above or
-//! under it. One row type serves every kind of choice: several with check boxes, one with radio buttons, and one or
-//! several in a plain list whose chosen rows end in a check.
+//! under it. One row type serves both kinds of choice: several with check boxes, one with radio buttons; either may
+//! carry a second muted line under its label.
 //!
 //! Use `select_menu` to pick one value among short texts, the list closing on the pick; use `dropdown` when the rows
 //! carry marks, a second line, separators or an action, or when several can be chosen.
@@ -84,10 +84,8 @@ pub struct RadioOpts {
 /// What an option row shows at its head.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum Mark {
-    /// A plain row: when selected, a check at its end.
-    #[default]
-    None,
     /// A check box: one of several choices.
+    #[default]
     Check,
     /// A radio button: the one choice.
     Radio,
@@ -173,21 +171,13 @@ fn mark_cmds(mark: Mark, line: Color, inner: Option<Color>) -> Vec<Cmd> {
                 cmds.extend(blocks(&DOT, c));
             }
         }
-        Mark::None => {
-            // Twice as thick as a check box's, as it stands alone with no frame to carry it.
-            if let Some(c) = inner {
-                cmds.extend(check_cmds(c));
-                cmds.extend(CHECK.into_iter().map(move |(x, y)| Cmd::Fill { rect: Rect::new(x, y + 1.0, 1.0, 1.0), color: c }));
-            }
-        }
     }
     cmds
 }
 
-/// A row of the list: `inset-tight` above and below, `inset` at the sides; the mark's column first, or, for a plain
-/// row, last.
-fn row_style(mark: Mark) -> Style {
-    let cols = if mark == Mark::None { [Track::MinMaxFr0(1.0), Track::Px(MARK_SIZE)] } else { [Track::Px(MARK_SIZE), Track::MinMaxFr0(1.0)] };
+/// A row of the list: `inset-tight` above and below, `inset` at the sides; the mark's column, then the text's.
+fn row_style() -> Style {
+    let cols = [Track::Px(MARK_SIZE), Track::MinMaxFr0(1.0)];
     Style { display: Display::Grid, cols: Tracks::new(&cols), gap: Vec2::new(GAP, 0.0), align_items: Align::Start, pad: Edges::vh(INSET_TIGHT, INSET), ..Style::default() }
 }
 
@@ -312,8 +302,8 @@ impl Ui {
         self.labelled_mark(key, label, Mark::Radio, selected, false, opts.disabled)
     }
 
-    /// One row of a dropdown (or of any list): the mark at its head (a check box, a radio button) or, for a plain row,
-    /// a check at its end while selected; the label on the first line, and, muted on a second, `detail` and
+    /// One row of a dropdown (or of any list): the mark at its head (a check box, a radio button) facing the label on
+    /// the first line, and, muted on a second, `detail` and
     /// `detail_tail`. The whole row takes the press; the focused row is filled with the selection colour. A press, or
     /// Space once focused, is `Resp.clicked`: the person asked for the row to change, which the caller applies; the
     /// `Ui` then asks for one more frame (`want_redraw`) to show it.
@@ -330,16 +320,11 @@ impl Ui {
         if keys.step != 0 {
             self.dropdown_step = Some((id, keys.step));
         }
-        if row.mark != Mark::None {
-            self.dropdown_marked = true;
-        }
         let t = *self.theme();
         let fade = |c| if row.disabled { t.faded(c, FADE_DISABLED) } else { c };
         let (line, inner) = self.mark_colors(row.selected, resp.hovered || resp.held, focused, row.disabled);
-        self.open(key, id, row_style(row.mark), Paint::Box { fill: focused.then_some(t.select), frame: None });
-        if row.mark != Mark::None {
-            self.add("mark", mark_style(), Paint::Cmds(mark_cmds(row.mark, line, inner)));
-        }
+        self.open(key, id, row_style(), Paint::Box { fill: focused.then_some(t.select), frame: None });
+        self.add("mark", mark_style(), Paint::Cmds(mark_cmds(row.mark, line, inner)));
         let label_color = fade(if focused { t.select_text } else { t.text });
         let muted = fade(t.muted);
         self.node("lines", Style { column: true, min_w: Dim::Px(0.0), ..Style::default() }, |ui| {
@@ -362,17 +347,12 @@ impl Ui {
                 });
             }
         });
-        if row.mark == Mark::None {
-            // The end check, in the label's colour so that it reads on the focus fill too.
-            let check = if row.selected { Some(label_color) } else { None };
-            self.add("mark", mark_style(), Paint::Cmds(mark_cmds(Mark::None, line, check)));
-        }
         self.close();
         resp
     }
 
-    /// The plain row at the end of a dropdown (an action such as "Add an item…"): its text in the rows' text column
-    /// (after the marks' column when the rows above have marks), underlined under the pointer, filled when focused. A
+    /// The unmarked row at the end of a dropdown (an action such as "Add an item…"): its text in the rows' text column,
+    /// after an empty marks' column so that it lines up with the labels above, underlined under the pointer, filled when focused. A
     /// press or Space on it is `Resp.clicked`; the list stays open, the caller closes it if the action wants (setting
     /// the list's `open` false), and the line then has the focus back.
     pub fn dropdown_action(&mut self, key: &str, text: &str) -> Resp {
@@ -385,12 +365,8 @@ impl Ui {
             self.dropdown_step = Some((id, keys.step));
         }
         let t = *self.theme();
-        let marked = self.dropdown_marked;
-        let style = if marked { row_style(Mark::Check) } else { Style { pad: Edges::vh(INSET_TIGHT, INSET), ..Style::default() } };
-        self.open(key, id, style, Paint::Box { fill: focused.then_some(t.select), frame: None });
-        if marked {
-            self.add("pad", Style { w: Dim::Px(MARK_SIZE), ..Style::default() }, Paint::None);
-        }
+        self.open(key, id, row_style(), Paint::Box { fill: focused.then_some(t.select), frame: None });
+        self.add("pad", Style { w: Dim::Px(MARK_SIZE), ..Style::default() }, Paint::None);
         let color = if focused { t.select_text } else { t.text };
         self.add_ellipsis(text, TextLook::body(Tone::Text), color, resp.hovered);
         self.close();
@@ -487,7 +463,6 @@ impl Ui {
             self.dropdown_rows = Some(Vec::new());
             // The first row takes the focus as it is built, unless Up asked for the last, given once all are built.
             self.dropdown_first = (opened && into != Some(-1)) || into == Some(1);
-            self.dropdown_marked = false;
             self.dropdown_step = None;
             let list_id = self.overlay("list", style, rows);
             mine = self.dropdown_rows.take().unwrap_or_default();

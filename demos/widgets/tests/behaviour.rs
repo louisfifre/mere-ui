@@ -812,17 +812,45 @@ fn an_option_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
     assert!(cut.ends_with("versions\\signed") && cut.len() < tail.len(), "the tail keeps its end: {cut:?}");
 }
 
-/// The four kinds of choice a dropdown's rows serve.
+#[test]
+fn a_radio_row_with_a_detail_line_reports_its_press_and_paints_its_detail() {
+    both(|t| {
+        let row = OptionRow { label: "Weekly", detail: "Archive", detail_tail: r"D:\Archive\weekly", mark: Mark::Radio, ..OptionRow::default() };
+        let mut sc = Scene::new(t);
+        let mut v = false;
+        let mut id = None;
+        sc.frame(|ui| id = Some(option_at(ui, row, &mut v)));
+        let r = sc.rect(id.unwrap());
+        assert_eq!(r.h, 2.0 * INSET_TIGHT + 18.0 + 16.0, "two lines on whole pixels");
+        // A press on the detail line, under the label, is the row's.
+        sc.click(Vec2::new(r.x + INSET + MARK_SIZE + 20.0, r.y + r.h - INSET_TIGHT - 4.0), 1);
+        sc.frame(|ui| {
+            option_at(ui, row, &mut v);
+        });
+        assert!(v, "the press is reported and its caller selects the row");
+        sc.click(Vec2::new(380.0, 280.0), 1);
+        let list = sc.frame(|ui| {
+            option_at(ui, row, &mut v);
+        });
+        let texts = texts_in(&list, r);
+        assert!(texts.iter().any(|s| s == "Archive \u{b7} ") && texts.iter().any(|s| s == r"D:\Archive\weekly"), "the detail is painted: {texts:?}");
+        let at = |s: &str| list.cmds.iter().find_map(|c| if let Cmd::Text { at, text, .. } = c { (text == s).then_some(*at) } else { None }).unwrap();
+        let (label, detail) = (at("Weekly"), at("Archive \u{b7} "));
+        assert!(detail.x == label.x && detail.y > label.y, "the detail sits under the label");
+        let sq = square(r, INSET, INSET_TIGHT + 4.0);
+        let pic = sc.pic(&list);
+        pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the selected row's dot");
+        pic.is(sq.x, sq.y, t.ground, "a round mark, with empty corners");
+    });
+}
+
+/// The two kinds of choice a dropdown's rows serve.
 #[derive(Copy, Clone, PartialEq)]
 enum Kind {
     /// Several, with check boxes.
     Checks,
     /// One, with radio buttons; the list closes on the pick.
     Radios,
-    /// One in a plain list, closing on the pick.
-    PlainOne,
-    /// Several in a plain list.
-    PlainMany,
 }
 
 /// The corner of a panel: a dropdown hung above its line, which sits at (20, 220) and is 240 wide, holding two
@@ -861,7 +889,6 @@ fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
         let mark = match kind {
             Kind::Checks => Mark::Check,
             Kind::Radios => Mark::Radio,
-            Kind::PlainOne | Kind::PlainMany => Mark::None,
         };
         let selected = c.selected;
         let mut asked = None;
@@ -883,8 +910,8 @@ fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
         });
         if let Some(i) = asked {
             match kind {
-                Kind::Checks | Kind::PlainMany => c.selected[i] = !c.selected[i],
-                Kind::Radios | Kind::PlainOne => {
+                Kind::Checks => c.selected[i] = !c.selected[i],
+                Kind::Radios => {
                     c.selected = [i == 0, i == 1];
                     c.open = false;
                 }
@@ -928,6 +955,11 @@ fn the_dropdown_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_ope
         assert!(rows.iter().all(|r| r.x == list.x + FRAME && r.w == list.w - 2.0 * FRAME), "every row spans the list inside its frame");
         // The first row has the focus when the list opens.
         assert_eq!(sc.ui.focused(), Some(out.rows[0]), "the first row takes the focus on opening");
+        // The action row leaves the marks' column empty: its text starts where the labels do.
+        let painted = sc.frame(|ui| out = corner(ui, &mut c));
+        let at = |s: &str| painted.cmds.iter().find_map(|c| if let Cmd::Text { at, text, .. } = c { (text == s).then_some(at.x) } else { None });
+        assert!(at("Notes").is_some(), "the label is painted");
+        assert_eq!(at("Browse\u{2026}"), at("Notes"), "the action's text lines up with the labels");
         // Checking rows leaves the list open.
         sc.click(centre(rows[1]), 1);
         sc.frame(|ui| out = corner(ui, &mut c));
@@ -982,56 +1014,6 @@ fn a_single_choice_with_radios_selects_one_row_and_its_caller_closes_the_list() 
         sc.ui.event(&SPACE);
         sc.frame(|ui| out = corner(ui, &mut c));
         assert_eq!(c.selected, [true, false], "Space on the focused first row selects it alone");
-    });
-}
-
-/// Where a plain row's end check stands: the last `MARK_SIZE` column inside the row's right padding.
-fn end_check(r: Rect) -> Rect {
-    square(r, r.w - INSET - MARK_SIZE, INSET_TIGHT + 4.0)
-}
-
-/// Whether some 1 px fill in the text colour lies inside `r`.
-fn ink_in(list: &DrawList, r: Rect, color: Color) -> bool {
-    list.cmds.iter().any(|c| matches!(c, Cmd::Fill { rect, color: k } if *k == color && rect.w <= 1.0 && rect.h <= 1.0 && r.contains(Vec2::new(rect.x, rect.y))))
-}
-
-#[test]
-fn a_plain_list_marks_its_chosen_rows_with_a_check_at_their_end_apart_from_the_focus() {
-    both(|t| {
-        // One choice: the pick closes the list, the chosen row ends in a check.
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::PlainOne);
-        let rows: Vec<Rect> = out.rows.iter().map(|id| sc.rect(*id)).collect();
-        let list = sc.frame(|ui| out = corner(ui, &mut c));
-        assert!(!ink_in(&list, end_check(rows[0]), t.select_text) && !ink_in(&list, end_check(rows[1]), t.text), "no check before a pick");
-        // A plain row has no mark at its head: its label starts at the padding.
-        let texts: Vec<(Vec2, String)> = list.cmds.iter().filter_map(|c| if let Cmd::Text { at, text, .. } = c { Some((*at, text.clone())) } else { None }).collect();
-        let label = texts.iter().find(|(_, s)| s == "Notes").expect("the label is painted");
-        assert_eq!(label.0.x, rows[1].x + INSET, "the label starts at the row's padding");
-        sc.click(centre(rows[1]), 1);
-        sc.frame(|ui| out = corner(ui, &mut c));
-        assert!(c.selected == [false, true] && !c.open, "the pick selects one row and closes the list");
-        sc.frame(|ui| out = corner(ui, &mut c));
-        assert_eq!(sc.ui.focused(), out.line, "the line has the focus back");
-        sc.ui.event(&SPACE);
-        sc.frame(|ui| out = corner(ui, &mut c));
-        let list = sc.frame(|ui| out = corner(ui, &mut c));
-        assert_eq!(sc.ui.focused(), Some(out.rows[0]), "the first row has the focus");
-        assert!(ink_in(&list, end_check(rows[1]), t.text), "the chosen row ends in a check");
-        assert!(!ink_in(&list, end_check(rows[0]), t.select_text), "the focused row is filled but has no check");
-        let pic = sc.pic(&list);
-        pic.is(rows[0].x + rows[0].w - 4.0, rows[0].y + 2.0, t.select, "the focus is the fill");
-        pic.is(rows[1].x + rows[1].w - 4.0, rows[1].y + 2.0, t.ground, "the chosen row is not filled");
-
-        // Several: each press flips its row and the list stays open.
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::PlainMany);
-        sc.click(centre(rows[1]), 1);
-        sc.frame(|ui| out = corner(ui, &mut c));
-        sc.click(centre(rows[0]), 1);
-        sc.frame(|ui| out = corner(ui, &mut c));
-        let list = sc.frame(|ui| out = corner(ui, &mut c));
-        assert!(c.selected == [true, true] && c.open, "both rows chosen, the list open");
-        assert!(ink_in(&list, end_check(rows[0]), t.select_text), "the focused chosen row's check is in the selection's text colour");
-        assert!(ink_in(&list, end_check(rows[1]), t.text), "the other chosen row's check");
     });
 }
 

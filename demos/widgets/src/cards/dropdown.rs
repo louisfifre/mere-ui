@@ -1,7 +1,7 @@
-//! The Dropdown card: the line closed and disabled; then open in each kind of choice (several with check boxes, one
-//! with radio buttons, one in a plain list, several in a plain list); then two-line rows whose long detail is cut at
-//! its start, a separator and an action row, hung above and under the line. The Design System has no preview of it
-//! yet. An open list is opened by a press on its line, so its first row has the focus, as it does when the list opens.
+//! The Dropdown card: the line closed and disabled; then open in each kind of choice, several with check boxes and one
+//! with radio buttons (one row disabled); then the same two with two-line rows whose long detail is cut at its start,
+//! a separator and an action row; and a list hung above its line. The Design System has no preview of it yet. An open
+//! list is opened by a press on its line, so its first row has the focus, as it does when the list opens.
 
 use std::cell::Cell as Memo;
 
@@ -30,21 +30,27 @@ const fn off(label: &'static str, mark: Mark) -> Item {
     Item::Row(OptionRow { label, detail: "", detail_tail: "", mark, selected: false, disabled: true })
 }
 
-const fn two(label: &'static str, detail: &'static str, detail_tail: &'static str, selected: bool) -> Item {
-    Item::Row(OptionRow { label, detail, detail_tail, mark: Mark::Check, selected, disabled: false })
+const fn two(label: &'static str, detail: &'static str, detail_tail: &'static str, mark: Mark, selected: bool) -> Item {
+    Item::Row(OptionRow { label, detail, detail_tail, mark, selected, disabled: false })
 }
 
 const TOPPINGS: &[Item] = &[row("Cheese", Mark::Check, true), row("Tomato", Mark::Check, false), row("Basil", Mark::Check, true), row("Olives", Mark::Check, false)];
 const SIZES: &[Item] = &[row("Small", Mark::Radio, false), row("Medium", Mark::Radio, true), row("Large", Mark::Radio, false), off("Extra large", Mark::Radio)];
-const SORT: &[Item] = &[row("Name", Mark::None, true), row("Date modified", Mark::None, false), row("Size", Mark::None, false), row("Type", Mark::None, false)];
-const COLUMNS: &[Item] = &[row("Name", Mark::None, true), row("Date modified", Mark::None, true), row("Size", Mark::None, false), row("Type", Mark::None, true)];
 const BACKUP: &[Item] = &[
-    two("Reports", "Archive", r"D:\Archive\2024\reports\quarterly\final versions", true),
-    two("Holiday pictures", "Pictures", r"D:\Pictures\2024\Summer by the lake\edited", false),
-    two("Notes", "", "", true),
+    two("Reports", "Archive", r"D:\Archive\2024\reports\quarterly\final versions", Mark::Check, true),
+    two("Sketches", "Code", r"C:\Code\sketches\2024\interface studies", Mark::Check, false),
+    two("Notes", "", "", Mark::Check, true),
     Item::Separator,
     Item::Action("Browse\u{2026}"),
 ];
+const SAVE_TO: &[Item] = &[
+    two("Documents", "This computer", r"C:\Users\someone\Documents\Letters\2024\drafts", Mark::Radio, true),
+    two("Projects", "This computer", r"C:\Code\projects", Mark::Radio, false),
+    two("Archive", "External drive", r"D:\Archive\2024", Mark::Radio, false),
+    Item::Separator,
+    Item::Action("Choose a folder\u{2026}"),
+];
+const SORT: &[Item] = &[row("Name", Mark::Radio, true), row("Date modified", Mark::Radio, false), row("Size", Mark::Radio, false)];
 
 /// A dropdown in a box `COL` wide and `h` tall, its line at the bottom when the list opens up, at the top when it
 /// opens down. `open` presses the line once.
@@ -93,12 +99,9 @@ pub fn blocks() -> Vec<Block> {
     let disabled = DropdownOpts { disabled: true, ..down };
     vec![
         Block::matrix(vec![vec![list("Toppings: Cheese, Basil", TOPPINGS, down, false, 24.0), list("Size: Medium", SIZES, disabled, false, 24.0)]]).col_width(COL),
-        Block::matrix(vec![
-            vec![list("Toppings: Cheese, Basil", TOPPINGS, down, true, 140.0), list("Size: Medium", SIZES, down, true, 140.0)],
-            vec![list("Sort by: Name", SORT, down, true, 140.0), list("Columns: Name, Date modified, Type", COLUMNS, down, true, 140.0)],
-        ])
-        .col_width(COL),
-        Block::matrix(vec![vec![list("Back up: Reports, Notes", BACKUP, up, true, 200.0), list("Back up: Reports, Notes", BACKUP, down, true, 200.0)]]).col_width(COL),
+        Block::matrix(vec![vec![list("Toppings: Cheese, Basil", TOPPINGS, down, true, 140.0), list("Size: Medium", SIZES, down, true, 140.0)]]).col_width(COL),
+        Block::matrix(vec![vec![list("Back up: Reports, Notes", BACKUP, down, true, 200.0), list("Save to: Documents", SAVE_TO, down, true, 200.0)]]).col_width(COL),
+        Block::matrix(vec![vec![list("Sort by: Name", SORT, up, true, 112.0)]]).col_width(COL),
     ]
 }
 
