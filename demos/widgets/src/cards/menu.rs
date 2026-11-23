@@ -37,7 +37,7 @@ const fn two(label: &'static str, detail: &'static str, detail_tail: &'static st
 const TOPPINGS: &[Item] = &[row("Cheese", Selector::Multiple, true), row("Tomato", Selector::Multiple, false), row("Basil", Selector::Multiple, true), row("Olives", Selector::Multiple, false)];
 const SIZES: &[Item] = &[row("Small", Selector::Single, false), row("Medium", Selector::Single, true), row("Large", Selector::Single, false), off("Extra large", Selector::Single)];
 const BACKUP: &[Item] = &[
-    two("Reports", "Archive", r"D:\Archive\2024\reports\quarterly\final versions", Selector::Multiple, true),
+    two("Reports", "Archive", r"C:\Coderchive\2024\reports\quarterly\final versions", Selector::Multiple, true),
     two("Sketches", "Code", r"C:\Code\sketches\2024\interface studies", Selector::Multiple, false),
     two("Notes", "", "", Selector::Multiple, true),
     Item::Separator,
@@ -46,7 +46,7 @@ const BACKUP: &[Item] = &[
 const SAVE_TO: &[Item] = &[
     two("Documents", "This computer", r"C:\Users\someone\Documents\Letters\2024\drafts", Selector::Single, true),
     two("Projects", "This computer", r"C:\Code\projects", Selector::Single, false),
-    two("Archive", "External drive", r"D:\Archive\2024", Selector::Single, false),
+    two("Archive", "This computer", r"C:\Coderchive\2024", Selector::Single, false),
     Item::Separator,
     Item::Action("Choose a folder\u{2026}"),
 ];
