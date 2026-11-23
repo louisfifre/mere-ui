@@ -8,7 +8,7 @@ use crate::icon::{Icon, icon_shape};
 use crate::id::Id;
 use crate::text::{TextLook, Tone};
 use crate::theme::mix;
-use crate::tokens::{CONTROL, FADE_DISABLED, FADE_LIT, FADE_TINT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
+use crate::tokens::{CONTROL, FADE_LIT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
 use crate::ui::{Paint, Resp, Ui};
 
 /// A tool button with its name (`Ui::tool_button`): `inset` inside the frame before the icon, `gap` between the
@@ -171,17 +171,14 @@ impl Ui {
                     ..Style::default()
                 };
                 if lit {
-                    (style, Some(mix(t.text, FADE_TINT, t.ground)), None, t.text)
+                    (style, Some(t.tint()), None, t.text)
                 } else {
                     (style, None, None, t.muted)
                 }
             }
         };
-        let (fill, frame, color) = if opts.disabled {
-            (fill.map(|c| t.faded(c, FADE_DISABLED)), frame.map(|c| t.faded(c, FADE_DISABLED)), t.faded(color, FADE_DISABLED))
-        } else {
-            (fill, frame, color)
-        };
+        let off = |c| t.disabled_if(c, opts.disabled);
+        let (fill, frame, color) = (fill.map(off), frame.map(off), off(color));
         self.open(key, id, style, Paint::Box { fill, frame });
         let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
         let mut cmds = vec![icon_shape(icon, ICON, color, icon.axis_aligned())];

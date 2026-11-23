@@ -13,7 +13,7 @@ use crate::id::Id;
 use crate::line::LineLook;
 use crate::tab::{TabLook, TabOpts};
 use crate::text::{TextLook, Tone, half_leading};
-use crate::tokens::{CONTROL, FADE_DISABLED, FRAME, GAP, INSET, INSET_HAIR, INSET_TIGHT};
+use crate::tokens::{CONTROL, FRAME, GAP, INSET, INSET_HAIR, INSET_TIGHT};
 use crate::ui::{Resp, Ui, draw_line};
 
 /// One row of the popup list, its line centred in it.
@@ -214,7 +214,7 @@ impl Ui {
             if hot {
                 list.fill(Rect::new(r.x + 1.0, top, r.w - 2.0, MENU_ROW), t.select);
             }
-            let color = if hot { t.select_text } else if off { t.faded(t.text, FADE_DISABLED) } else { t.text };
+            let color = if hot { t.select_text } else if off { t.disabled_if(t.text, true) } else { t.text };
             draw_line(list, text, look, color, r.x + FRAME + INSET, top + (MENU_ROW - look.line) / 2.0 + half_leading(look));
         }
     }

@@ -12,7 +12,7 @@ use mere_base::{Cmd, Color, Cursor, Rect, Vec2};
 use mere_layout::{Align, Dim, Style};
 
 use crate::text::{TextLook, Tone};
-use crate::tokens::{CONTROL_COMPACT, FADE_DISABLED, FRAME, GAP, SWATCH};
+use crate::tokens::{CONTROL_COMPACT, FRAME, GAP, SWATCH};
 use crate::ui::{Paint, Resp, Ui};
 
 /// The side of a selector: a swatch's, so that a selection row's columns line up with a list row's.
@@ -83,7 +83,7 @@ impl Ui {
         } else {
             t.edge
         };
-        let fade = |c| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
+        let fade = |c| t.disabled_if(c, opts.disabled);
         let (line, inner) = (fade(line), selected.then(|| fade(t.text)));
         let mut cmds = Vec::new();
         match kind {
@@ -119,7 +119,7 @@ impl Ui {
         self.open(key, id, style, Paint::None);
         self.selector_mark(kind, selected, MarkOpts { disabled: opts.disabled, lit: resp.hovered || resp.held, on_selection: false });
         if !label.is_empty() {
-            let word = if opts.disabled { t.faded(t.text, FADE_DISABLED) } else { t.text };
+            let word = t.disabled_if(t.text, opts.disabled);
             self.add_text(label, TextLook::body(Tone::Text), word, false, Style::default());
         }
         self.close();

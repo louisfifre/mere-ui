@@ -69,7 +69,7 @@ impl Ui {
         let t = *self.theme();
         let lit = resp.hovered || resp.held;
         // Disabled fades the whole box: every colour, fill included.
-        let fade = |c: Color| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
+        let fade = |c: Color| t.disabled_if(c, opts.disabled);
         // DELIBERATE DIFFERENCE: in the page's cascade `.strip button:hover:not(:disabled)` (0,3,1) beats
         // `[aria-pressed=true]` (0,2,1), so hovering the pressed strip tab paints its word in --text on a
         // --text ground and the word vanishes. We keep the pressed word on hover.
@@ -106,7 +106,7 @@ impl Ui {
         let id = self.key(key);
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
-        let fade = |c: Color| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
+        let fade = |c: Color| t.disabled_if(c, opts.disabled);
         let style = Style {
             column: true,
             pad: Edges::vh(FRAME + INSET_TIGHT, FRAME + INSET),

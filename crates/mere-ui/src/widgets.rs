@@ -158,7 +158,7 @@ impl Ui {
                     ..Style::default()
                 };
                 let word = if opts.disabled {
-                    t.faded(t.muted, FADE_DISABLED)
+                    t.disabled_if(t.muted, true)
                 } else if lit {
                     t.text
                 } else {
@@ -169,7 +169,7 @@ impl Ui {
             ButtonLook::Underlined => {
                 let style = Style { pad: Edges::vh(INSET_HAIR, 0.0), grow: opts.grow, ..Style::default() };
                 let word = if opts.disabled {
-                    t.faded(t.text, FADE_DISABLED)
+                    t.disabled_if(t.text, true)
                 } else if lit {
                     t.muted
                 } else {
@@ -201,7 +201,7 @@ impl Ui {
         let t = *self.theme();
         let lit = !disabled && (resp.hovered || resp.held);
         let (colour, frame) = if disabled {
-            (t.faded(t.muted, FADE_DISABLED), t.faded(t.edge, FADE_DISABLED))
+            (t.disabled_if(t.muted, true), t.disabled_if(t.edge, true))
         } else if lit {
             (t.text, t.text)
         } else {
@@ -248,14 +248,14 @@ impl Ui {
             let ink = if lit { t.text } else { t.muted };
             (None, line, ink, ink)
         };
-        if opts.disabled {
-            fill = fill.map(|c| t.faded(c, FADE_DISABLED));
-            frame = t.faded(frame, FADE_DISABLED);
-            if !on {
-                knob = t.faded(knob, FADE_DISABLED);
-            }
-            word = t.faded(word, FADE_DISABLED);
+        // The on knob stays `on_fill`: it is read against the faded fill, not the ground.
+        let off = |c| t.disabled_if(c, opts.disabled);
+        fill = fill.map(off);
+        frame = off(frame);
+        if !on {
+            knob = off(knob);
         }
+        word = off(word);
         let style = Style {
             pad: opts.pad,
             min_w: opts.min_w,

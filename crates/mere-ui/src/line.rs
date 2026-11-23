@@ -7,7 +7,7 @@ use mere_layout::{Align, Dim, Edges, Margin, NodeId, Side, Style};
 
 use crate::id::Id;
 use crate::text::{TextLook, Tone};
-use crate::tokens::{FADE_DISABLED, FRAME, INSET, INSET_TIGHT};
+use crate::tokens::{FRAME, INSET, INSET_TIGHT};
 use crate::ui::{CHEVRON, Paint, Ui};
 
 /// What a line differs by between the components that draw it.
@@ -35,7 +35,7 @@ impl Ui {
     /// judges the pointer on it.
     pub(crate) fn menu_line(&mut self, key: &str, id: Id, text: &str, look: LineLook) -> NodeId {
         let t = *self.theme();
-        let fade = |c| if look.disabled { t.faded(c, FADE_DISABLED) } else { c };
+        let fade = |c| t.disabled_if(c, look.disabled);
         let frame = fade(if look.focused { t.text } else { t.edge });
         let v = FRAME + look.pad_v;
         let style = Style {

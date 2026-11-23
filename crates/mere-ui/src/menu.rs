@@ -40,7 +40,7 @@ use crate::id::Id;
 use crate::line::LineLook;
 use crate::selector::{MARK_SIZE, MarkOpts, Selector};
 use crate::text::{TextLook, Tone};
-use crate::tokens::{CONTROL_COMPACT, FADE_DISABLED, FRAME, GAP, GAP_TIGHT, INSET, INSET_HAIR, INSET_TIGHT, SPACE_4};
+use crate::tokens::{CONTROL_COMPACT, FRAME, GAP, GAP_TIGHT, INSET, INSET_HAIR, INSET_TIGHT, SPACE_4};
 use crate::ui::{Paint, Resp, Ui};
 
 /// How far below the top of its first line the selector of a selection row sits: the boards' `margin-top: 4px`.
@@ -190,7 +190,7 @@ impl Ui {
             self.redraw = true;
         }
         let t = *self.theme();
-        let fade = |c| if row.disabled { t.faded(c, FADE_DISABLED) } else { c };
+        let fade = |c| t.disabled_if(c, row.disabled);
         self.open(key, id, row_style(), Paint::Box { fill: focused.then_some(t.select), frame: None });
         let mark = MarkOpts { disabled: row.disabled, lit: resp.hovered || resp.held, on_selection: focused };
         let drop = Style { pad: Edges::new(MARK_DROP, 0.0, 0.0, 0.0), ..Style::default() };
