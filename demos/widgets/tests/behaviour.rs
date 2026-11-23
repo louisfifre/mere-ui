@@ -1320,7 +1320,7 @@ fn a_value_row_shows_its_mark_under_the_pointer_and_reports_a_press_on_it() {
         let mut sc = Scene::new(t);
         let mut v = 10.0;
         let mut out = None;
-        let mut build = |sc: &mut Scene, v: &mut f64, out: &mut Option<mere_ui::ValueResp>| {
+        let build = |sc: &mut Scene, v: &mut f64, out: &mut Option<mere_ui::ValueResp>| {
             sc.frame(|ui| {
                 ui.node("col", Style { column: true, w: Dim::Px(280.0), ..at(20.0, 20.0) }, |ui| {
                     let row = mere_ui::ValueRow { label: "Hill height", note: "", mark: "?", width: 280.0, control_w: 64.0, gutter: 0.0 };
@@ -1351,7 +1351,7 @@ fn a_split_grip_reports_its_press_and_a_double_press_resets() {
     both(|t| {
         let mut sc = Scene::new(t);
         let mut g = None;
-        let mut build = |sc: &mut Scene, g: &mut Option<mere_ui::GripResp>| {
+        let build = |sc: &mut Scene, g: &mut Option<mere_ui::GripResp>| {
             sc.frame(|ui| {
                 ui.node("row", Style { h: Dim::Px(100.0), ..at(20.0, 20.0) }, |ui| *g = Some(ui.split_grip("gap", 28.0)));
             })
