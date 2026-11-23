@@ -29,14 +29,14 @@ use mere_ui::tokens::{SPACE_48, SPACE_64, SPACE_96};
 use mere_ui::{Id, Theme, Ui};
 
 pub mod action_row;
-pub mod button;
+pub mod action;
 pub mod cover;
 pub mod detail_tabs;
 pub mod fold;
 pub mod group;
 pub mod help;
 pub mod hover_box;
-pub mod icon_button;
+pub mod icon_action;
 pub mod immediate_row;
 pub mod list_heads;
 pub mod list_row;
@@ -48,13 +48,13 @@ pub mod stage_template;
 pub mod select;
 pub mod selection_row;
 pub mod selector;
-pub mod stop_button;
+pub mod stop_action;
 pub mod tab_menu;
 pub mod tabs;
 pub mod text;
 pub mod text_field;
 pub mod toggle;
-pub mod tool_button;
+pub mod tool_action;
 pub mod tooltip;
 pub mod trend_row;
 pub mod value_row;
@@ -218,14 +218,14 @@ pub fn render(theme: Theme, blocks: Vec<Block>) -> Card {
 /// Every card, by its kebab-case name.
 pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("action-row", action_row::card),
-    ("button", button::card),
+    ("action", action::card),
     ("cover", cover::card),
     ("detail-tabs", detail_tabs::card),
     ("fold", fold::card),
     ("group", group::card),
     ("help", help::card),
     ("hover-box", hover_box::card),
-    ("icon-button", icon_button::card),
+    ("icon-action", icon_action::card),
     ("immediate-row", immediate_row::card),
     ("list-heads", list_heads::card),
     ("list-row", list_row::card),
@@ -237,13 +237,13 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("select", select::card),
     ("selection-row", selection_row::card),
     ("selector", selector::card),
-    ("stop-button", stop_button::card),
+    ("stop-action", stop_action::card),
     ("tab-menu", tab_menu::card),
     ("tabs", tabs::card),
     ("text", text::card),
     ("text-field", text_field::card),
     ("toggle", toggle::card),
-    ("tool-button", tool_button::card),
+    ("tool-action", tool_action::card),
     ("tooltip", tooltip::card),
     ("trend-row", trend_row::card),
     ("value-row", value_row::card),

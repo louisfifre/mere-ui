@@ -8,7 +8,7 @@ It grows piece by piece as its applications need it. Its applications are a worl
 
 | Dark | Light |
 |---|---|
-| ![The button card, dark](docs/shots/card-button-dark.png) | ![The button card, light](docs/shots/card-button-light.png) |
+| ![The action card, dark](docs/shots/card-action-dark.png) | ![The action card, light](docs/shots/card-action-light.png) |
 | ![The toggle card, dark](docs/shots/card-toggle-dark.png) | ![The toggle card, light](docs/shots/card-toggle-light.png) |
 | ![The tabs card, dark](docs/shots/card-tabs-dark.png) | ![The tabs card, light](docs/shots/card-tabs-light.png) |
 | ![The fold card, dark](docs/shots/card-fold-dark.png) | ![The fold card, light](docs/shots/card-fold-light.png) |
@@ -17,7 +17,7 @@ It grows piece by piece as its applications need it. Its applications are a worl
 | ![The select card, dark](docs/shots/card-select-dark.png) | ![The select card, light](docs/shots/card-select-light.png) |
 | ![The list row card, dark](docs/shots/card-list-row-dark.png) | ![The list row card, light](docs/shots/card-list-row-light.png) |
 | ![The scroll area card, dark](docs/shots/card-scroll-area-dark.png) | ![The scroll area card, light](docs/shots/card-scroll-area-light.png) |
-| ![The icon button card, dark](docs/shots/card-icon-button-dark.png) | ![The icon button card, light](docs/shots/card-icon-button-light.png) |
+| ![The icon action card, dark](docs/shots/card-icon-action-dark.png) | ![The icon action card, light](docs/shots/card-icon-action-light.png) |
 | ![The selector card, dark](docs/shots/card-selector-dark.png) | ![The selector card, light](docs/shots/card-selector-light.png) |
 | ![The menu card, dark](docs/shots/card-menu-dark.png) | ![The menu card, light](docs/shots/card-menu-light.png) |
 
@@ -43,7 +43,7 @@ Windows with Direct3D 11.1 and Direct2D, and a stable Rust that knows edition 20
 
 ```
 cargo test --workspace
-cargo run -p widgets -- --card button
+cargo run -p widgets -- --card action
 ```
 
 The tests write their pictures under `target/tmp`.

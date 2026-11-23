@@ -25,7 +25,7 @@ fn part(opts: PartOpts, state: State) -> Option<Cell> {
 
 pub fn blocks() -> Vec<Block> {
     let plain = PartOpts::default();
-    let button = PartOpts { button: true, ..plain };
+    let button = PartOpts { action: true, ..plain };
     vec![
         Block::sparse(vec![
             vec![head(), None, None],

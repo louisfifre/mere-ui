@@ -10,7 +10,7 @@ fn cell(state: State, pressed: bool, marker: bool) -> Cell {
     Cell::new(state, move |ui: &mut Ui, _| {
         let marker = marker.then(|| ui.theme().warn);
         let icon = Icon::parse(HOME, 24.0).expect("the card's icon parses");
-        ui.tool_button("t", &icon, "Label", IconOpts { pressed, marker, ..IconOpts::default() }).id
+        ui.tool_action("t", &icon, "Label", IconOpts { pressed, marker, ..IconOpts::default() }).id
     })
 }
 

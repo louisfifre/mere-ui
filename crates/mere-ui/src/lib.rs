@@ -44,7 +44,7 @@ mod value;
 mod widgets;
 
 pub use anim::{SLIDE_SECONDS, Slide, ease};
-pub use chrome::{CORNER, GRIP, IconLook, IconOpts, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, chrome_hit, grip, tool_button_width};
+pub use chrome::{CORNER, GRIP, IconLook, IconOpts, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, chrome_hit, grip, tool_action_width};
 pub use edit::MemoryClipboard;
 pub use icon::Icon;
 pub use field::{FieldLook, FieldOpts, FieldResp};
@@ -67,4 +67,4 @@ pub use template::{GripResp, Part, SPLIT_GRIP_W, StagePlan, StageResp};
 pub use theme::{Theme, mix};
 pub use value::{ValueResp, ValueRow, value_grid};
 pub use ui::{Resp, TIP_DELAY, Ui};
-pub use widgets::{ButtonLook, ButtonOpts, SWITCH_H, SWITCH_W, ToggleOpts};
+pub use widgets::{ActionLook, ActionOpts, TOGGLE_H, TOGGLE_W, ToggleOpts};

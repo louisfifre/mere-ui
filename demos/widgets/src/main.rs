@@ -8,7 +8,7 @@ use mere_ui::Theme;
 use widgets::cards::{CARDS, Card};
 use widgets::text;
 
-const DEFAULT_CARD: &str = "button";
+const DEFAULT_CARD: &str = "action";
 
 struct Showcase {
     theme: Theme,

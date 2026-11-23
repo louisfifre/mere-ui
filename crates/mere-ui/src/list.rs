@@ -40,7 +40,7 @@ pub struct PartOpts {
     /// `:first-child`: 2 px above instead of 12.
     pub first: bool,
     /// A button (a part of structures) or a plain note (the absent biomes).
-    pub button: bool,
+    pub action: bool,
 }
 
 /// The swatch column and the gap between a row's columns, and the least widths of the width and share columns (8 ch
@@ -118,8 +118,8 @@ impl Ui {
     /// it the head is only a note.
     pub fn list_part(&mut self, key: &str, name: &str, share: &str, opts: PartOpts) -> Resp {
         let id = self.key(key);
-        let mut resp = self.interact(id, !opts.button, Cursor::Hand);
-        if !opts.button {
+        let mut resp = self.interact(id, !opts.action, Cursor::Hand);
+        if !opts.action {
             resp.clicked = false;
         }
         let t = *self.theme();
@@ -132,7 +132,7 @@ impl Ui {
         };
         self.open(key, id, style, Paint::None);
         self.add("pad", Style { w: Dim::Px(12.0), ..Style::default() }, Paint::None);
-        self.add_ellipsis(name, look, color, opts.button && resp.hovered);
+        self.add_ellipsis(name, look, color, opts.action && resp.hovered);
         self.add("gap", Style::default(), Paint::None);
         self.cell("share", end_cell(39.6), share, look, color);
         self.close();

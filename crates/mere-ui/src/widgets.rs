@@ -7,9 +7,9 @@ use crate::text::{TextLook, Tone};
 use crate::tokens::*;
 use crate::ui::{Paint, Resp, Ui};
 
-/// The page buttons. The strip, #details and pressed choices are in tab.rs; the stop square is `Ui::stop_button`.
+/// The page buttons. The strip, #details and pressed choices are in tab.rs; the stop square is `Ui::stop_action`.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum ButtonLook {
+pub enum ActionLook {
     /// `#generate`: filled with the text colour, 600 weight.
     Primary,
     /// A `.choice button`: a muted word.
@@ -29,8 +29,8 @@ pub enum ButtonLook {
     Underlined,
 }
 
-/// What the toggle's box differs by between applications. The switch itself has one size (`SWITCH_W` by
-/// `SWITCH_H`); these measures are the room around it and its word, which is also what a click reaches.
+/// What the toggle's box differs by between applications. The switch itself has one size (`TOGGLE_W` by
+/// `TOGGLE_H`); these measures are the room around it and its word, which is also what a click reaches.
 #[derive(Copy, Clone, Debug)]
 pub struct ToggleOpts {
     /// Least width of the whole box, so that several toggles or a toggle and a field can line up.
@@ -50,11 +50,11 @@ impl Default for ToggleOpts {
 
 /// The switch: a square-cornered frame, 28 by 16, whose square knob (8) sits 3 inside the frame's line. 28 and the
 /// 8 of the gap leave the word "off" in the 8ch (57.6 px) of a setting's field column.
-pub const SWITCH_W: f32 = 28.0;
-pub const SWITCH_H: f32 = 16.0;
+pub const TOGGLE_W: f32 = 28.0;
+pub const TOGGLE_H: f32 = 16.0;
 const KNOB: f32 = 8.0;
 #[derive(Copy, Clone, Debug, Default)]
-pub struct ButtonOpts {
+pub struct ActionOpts {
     pub disabled: bool,
     /// flex-grow of the button's box.
     pub grow: f32,
@@ -102,21 +102,21 @@ impl Ui {
         self.add_ellipsis_start(s, look, color);
     }
 
-    pub fn button(&mut self, key: &str, text: &str, look: ButtonLook) -> Resp {
-        self.button_with(key, text, look, ButtonOpts::default())
+    pub fn action(&mut self, key: &str, text: &str, look: ActionLook) -> Resp {
+        self.action_with(key, text, look, ActionOpts::default())
     }
 
-    pub fn button_with(&mut self, key: &str, text: &str, look: ButtonLook, opts: ButtonOpts) -> Resp {
+    pub fn action_with(&mut self, key: &str, text: &str, look: ActionLook, opts: ActionOpts) -> Resp {
         let id = self.key(key);
         // `#generate.running` shows the default arrow (line 216).
-        let cursor = if matches!(look, ButtonLook::Running { .. }) { Cursor::Arrow } else { Cursor::Hand };
+        let cursor = if matches!(look, ActionLook::Running { .. }) { Cursor::Arrow } else { Cursor::Hand };
         let resp = self.interact(id, opts.disabled, cursor);
         let t = *self.theme();
         // The page has no :active style, so a held button looks exactly like a hovered one.
         let lit = resp.hovered || resp.held;
         let body = TextLook { size: t.body, line: t.body * 1.5, weight: Weight::Regular, tone: Tone::Text, tracking: 0.0 };
         let (style, paint, word_look, word, underline, strike) = match look {
-            ButtonLook::Primary => {
+            ActionLook::Primary => {
                 let style = Style {
                     h: Dim::Px(CONTROL_LARGE),
                     pad: Edges::vh(FRAME, FRAME + INSET_WIDE),
@@ -135,7 +135,7 @@ impl Ui {
                 };
                 (style, paint, TextLook { weight: Weight::SemiBold, ..body }, word, false, false)
             }
-            ButtonLook::Running { share } => {
+            ActionLook::Running { share } => {
                 let style = Style {
                     h: Dim::Px(CONTROL_LARGE),
                     pad: Edges::vh(FRAME, FRAME + INSET_WIDE),
@@ -150,8 +150,8 @@ impl Ui {
                 let frame = if opts.disabled { t.edge } else { t.text };
                 (style, Paint::Running { frame, bar: t.line, share }, TextLook { weight: Weight::SemiBold, ..body }, t.text, false, false)
             }
-            ButtonLook::Plain | ButtonLook::Link => {
-                let link = look == ButtonLook::Link;
+            ActionLook::Plain | ActionLook::Link => {
+                let link = look == ActionLook::Link;
                 let style = Style {
                     pad: if link { Edges::vh(INSET_HAIR, 0.0) } else { Edges::vh(INSET_HAIR, INSET) },
                     grow: opts.grow,
@@ -166,7 +166,7 @@ impl Ui {
                 };
                 (style, Paint::None, body, word, link, false)
             }
-            ButtonLook::Underlined => {
+            ActionLook::Underlined => {
                 let style = Style { pad: Edges::vh(INSET_HAIR, 0.0), grow: opts.grow, ..Style::default() };
                 let word = if opts.disabled {
                     t.disabled_if(t.text, true)
@@ -177,8 +177,8 @@ impl Ui {
                 };
                 (style, Paint::None, body, word, true, false)
             }
-            ButtonLook::Pick | ButtonLook::PickNone => {
-                let none = look == ButtonLook::PickNone;
+            ActionLook::Pick | ActionLook::PickNone => {
+                let none = look == ActionLook::PickNone;
                 let style = Style { grow: opts.grow, ..Style::default() };
                 let small = TextLook::small(Tone::Text);
                 (style, Paint::None, small, t.text, none, !none && lit)
@@ -195,7 +195,7 @@ impl Ui {
     }
 
     /// A `control-large` square that does not shrink, framed, with an 8 px filled square centred in it.
-    pub fn stop_button(&mut self, key: &str, disabled: bool) -> Resp {
+    pub fn stop_action(&mut self, key: &str, disabled: bool) -> Resp {
         let id = self.key(key);
         let resp = self.interact(id, disabled, Cursor::Hand);
         let t = *self.theme();
@@ -268,14 +268,14 @@ impl Ui {
         self.open(key, id, style, Paint::None);
         let mut cmds = Vec::new();
         if let Some(c) = fill {
-            cmds.push(Cmd::Fill { rect: Rect::new(0.0, 0.0, SWITCH_W, SWITCH_H), color: c });
+            cmds.push(Cmd::Fill { rect: Rect::new(0.0, 0.0, TOGGLE_W, TOGGLE_H), color: c });
         } else {
-            cmds.push(Cmd::Frame { rect: Rect::new(0.0, 0.0, SWITCH_W, SWITCH_H), width_px: FRAME, color: frame });
+            cmds.push(Cmd::Frame { rect: Rect::new(0.0, 0.0, TOGGLE_W, TOGGLE_H), width_px: FRAME, color: frame });
         }
-        let at = if on { SWITCH_W - FRAME - 3.0 - KNOB } else { FRAME + 3.0 };
-        let knob_rect = Rect::new(at, (SWITCH_H - KNOB) / 2.0, KNOB, KNOB);
+        let at = if on { TOGGLE_W - FRAME - 3.0 - KNOB } else { FRAME + 3.0 };
+        let knob_rect = Rect::new(at, (TOGGLE_H - KNOB) / 2.0, KNOB, KNOB);
         cmds.push(if on { Cmd::Fill { rect: knob_rect, color: knob } } else { Cmd::Frame { rect: knob_rect, width_px: FRAME, color: knob } });
-        let sw = Style { w: Dim::Px(SWITCH_W), h: Dim::Px(SWITCH_H), shrink: 0.0, ..Style::default() };
+        let sw = Style { w: Dim::Px(TOGGLE_W), h: Dim::Px(TOGGLE_H), shrink: 0.0, ..Style::default() };
         self.add("switch", sw, Paint::Cmds(cmds));
         let words = if on { on_word } else { off_word }.to_uppercase();
         self.add_text(&words, TextLook::body(Tone::Text), word, false, Style::default());

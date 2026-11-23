@@ -3,7 +3,7 @@
 use mere_base::{Button, Cmd, DrawList, Event, Key, Mods, Rect, Vec2};
 use mere_layout::{Dim, Style};
 use mere_ui::tokens::{CONTROL, GAP_TIGHT};
-use mere_ui::{ButtonLook, ButtonOpts, LIST_PAD, LIST_ROW, ScrollOpts, SelectOpts, SelectResp, Theme, Ui};
+use mere_ui::{ActionLook, ActionOpts, LIST_PAD, LIST_ROW, ScrollOpts, SelectOpts, SelectResp, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(400.0, 300.0);
 
@@ -38,7 +38,7 @@ impl Page {
         let mut body = |ui: &mut Ui| {
             // A button above the select: a press that closes the menu must not click it.
             if !in_scroll {
-                let r = ui.button_with("above", "Above", ButtonLook::Plain, ButtonOpts::default());
+                let r = ui.action_with("above", "Above", ActionLook::Plain, ActionOpts::default());
                 *under = Some(r.id);
                 if r.clicked {
                     *clicks += 1;
@@ -226,3 +226,4 @@ fn the_keyboard_opens_moves_and_picks_and_the_line_gets_the_focus_back() {
     assert!(!p.last.unwrap().open, "and closes the list");
     assert_eq!(p.ui.focused(), Some(line));
 }
+

@@ -1,7 +1,7 @@
 //! Icons as paths, the pointer's shapes, the tips and the window's edges, without a GPU.
 
 use mere_base::{Button, Cmd, DrawList, Edge, Event, Hit, Vec2, Cursor};
-use mere_ui::{ButtonLook, ButtonOpts, FieldOpts, Icon, TIP_DELAY, Theme, Ui, grip};
+use mere_ui::{ActionLook, ActionOpts, FieldOpts, Icon, TIP_DELAY, Theme, Ui, grip};
 
 const SIZE: Vec2 = Vec2::new(600.0, 300.0);
 
@@ -127,8 +127,8 @@ fn build(ui: &mut Ui, text: &mut String) -> (mere_ui::Id, mere_ui::Id, mere_ui::
     let mut ids = (None, None, None);
     frame(ui, |ui| {
         ui.node("row", Default::default(), |ui| {
-            ids.0 = Some(ui.button("go", "Go", ButtonLook::Plain).id);
-            ids.1 = Some(ui.button_with("off", "Off", ButtonLook::Plain, ButtonOpts { disabled: true, grow: 0.0 }).id);
+            ids.0 = Some(ui.action("go", "Go", ActionLook::Plain).id);
+            ids.1 = Some(ui.action_with("off", "Off", ActionLook::Plain, ActionOpts { disabled: true, grow: 0.0 }).id);
             ids.2 = Some(ui.text_field("name", text, FieldOpts::default()).resp.id);
         });
     });
@@ -219,9 +219,9 @@ fn tipped(ui: &mut Ui, clock: f64) -> (mere_ui::Id, mere_ui::Id, DrawList) {
     let mut ids = (None, None);
     let list = frame(ui, |ui| {
         ui.node("row", Default::default(), |ui| {
-            let a = ui.button("go", "Go", ButtonLook::Plain).id;
+            let a = ui.action("go", "Go", ActionLook::Plain).id;
             ui.title(a, "Starts the run");
-            let b = ui.button_with("off", "Off", ButtonLook::Plain, ButtonOpts { disabled: true, grow: 0.0 }).id;
+            let b = ui.action_with("off", "Off", ActionLook::Plain, ActionOpts { disabled: true, grow: 0.0 }).id;
             ui.title(b, "Needs the full detail");
             ids = (Some(a), Some(b));
         });

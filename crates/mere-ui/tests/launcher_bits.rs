@@ -5,7 +5,7 @@
 use mere_ui::tokens::*;
 use mere_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use mere_layout::{Dim, Edges, Style};
-use mere_ui::{ButtonLook, ButtonOpts, FieldOpts, Icon, IconLook, IconOpts, NumberOpts, NumberSpec, Theme, ToggleOpts, Ui, mix};
+use mere_ui::{ActionLook, ActionOpts, FieldOpts, Icon, IconLook, IconOpts, NumberOpts, NumberSpec, Theme, ToggleOpts, Ui, mix};
 
 const SIZE: Vec2 = Vec2::new(400.0, 200.0);
 const BOLT: &str = "M5 5h14v14H5z";
@@ -35,7 +35,7 @@ fn parts(l: &DrawList) -> (Option<Color>, Option<Color>, Color) {
 fn button(ui: &mut Ui, look: IconLook, opts: IconOpts) -> (DrawList, mere_ui::Resp) {
     let mut r = None;
     let l = frame(ui, |ui| {
-        ui.node("row", Style { w: Dim::Px(200.0), ..Style::default() }, |ui| r = Some(ui.icon_button("b", &icon(), look, opts)));
+        ui.node("row", Style { w: Dim::Px(200.0), ..Style::default() }, |ui| r = Some(ui.icon_action("b", &icon(), look, opts)));
     });
     (l, r.unwrap())
 }
@@ -93,8 +93,8 @@ fn a_joined_square_overlaps_the_one_before_by_a_pixel() {
         frame(&mut ui, |ui| {
             ids.clear();
             ui.node("row", Style { w: Dim::Px(200.0), ..Style::default() }, |ui| {
-                ids.push(ui.icon_button("a", &icon(), IconLook::Square, IconOpts::default()).id);
-                ids.push(ui.icon_button("b", &icon(), IconLook::Square, IconOpts { joined: true, ..IconOpts::default() }).id);
+                ids.push(ui.icon_action("a", &icon(), IconLook::Square, IconOpts::default()).id);
+                ids.push(ui.icon_action("b", &icon(), IconLook::Square, IconOpts { joined: true, ..IconOpts::default() }).id);
             });
         });
     }
@@ -223,7 +223,7 @@ fn the_underlined_button_is_underlined_and_muted_on_hover() {
     let build = |ui: &mut Ui, id: &mut Option<_>| {
         frame(ui, |ui| {
             ui.node("row", Style { w: Dim::Px(200.0), ..Style::default() }, |ui| {
-                *id = Some(ui.button_with("o", "Open", ButtonLook::Underlined, ButtonOpts::default()).id);
+                *id = Some(ui.action_with("o", "Open", ActionLook::Underlined, ActionOpts::default()).id);
             });
         })
     };

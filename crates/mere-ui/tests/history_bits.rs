@@ -4,7 +4,7 @@
 
 use mere_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use mere_layout::{Dim, Insets, Position, Style};
-use mere_ui::{ButtonLook, ListRow, PLOT_H, PartOpts, Resp, RowOpts, Theme, Ui};
+use mere_ui::{ActionLook, ListRow, PLOT_H, PartOpts, Resp, RowOpts, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(500.0, 400.0);
 
@@ -81,16 +81,16 @@ fn list_part_pads_colours_and_clicks_as_the_part_rule() {
     let t = Theme::dark();
     let mut ui = Ui::new(t);
     // Not first: 12 above, 4 below, one 16.5 line.
-    part_frame(&mut ui, PartOpts { button: true, ..PartOpts::default() });
-    let (r, _) = part_frame(&mut ui, PartOpts { button: true, ..PartOpts::default() });
+    part_frame(&mut ui, PartOpts { action: true, ..PartOpts::default() });
+    let (r, _) = part_frame(&mut ui, PartOpts { action: true, ..PartOpts::default() });
     near(r.rect.unwrap().h, 12.0 + 16.5 + 4.0);
     let share = ui.rect(r.id.child("share")).expect("share cell");
     assert!(share.w >= 39.6 - 0.01, "the share cell is at least 6 ch of 11 px: {}", share.w);
     near(share.x + share.w, 350.0);
 
     let mut ui = Ui::new(t);
-    part_frame(&mut ui, PartOpts { first: true, button: true, pressed: true });
-    let (r, list) = part_frame(&mut ui, PartOpts { first: true, button: true, pressed: true });
+    part_frame(&mut ui, PartOpts { first: true, action: true, pressed: true });
+    let (r, list) = part_frame(&mut ui, PartOpts { first: true, action: true, pressed: true });
     near(r.rect.unwrap().h, 2.0 + 16.5 + 4.0);
     let name = list.cmds.iter().find_map(|c| match c {
         Cmd::Text { at, text, color, .. } if text == "On the surface" => Some((*at, *color)),
@@ -104,7 +104,7 @@ fn list_part_pads_colours_and_clicks_as_the_part_rule() {
 
     // A note is never clicked; a button is.
     let mut ui = Ui::new(t);
-    let note = PartOpts { button: false, ..PartOpts::default() };
+    let note = PartOpts { action: false, ..PartOpts::default() };
     part_frame(&mut ui, note);
     click(&mut ui, 100.0, 40.0);
     let (r, list) = part_frame(&mut ui, note);
@@ -117,7 +117,7 @@ fn list_part_pads_colours_and_clicks_as_the_part_rule() {
     assert!(!fills(&list).iter().any(|(r, _)| r.h == 1.0), "no hover look on a note");
 
     let mut ui = Ui::new(t);
-    let button = PartOpts { button: true, ..PartOpts::default() };
+    let button = PartOpts { action: true, ..PartOpts::default() };
     part_frame(&mut ui, button);
     click(&mut ui, 100.0, 40.0);
     let (r, _) = part_frame(&mut ui, button);
@@ -154,10 +154,10 @@ fn a_mark_swatch_is_a_disc_in_a_ring() {
     assert!(!list.cmds.iter().any(|c| matches!(c, Cmd::Frame { .. })), "no square frame behind the round mark");
 }
 
-fn pick_frame(ui: &mut Ui, look: ButtonLook) -> DrawList {
+fn pick_frame(ui: &mut Ui, look: ActionLook) -> DrawList {
     ui.begin_frame(SIZE);
     ui.node("block", abs_at(20.0, 20.0, 330.0), |ui| {
-        ui.button("b", "Show all", look);
+        ui.action("b", "Show all", look);
     });
     ui.end_frame().clone()
 }
@@ -168,23 +168,23 @@ fn pick_strikes_on_hover_and_pick_none_is_underlined_at_rest() {
     let t = Theme::dark();
     let rule = |l: &DrawList| fills(l).into_iter().filter(|(r, _)| r.h == 1.0).collect::<Vec<_>>();
     let mut ui = Ui::new(t);
-    pick_frame(&mut ui, ButtonLook::Pick);
-    let rest = pick_frame(&mut ui, ButtonLook::Pick);
+    pick_frame(&mut ui, ActionLook::Pick);
+    let rest = pick_frame(&mut ui, ActionLook::Pick);
     assert!(rule(&rest).is_empty(), "Pick has no decoration at rest");
     mv(&mut ui, 30.0, 28.0);
-    let hot = pick_frame(&mut ui, ButtonLook::Pick);
+    let hot = pick_frame(&mut ui, ActionLook::Pick);
     let lines = rule(&hot);
     assert_eq!(lines.len(), 1, "one strike rule on hover");
     near(lines[0].0.w, 8.0 * 6.6);
     assert_eq!(lines[0].1, t.text);
 
     let mut ui = Ui::new(t);
-    pick_frame(&mut ui, ButtonLook::PickNone);
-    let rest = pick_frame(&mut ui, ButtonLook::PickNone);
+    pick_frame(&mut ui, ActionLook::PickNone);
+    let rest = pick_frame(&mut ui, ActionLook::PickNone);
     let under = rule(&rest);
     assert_eq!(under.len(), 1, "PickNone is underlined at rest");
     mv(&mut ui, 30.0, 28.0);
-    let hot = pick_frame(&mut ui, ButtonLook::PickNone);
+    let hot = pick_frame(&mut ui, ActionLook::PickNone);
     assert_eq!(rule(&hot).len(), 1, "and gains no strike on hover");
 }
 

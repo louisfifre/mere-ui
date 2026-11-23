@@ -11,7 +11,7 @@ use crate::theme::mix;
 use crate::tokens::{CONTROL, FADE_LIT, FRAME, GAP, ICON, ICON_SQUARE, INSET, INSET_TIGHT, INSET_WIDE};
 use crate::ui::{Paint, Resp, Ui};
 
-/// A tool button with its name (`Ui::tool_button`): `inset` inside the frame before the icon, `gap` between the
+/// A tool button with its name (`Ui::tool_action`): `inset` inside the frame before the icon, `gap` between the
 /// icon and the word, `inset-wide` after; the paddings count the frame.
 pub const TOOL_PAD_L: f32 = FRAME + INSET;
 pub const TOOL_GAP: f32 = GAP;
@@ -22,7 +22,7 @@ const MARKER: f32 = 4.0;
 const TOOL_W: f32 = 36.0;
 
 /// How wide a tool button with this name is: what the bar measures before it builds.
-pub fn tool_button_width(label: &str) -> f32 {
+pub fn tool_action_width(label: &str) -> f32 {
     TOOL_PAD_L + ICON + TOOL_GAP + TextLook::body(Tone::Text).width(label) + TOOL_PAD_R
 }
 
@@ -107,7 +107,7 @@ pub struct IconOpts {
 
 impl Ui {
     /// An icon button. `Resp.clicked` is the click; the app decides what it does and which one is pressed.
-    pub fn icon_button(&mut self, key: &str, icon: &Icon, look: IconLook, opts: IconOpts) -> Resp {
+    pub fn icon_action(&mut self, key: &str, icon: &Icon, look: IconLook, opts: IconOpts) -> Resp {
         let id = self.key(key);
         let resp = self.interact(id, opts.disabled, Cursor::Hand);
         let t = *self.theme();
@@ -194,7 +194,7 @@ impl Ui {
 
     /// A tool of the bar as an icon and its name: the look of `IconLook::Tool` (framed, reversed when pressed),
     /// as wide as its word. The marker sits on the icon's top right corner, where the icon-only button has it.
-    pub fn tool_button(&mut self, key: &str, icon: &Icon, label: &str, opts: IconOpts) -> Resp {
+    pub fn tool_action(&mut self, key: &str, icon: &Icon, label: &str, opts: IconOpts) -> Resp {
         let id = self.key(key);
         let resp = self.interact(id, false, Cursor::Hand);
         let t = *self.theme();

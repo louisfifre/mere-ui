@@ -6,9 +6,9 @@
 use mere_base::{Button, Cmd, Color, DrawList, Event, Gfx, Ime, Key, Mods, Rect, Vec2};
 use mere_layout::{Dim, Insets, Position, Style};
 use mere_ui::tokens::{FADE_DIM, FADE_DISABLED, FADE_LIT, FRAME, GAP_TIGHT, INSET, INSET_TIGHT};
-use mere_ui::{SWITCH_H, SWITCH_W};
+use mere_ui::{TOGGLE_H, TOGGLE_W};
 use mere_ui::{
-    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ImmediateRow, ListRow, MARK_SIZE, MenuOpts, NumberSpec, Trigger, SelectionRow, Selector,
+    ActionLook, ActionOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ImmediateRow, ListRow, MARK_SIZE, MenuOpts, NumberSpec, Trigger, SelectionRow, Selector,
     SelectorOpts, RowOpts, ScrollOpts, THUMB_W, TextLook, Theme, Tone, Ui, scroll_style, text_width,
 };
 use mere_win32::Renderer;
@@ -115,7 +115,7 @@ fn primary(theme: Theme, disabled: bool, pointer: bool, held: bool) -> (Pic, Rec
     let build = |ui: &mut Ui| {
         let w = Style { w: Dim::Px(180.0), ..at(20.0, 20.0) };
         let mut id = None;
-        ui.node("go", w, |ui| id = Some(ui.button_with("generate", "Generate", ButtonLook::Primary, ButtonOpts { disabled, grow: 1.0 }).id));
+        ui.node("go", w, |ui| id = Some(ui.action_with("generate", "Generate", ActionLook::Primary, ActionOpts { disabled, grow: 1.0 }).id));
         id.unwrap()
     };
     let id = {
@@ -186,9 +186,9 @@ fn the_off_switch_frame_takes_the_text_colour_under_the_pointer() {
     both(|t| {
         let (rest, r) = toggle(t, false, false);
         // The frame's top line, away from the corners; the switch is the box's left part, centred in its height.
-        let (x, top) = (r.x + SWITCH_W / 2.0, r.y + (r.h - SWITCH_H) / 2.0);
+        let (x, top) = (r.x + TOGGLE_W / 2.0, r.y + (r.h - TOGGLE_H) / 2.0);
         rest.is(x, top, t.edge, "switch frame at rest");
-        rest.is(x, top + SWITCH_H / 2.0, t.ground, "an off switch is hollow");
+        rest.is(x, top + TOGGLE_H / 2.0, t.ground, "an off switch is hollow");
         let (hover, _) = toggle(t, false, true);
         hover.is(x, top, t.text, "switch frame on hover");
     });
@@ -198,22 +198,22 @@ fn the_off_switch_frame_takes_the_text_colour_under_the_pointer() {
 fn the_on_switch_is_filled_with_a_square_knob_on_the_right() {
     both(|t| {
         let (pic, r) = toggle(t, true, false);
-        let top = r.y + (r.h - SWITCH_H) / 2.0;
-        let mid = top + SWITCH_H / 2.0;
+        let top = r.y + (r.h - TOGGLE_H) / 2.0;
+        let mid = top + TOGGLE_H / 2.0;
         pic.is(r.x + 2.0, mid, t.fill, "the fill, left of the knob");
-        pic.is(r.x + SWITCH_W - 8.0, mid, t.on_fill, "the knob's body, right");
+        pic.is(r.x + TOGGLE_W - 8.0, mid, t.on_fill, "the knob's body, right");
         pic.is(r.x + 8.0, mid, t.fill, "no knob on the left");
     });
 }
 const PLAY: &str = "M15 11h-2V9h2zm0 4h-2v-2h2zm-2 2h-2v-2h2zm0-8h-2V7h2zm-2-2H9V5h2zM9 21H7V3h2zm6-8h2v-2h-2zm-6 4h2v2H9z";
 
-fn icon_button(theme: Theme, look: IconLook, pressed: bool, pointer: bool) -> (Pic, Rect) {
+fn icon_action(theme: Theme, look: IconLook, pressed: bool, pointer: bool) -> (Pic, Rect) {
     let mut sc = Scene::new(theme);
     let icon = Icon::parse(PLAY, 24.0).unwrap();
     let opts = IconOpts { pressed, disabled: false, joined: false, marker: None };
     let mut id = None;
     sc.frame(|ui| {
-        ui.node("i", at(20.0, 20.0), |ui| id = Some(ui.icon_button("b", &icon, look, opts).id));
+        ui.node("i", at(20.0, 20.0), |ui| id = Some(ui.icon_action("b", &icon, look, opts).id));
     });
     let r = sc.rect(id.unwrap());
     if pointer {
@@ -221,7 +221,7 @@ fn icon_button(theme: Theme, look: IconLook, pressed: bool, pointer: bool) -> (P
     }
     let list = sc.frame(|ui| {
         ui.node("i", at(20.0, 20.0), |ui| {
-            ui.icon_button("b", &icon, look, opts);
+            ui.icon_action("b", &icon, look, opts);
         });
     });
     (sc.pic(&list), r)
@@ -232,19 +232,19 @@ fn the_icon_buttons_frame_fill_and_lighten_as_the_design_says() {
     both(|t| {
         // Square: framed in the edge, the frame and the icon take the text colour under the pointer, and a
         // pressed one is filled in reverse.
-        let (rest, r) = icon_button(t, IconLook::Square, false, false);
+        let (rest, r) = icon_action(t, IconLook::Square, false, false);
         rest.is(r.x + r.w / 2.0, r.y, t.edge, "square rest frame");
-        let (hover, _) = icon_button(t, IconLook::Square, false, true);
+        let (hover, _) = icon_action(t, IconLook::Square, false, true);
         hover.is(r.x + r.w / 2.0, r.y, t.text, "square hover frame");
-        let (pressed, _) = icon_button(t, IconLook::Square, true, false);
+        let (pressed, _) = icon_action(t, IconLook::Square, true, false);
         pressed.is(r.x + 3.0, r.y + 3.0, t.fill, "square pressed fill");
         // Filled: the fill at rest, lit under the pointer.
-        let (rest, r) = icon_button(t, IconLook::Filled, false, false);
+        let (rest, r) = icon_action(t, IconLook::Filled, false, false);
         rest.is(r.x + 3.0, r.y + 3.0, t.fill, "filled rest");
-        let (hover, _) = icon_button(t, IconLook::Filled, false, true);
+        let (hover, _) = icon_action(t, IconLook::Filled, false, true);
         hover.is(r.x + 3.0, r.y + 3.0, t.faded(t.fill, FADE_LIT), "filled hover");
         // Caption: no frame and no fill at rest.
-        let (rest, r) = icon_button(t, IconLook::Caption, false, false);
+        let (rest, r) = icon_action(t, IconLook::Caption, false, false);
         rest.is(r.x, r.y, t.ground, "caption rest has no frame");
     });
 }
@@ -931,7 +931,7 @@ fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
         }
         out = CornerOut { line: Some(r.line.id), list: r.list, rows, action, enter: r.enter, opened: r.opened, closed: r.closed, button: false };
     });
-    ui.node("else", at(300.0, 20.0), |ui| out.button = ui.button("b", "Other", ButtonLook::Plain).clicked);
+    ui.node("else", at(300.0, 20.0), |ui| out.button = ui.action("b", "Other", ActionLook::Plain).clicked);
     out
 }
 
