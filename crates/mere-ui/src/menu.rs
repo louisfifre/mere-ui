@@ -225,10 +225,7 @@ impl Ui {
 
     /// A thin line between groups of rows in a menu, `inset` in from its sides.
     pub fn menu_separator(&mut self) {
-        let t = *self.theme();
-        let (v, h) = (Side::Px(INSET_TIGHT), Side::Px(INSET));
-        let style = Style { h: Dim::Px(FRAME), shrink: 0.0, margin: Margin { left: h, top: v, right: h, bottom: v }, ..Style::default() };
-        self.fill(style, t.line);
+        self.rule(crate::rule::Rule::Separator, Edges::vh(INSET_TIGHT, INSET));
     }
 
     /// A line in the compact select's look (its text cut at its end, the arrow at the right) that opens a list of rows

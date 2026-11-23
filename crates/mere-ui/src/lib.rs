@@ -29,6 +29,7 @@ mod line;
 mod list;
 mod menu;
 mod popup;
+mod rule;
 mod selector;
 mod scroll;
 mod tab;
@@ -43,6 +44,7 @@ pub use chrome::{CORNER, GRIP, IconLook, IconOpts, TOOL_GAP, TOOL_PAD_L, TOOL_PA
 pub use edit::MemoryClipboard;
 pub use icon::Icon;
 pub use field::{FieldLook, FieldOpts, FieldResp};
+pub use rule::Rule;
 pub use popup::{MENU_ROW, SelectOpts, SelectResp, TabMenuResp, TabMenuRow};
 pub use selector::{MARK_SIZE, MarkOpts, Selector, SelectorOpts};
 pub use list::{ListRow, PLOT_H, PartOpts, ROW_GAP, RowOpts, SHARE_MIN, SWATCH_W, WIDTH_MIN};
