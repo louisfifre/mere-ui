@@ -25,6 +25,7 @@ mod icon;
 mod id;
 mod input;
 mod number;
+mod line;
 mod list;
 mod menu;
 mod popup;

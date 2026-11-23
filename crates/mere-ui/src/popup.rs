@@ -7,13 +7,14 @@
 //! launcher's selects are short, so those are left out.
 
 use mere_base::{Cursor, DrawList, Rect, Vec2};
-use mere_layout::{Align, Dim, Edges, Margin, Side, Style};
+use mere_layout::Side;
 
 use crate::id::Id;
+use crate::line::LineLook;
 use crate::tab::{TabLook, TabOpts};
 use crate::text::{TextLook, Tone, half_leading};
 use crate::tokens::{CONTROL, FADE_DISABLED, FRAME, GAP, INSET, INSET_HAIR, INSET_TIGHT};
-use crate::ui::{Paint, Resp, Ui, draw_line};
+use crate::ui::{Resp, Ui, draw_line};
 
 /// One row of the popup list, its line centred in it.
 pub const MENU_ROW: f32 = crate::tokens::MENU_ROW;
@@ -99,31 +100,11 @@ impl Ui {
             };
         }
         let open = self.popup.as_ref().is_some_and(|m| m.id == id);
-        let t = *self.theme();
-        let fade = |c| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
-        let style = Style {
-            w: Dim::Pct(100.0),
-            h: Dim::Px(opts.height.unwrap_or(BOX_H)),
-            pad: {
-                let v = FRAME + if opts.height.is_some() { INSET_HAIR } else { INSET_TIGHT };
-                Edges::new(v, FRAME + INSET_TIGHT, v, FRAME + INSET)
-            },
-            align_items: Align::Center,
-            ..Style::default()
-        };
-        let node = self.open(key, id, style, Paint::Box { fill: None, frame: Some(fade(t.edge)) });
         let shown = options.get(*chosen).map_or("", String::as_str);
-        // The text shrinks and ends in an ellipsis before the arrow, as the browser's does.
-        self.add_ellipsis(shown, TextLook::body(Tone::Text), fade(t.text), false);
-        let chevron = Style {
-            w: Dim::Px(8.0),
-            h: Dim::Px(5.0),
-            shrink: 0.0,
-            margin: Margin { left: Side::Auto, ..Margin::default() },
-            ..Style::default()
-        };
-        self.add("chevron", chevron, Paint::Chevron { color: fade(t.text) });
-        self.close();
+        // A compact box keeps `inset-hair` above and below its text.
+        let pad_v = if opts.height.is_some() { INSET_HAIR } else { INSET_TIGHT };
+        let look = LineLook { height: opts.height.unwrap_or(BOX_H), pad_v, disabled: opts.disabled, focused: false };
+        let node = self.menu_line(key, id, shown, look);
         if open {
             self.popup_node = Some(node);
             if let Some(m) = &mut self.popup {
@@ -147,8 +128,7 @@ impl Ui {
         }
         let was_open = self.popup.as_ref().is_some_and(|m| m.id == id);
         let (resp, node, word) = self.tab_open(key, label, TabLook::Strip, TabOpts { pressed: was_open, disabled: false });
-        let chevron = Style { w: Dim::Px(8.0), h: Dim::Px(5.0), shrink: 0.0, margin: Margin { left: Side::Px(GAP), ..Margin::default() }, ..Style::default() };
-        self.add("chevron", chevron, Paint::Chevron { color: word });
+        self.add_chevron(Side::Px(GAP), word);
         self.close();
         if resp.clicked {
             self.popup = if was_open {

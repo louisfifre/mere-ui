@@ -37,6 +37,7 @@ use mere_layout::{Align, Dim, Display, Edges, Insets, Margin, Position, Side, St
 
 use crate::field::{Focus, Typed};
 use crate::id::Id;
+use crate::line::LineLook;
 use crate::selector::{MARK_SIZE, MarkOpts, Selector};
 use crate::text::{TextLook, Tone};
 use crate::tokens::{CONTROL_COMPACT, FADE_DISABLED, FRAME, GAP, GAP_TIGHT, INSET, INSET_HAIR, INSET_TIGHT, SPACE_4};
@@ -295,21 +296,8 @@ impl Ui {
         if closed && !opts.disabled {
             self.give_focus(lid);
         }
-        let t = *self.theme();
-        let fade = |c| if opts.disabled { t.faded(c, FADE_DISABLED) } else { c };
-        let frame = fade(if self.has_focus(lid) { t.text } else { t.edge });
-        let style = Style {
-            w: Dim::Pct(100.0),
-            h: Dim::Px(CONTROL_COMPACT),
-            pad: Edges::new(FRAME + INSET_HAIR, FRAME + INSET_TIGHT, FRAME + INSET_HAIR, FRAME + INSET),
-            align_items: Align::Center,
-            ..Style::default()
-        };
-        self.open("line", lid, style, Paint::Box { fill: None, frame: Some(frame) });
-        self.add_ellipsis(line, TextLook::body(Tone::Text), fade(t.text), false);
-        let chevron = Style { w: Dim::Px(8.0), h: Dim::Px(5.0), shrink: 0.0, margin: Margin { left: Side::Auto, ..Margin::default() }, ..Style::default() };
-        self.add("chevron", chevron, Paint::Chevron { color: fade(t.text) });
-        self.close();
+        let look = LineLook { height: CONTROL_COMPACT, pad_v: INSET_HAIR, disabled: opts.disabled, focused: self.has_focus(lid) };
+        self.menu_line("line", lid, line, look);
 
         let mut list = None;
         let mut mine = Vec::new();

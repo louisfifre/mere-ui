@@ -39,7 +39,7 @@ pub(crate) enum Paint {
     Flow { lead: String, lead_color: Color, gap: f32, text: String, look: TextLook, color: Color },
     /// The running generate button: its 1 px frame, then the bar from the padding box's left, `share` of its width.
     Running { frame: Color, bar: Color, share: f32 },
-    /// The select's arrow: 8 x 5 px, painted as filled 1 px rows, as Chrome's is at 1x.
+    /// The arrow of a line that opens a list: `CHEVRON` in size, painted as filled 1 px rows, as Chrome's is at 1x.
     Chevron { color: Color },
     /// A text field: its own frame, clip, selection, text and caret (field.rs).
     Field(Box<FieldPaint>),
@@ -131,6 +131,9 @@ pub struct Ui {
     pub(crate) menu_first: bool,
     pub(crate) menu_step: Option<(Id, i32)>,
 }
+
+/// The size of `Paint::Chevron`: its rows below are 8 px wide and 5 tall.
+pub(crate) const CHEVRON: Vec2 = Vec2::new(8.0, 5.0);
 
 /// How long the pointer rests on a titled widget before its tip shows (the browsers' own is about this).
 pub const TIP_DELAY: f64 = 0.5;
