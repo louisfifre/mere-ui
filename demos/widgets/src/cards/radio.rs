@@ -3,14 +3,14 @@
 //! checkbox's size and the dot its check's colour.
 
 use mere_layout::Style;
-use mere_ui::{RadioOpts, Theme, Ui};
+use mere_ui::{Selector, SelectorOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 
 fn row(selected: bool) -> Vec<Cell> {
     [(State::Rest, false), (State::Hover, false), (State::Held, false), (State::Rest, true)]
         .into_iter()
-        .map(|(state, disabled)| Cell::new(state, move |ui: &mut Ui, _| ui.radio("r", "Option", selected, RadioOpts { disabled }).id))
+        .map(|(state, disabled)| Cell::new(state, move |ui: &mut Ui, _| ui.selector("r", "Option", Selector::Single, selected, SelectorOpts { disabled }).id))
         .collect()
 }
 
@@ -20,7 +20,7 @@ fn group() -> Cell {
         let mut first = None;
         ui.node("group", Style { column: true, ..Style::default() }, |ui| {
             for (i, size) in ["Small", "Medium", "Large"].into_iter().enumerate() {
-                let id = ui.radio(&format!("s{i}"), size, i == 1, RadioOpts::default()).id;
+                let id = ui.selector(&format!("s{i}"), size, Selector::Single, i == 1, SelectorOpts::default()).id;
                 first.get_or_insert(id);
             }
         });

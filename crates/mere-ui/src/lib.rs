@@ -5,7 +5,7 @@
 //! 1. `Ui::event` for every event received since the last frame (pointer state is only stored);
 //! 2. `Ui::begin_frame(size)`;
 //! 3. the application's calls: `node`, `label`, `button`, `toggle`, `fold`, `tab`, `detail_tab`, `number`,
-//!    `text_field`, `ellipsis`, `scroll`, `list_row`, `list_head`, `trend_row`, `checkbox`, `radio`, `dropdown`, `option`...
+//!    `text_field`, `ellipsis`, `scroll`, `list_row`, `list_head`, `trend_row`, `selector`, `menu`, `menu_select`...
 //!    Each widget answers with what the
 //!    pointer did to it, judged against where the widget stood in the LAST frame (what the person saw and
 //!    pointed at), so the first frame of a widget has no interaction;
@@ -17,7 +17,6 @@
 mod anim;
 mod chrome;
 mod compose;
-mod dropdown;
 mod edit;
 mod field;
 mod fold;
@@ -27,7 +26,9 @@ mod id;
 mod input;
 mod number;
 mod list;
+mod menu;
 mod popup;
+mod selector;
 mod scroll;
 mod tab;
 mod text;
@@ -38,12 +39,13 @@ mod widgets;
 
 pub use anim::{SLIDE_SECONDS, Slide, ease};
 pub use chrome::{CORNER, GRIP, IconLook, IconOpts, TOOL_GAP, TOOL_PAD_L, TOOL_PAD_R, chrome_hit, grip, tool_button_width};
-pub use dropdown::{CheckboxOpts, DropdownOpts, DropdownResp, MARK_SIZE, Mark, OptionRow, RadioOpts};
 pub use edit::MemoryClipboard;
 pub use icon::Icon;
 pub use field::{FieldLook, FieldOpts, FieldResp};
 pub use popup::{MENU_ROW, SelectOpts, SelectResp, TabMenuResp, TabMenuRow};
+pub use selector::{MARK_SIZE, MarkOpts, Selector, SelectorOpts};
 pub use list::{ListRow, PLOT_H, PartOpts, ROW_GAP, RowOpts, SHARE_MIN, SWATCH_W, WIDTH_MIN};
+pub use menu::{MenuOpts, MenuResp, SelectRow};
 pub use number::{NumberOpts, NumberSpec};
 pub use scroll::{ARROW, GUTTER, ScrollOpts, ScrollResp, THUMB_MIN, THUMB_W, WHEEL_STEP, arrows_shown, scroll_style};
 pub use fold::FoldOpts;

@@ -32,13 +32,13 @@ pub mod button;
 pub mod checkbox;
 pub mod cover;
 pub mod detail_tabs;
-pub mod dropdown;
 pub mod fold;
 pub mod help;
 pub mod hover_box;
 pub mod icon_button;
 pub mod list_heads;
 pub mod list_row;
+pub mod menu;
 pub mod number_field;
 pub mod radio;
 pub mod scroll_area;
@@ -215,13 +215,13 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("checkbox", checkbox::card),
     ("cover", cover::card),
     ("detail-tabs", detail_tabs::card),
-    ("dropdown", dropdown::card),
     ("fold", fold::card),
     ("help", help::card),
     ("hover-box", hover_box::card),
     ("icon-button", icon_button::card),
     ("list-heads", list_heads::card),
     ("list-row", list_row::card),
+    ("menu", menu::card),
     ("number-field", number_field::card),
     ("radio", radio::card),
     ("scroll-area", scroll_area::card),

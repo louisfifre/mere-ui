@@ -2,7 +2,7 @@
 //! Design System has no preview of it yet: this card follows the boards' box (12 px, a 1 px frame, the check in the
 //! text colour).
 
-use mere_ui::{CheckboxOpts, Theme, Ui};
+use mere_ui::{Selector, SelectorOpts, Theme, Ui};
 
 use super::{Block, Card, Cell, State, render};
 
@@ -11,8 +11,8 @@ fn row(checked: bool) -> Vec<Cell> {
         .into_iter()
         .map(|(state, disabled)| {
             Cell::new(state, move |ui: &mut Ui, _| {
-                let mut v = checked;
-                ui.checkbox("c", "Option", &mut v, CheckboxOpts { disabled }).id
+
+                ui.selector("c", "Option", Selector::Multiple, checked, SelectorOpts { disabled }).id
             })
         })
         .collect()

@@ -7,7 +7,7 @@ use mere_layout::{Avail, Dim, Measured, NodeId, Overflow, Position, Style, Tree}
 
 use crate::edit::MemoryClipboard;
 use crate::field::{FieldPaint, Focus, Typed, paint_field};
-use crate::dropdown::Hung;
+use crate::menu::Hung;
 use crate::id::Id;
 use crate::input::Input;
 use crate::popup::Popup;
@@ -121,15 +121,15 @@ pub struct Ui {
     lifts: Vec<NodeId>,
     lift_depth: u32,
     lift_rects: Vec<Rect>,
-    /// The open dropdown as last built (dropdown.rs), whether one was built open this frame, the dropdown that Escape
+    /// The open menu as last built (menu.rs), whether one was built open this frame, the menu that Escape
     /// or a press outside closed (told when it is built), and, while a list's rows are built, their ids, whether the
     /// first of them takes the focus, and the row Up or Down moves the focus from.
-    pub(crate) dropdown_hung: Option<Hung>,
-    pub(crate) dropdown_built: bool,
-    pub(crate) dropdown_close: Option<Id>,
-    pub(crate) dropdown_rows: Option<Vec<Id>>,
-    pub(crate) dropdown_first: bool,
-    pub(crate) dropdown_step: Option<(Id, i32)>,
+    pub(crate) menu_hung: Option<Hung>,
+    pub(crate) menu_built: bool,
+    pub(crate) menu_close: Option<Id>,
+    pub(crate) menu_rows: Option<Vec<Id>>,
+    pub(crate) menu_first: bool,
+    pub(crate) menu_step: Option<(Id, i32)>,
 }
 
 /// How long the pointer rests on a titled widget before its tip shows (the browsers' own is about this).
@@ -177,12 +177,12 @@ impl Ui {
             lifts: Vec::new(),
             lift_depth: 0,
             lift_rects: Vec::new(),
-            dropdown_hung: None,
-            dropdown_built: false,
-            dropdown_close: None,
-            dropdown_rows: None,
-            dropdown_first: false,
-            dropdown_step: None,
+            menu_hung: None,
+            menu_built: false,
+            menu_close: None,
+            menu_rows: None,
+            menu_first: false,
+            menu_step: None,
         }
     }
 
@@ -203,9 +203,9 @@ impl Ui {
                 self.popup = None;
                 true
             }
-            // Then an open dropdown, which closes when it is built next.
-            Event::Key { key: Key::Escape, .. } if self.dropdown_hung.is_some() => {
-                self.dropdown_close = self.dropdown_hung.map(|h| h.id);
+            // Then an open menu, which closes when it is built next.
+            Event::Key { key: Key::Escape, .. } if self.menu_hung.is_some() => {
+                self.menu_close = self.menu_hung.map(|h| h.id);
                 true
             }
             Event::Key { key, mods } => {
@@ -238,7 +238,7 @@ impl Ui {
     /// A select's or a tab's popup list, or a menu, is open: it takes Escape before anything else, so an application
     /// that closes its own things with Escape leaves it to the list.
     pub fn menu_open(&self) -> bool {
-        self.popup.is_some() || self.dropdown_hung.is_some()
+        self.popup.is_some() || self.menu_hung.is_some()
     }
 
     /// True when the frame just ended changed something that only the next frame shows (Tab moved the focus
@@ -274,7 +274,7 @@ impl Ui {
         self.lifts.clear();
         self.lift_depth = 0;
         self.popup_begin_frame();
-        self.dropdown_begin_frame();
+        self.menu_begin_frame();
     }
 
     /// The application's time in seconds. Tooltips are timed by it, so tests set it by hand.
@@ -460,8 +460,8 @@ impl Ui {
         }
         self.lift_rects = later.iter().map(|(n, _)| abs[n.0]).collect();
         // A list whose line was not built this frame (the page changed) is gone: nothing is left for Escape.
-        if !self.dropdown_built {
-            self.dropdown_hung = None;
+        if !self.menu_built {
+            self.menu_hung = None;
         }
         self.paint_popup(&abs);
         self.paint_tip();

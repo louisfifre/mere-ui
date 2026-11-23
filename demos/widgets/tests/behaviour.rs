@@ -8,8 +8,8 @@ use mere_layout::{Dim, Insets, Position, Style};
 use mere_ui::tokens::{FADE_DIM, FADE_DISABLED, FADE_LIT, FRAME, GAP_TIGHT, INSET, INSET_TIGHT};
 use mere_ui::{SWITCH_H, SWITCH_W};
 use mere_ui::{
-    ButtonLook, ButtonOpts, CheckboxOpts, DropdownOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, MARK_SIZE, Mark, NumberSpec, OptionRow,
-    RadioOpts, RowOpts, ScrollOpts, THUMB_W, TextLook, Theme, Tone, Ui, scroll_style, text_width,
+    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, MARK_SIZE, MenuOpts, NumberSpec, SelectRow, Selector,
+    SelectorOpts, RowOpts, ScrollOpts, THUMB_W, TextLook, Theme, Tone, Ui, scroll_style, text_width,
 };
 use mere_win32::Renderer;
 
@@ -608,18 +608,18 @@ fn a_chosen_row_keeps_its_swatch_the_others_are_set_back_and_the_hovered_one_is_
     });
 }
 
-// ---- checkbox, radio, option rows, dropdown ----
+// ---- selectors, selection rows, menu ----
 
 const SPACE: Event = Event::Char { ch: ' ' };
 
-/// The mark of a checkbox, a radio or an option row: `MARK_SIZE` on a side, at the row's left padding and `drop`
+/// The selector of a labelled selector or of a selection row: `MARK_SIZE` on a side, at the row's left padding and `drop`
 /// below its top.
 fn square(r: Rect, pad_x: f32, drop: f32) -> Rect {
     Rect::new(r.x + pad_x, r.y + drop, MARK_SIZE, MARK_SIZE)
 }
 
 #[test]
-fn a_checkbox_checks_and_unchecks_on_a_press_lights_under_the_pointer_and_does_nothing_when_disabled() {
+fn a_multiple_selector_reports_the_press_its_caller_flips_it_it_lights_under_the_pointer_and_does_nothing_when_disabled() {
     both(|t| {
         for disabled in [false, true] {
             let mut sc = Scene::new(t);
@@ -627,14 +627,21 @@ fn a_checkbox_checks_and_unchecks_on_a_press_lights_under_the_pointer_and_does_n
             let build = |sc: &mut Scene, v: &mut bool| {
                 let mut id = None;
                 let list = sc.frame(|ui| {
-                    ui.node("at", at(20.0, 20.0), |ui| id = Some(ui.checkbox("c", "Option", v, CheckboxOpts { disabled }).id));
+                    ui.node("at", at(20.0, 20.0), |ui| {
+                        let r = ui.selector("c", "Option", Selector::Multiple, *v, SelectorOpts { disabled });
+                        // The caller's part: a press flips it.
+                        if r.clicked {
+                            *v = !*v;
+                        }
+                        id = Some(r.id);
+                    });
                 });
                 (list, id.unwrap())
             };
             let (_, id) = build(&mut sc, &mut v);
             let r = sc.rect(id);
             let build = |sc: &mut Scene, v: &mut bool| build(sc, v).0;
-            // The box is centred in the compact control's height.
+            // The selector is centred in the compact control's height.
             let sq = square(r, 0.0, ((r.h - MARK_SIZE) / 2.0).floor());
             let list = build(&mut sc, &mut v);
             let edge = if disabled { t.faded(t.edge, FADE_DISABLED) } else { t.edge };
@@ -644,10 +651,12 @@ fn a_checkbox_checks_and_unchecks_on_a_press_lights_under_the_pointer_and_does_n
             let list = build(&mut sc, &mut v);
             sc.pic(&list).is(sq.x, sq.y + 6.0, if disabled { edge } else { t.text }, "the frame under the pointer");
             sc.click(centre(r), 1);
+            build(&mut sc, &mut v);
+            assert_eq!(v, !disabled, "a press asks and its caller checks it, unless it is disabled");
+            assert_eq!(sc.ui.want_redraw(), !disabled, "the caller's change asks for one more frame");
             let list = build(&mut sc, &mut v);
-            assert_eq!(v, !disabled, "a press checks it, unless it is disabled");
             if !disabled {
-                sc.pic(&list).is(sq.x + 6.0, sq.y + 6.0, t.text, "the check, in the frame of the press");
+                sc.pic(&list).is(sq.x + 6.0, sq.y + 6.0, t.text, "the check, in the next frame");
                 sc.click(centre(r), 1);
                 build(&mut sc, &mut v);
                 assert!(!v, "a second press unchecks it");
@@ -657,7 +666,7 @@ fn a_checkbox_checks_and_unchecks_on_a_press_lights_under_the_pointer_and_does_n
 }
 
 #[test]
-fn a_radio_reports_the_press_and_shows_the_value_its_caller_gives() {
+fn a_single_selector_reports_the_press_and_shows_the_value_its_caller_gives() {
     both(|t| {
         for disabled in [false, true] {
             let mut sc = Scene::new(t);
@@ -665,7 +674,7 @@ fn a_radio_reports_the_press_and_shows_the_value_its_caller_gives() {
             let build = |sc: &mut Scene, selected: &mut bool| {
                 let mut resp = None;
                 let list = sc.frame(|ui| {
-                    ui.node("at", at(20.0, 20.0), |ui| resp = Some(ui.radio("r", "Option", *selected, RadioOpts { disabled })));
+                    ui.node("at", at(20.0, 20.0), |ui| resp = Some(ui.selector("r", "Option", Selector::Single, *selected, SelectorOpts { disabled })));
                 });
                 let resp = resp.unwrap();
                 // The caller's part: a press selects this one.
@@ -692,7 +701,7 @@ fn a_radio_reports_the_press_and_shows_the_value_its_caller_gives() {
                 let pic = sc.pic(&list);
                 pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the dot of the selected one");
                 pic.is(sq.x, sq.y + 5.0, t.text, "its ring in the text colour");
-                // A press on a selected radio asks again; it never unselects by itself.
+                // A press on a selected single selector asks again; it never unselects by itself.
                 sc.click(centre(r), 1);
                 let (_, resp) = build(&mut sc, &mut selected);
                 assert!(resp.clicked && selected, "a second press is reported and the value stays the caller's");
@@ -701,11 +710,11 @@ fn a_radio_reports_the_press_and_shows_the_value_its_caller_gives() {
     });
 }
 
-/// One option row in a column 300 wide at (20, 20); a press or Space flips `v`, as a caller of a multiple choice does.
-fn option_at(ui: &mut Ui, row: OptionRow, v: &mut bool) -> Id {
+/// One selection row in a column 300 wide at (20, 20); a press or Space flips `v`, as a caller of a multiple choice does.
+fn select_row_at(ui: &mut Ui, row: SelectRow, v: &mut bool) -> Id {
     let mut id = None;
     ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| {
-        let r = ui.option("o", OptionRow { selected: *v, ..row });
+        let r = ui.menu_select("o", SelectRow { selected: *v, ..row });
         if r.clicked {
             *v = !*v;
         }
@@ -715,14 +724,14 @@ fn option_at(ui: &mut Ui, row: OptionRow, v: &mut bool) -> Id {
 }
 
 #[test]
-fn an_option_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
+fn a_selection_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
     both(|t| {
-        let row = OptionRow { label: "Reports", detail: "Archive", detail_tail: r"D:\Archive\2024\reports", mark: Mark::Check, ..OptionRow::default() };
+        let row = SelectRow { label: "Reports", detail: "Archive", detail_tail: r"D:\Archive\2024\reports", selector: Selector::Multiple, ..SelectRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let id = {
             let mut id = None;
-            sc.frame(|ui| id = Some(option_at(ui, row, &mut v)));
+            sc.frame(|ui| id = Some(select_row_at(ui, row, &mut v)));
             id.unwrap()
         };
         let r = sc.rect(id);
@@ -730,19 +739,19 @@ fn an_option_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
         // Space does nothing before the row has the focus.
         sc.ui.event(&SPACE);
         sc.frame(|ui| {
-            option_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         assert!(!v, "Space reaches no row without the focus");
         // A press at the far right of the row, past its text, asks for it and gives it the focus.
         sc.click(Vec2::new(r.x + r.w - 2.0, r.y + r.h - 3.0), 1);
         sc.frame(|ui| {
-            option_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         assert!(v, "the whole row takes the press");
         assert!(sc.ui.want_redraw(), "the caller's change asks for one more frame");
         assert_eq!(sc.ui.focused(), Some(id), "the pressed row has the focus");
         let list = sc.frame(|ui| {
-            option_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         let pic = sc.pic(&list);
         pic.is(r.x + r.w - 4.0, r.y + 2.0, t.select, "the focused row is filled with the selection colour");
@@ -751,32 +760,32 @@ fn an_option_row_takes_the_press_on_its_whole_width_and_space_once_focused() {
         // Space asks again, twice.
         sc.ui.event(&SPACE);
         sc.frame(|ui| {
-            option_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         assert!(!v, "Space on the focused row is a press");
         sc.ui.event(&SPACE);
         sc.frame(|ui| {
-            option_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         assert!(v, "and again");
         // A press elsewhere takes the focus away.
         sc.click(Vec2::new(380.0, 280.0), 1);
         sc.frame(|ui| {
-            option_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         assert_eq!(sc.ui.focused(), None, "a press outside the row takes its focus");
 
         // Disabled: no press, no focus, no Space.
-        let off = OptionRow { disabled: true, ..row };
+        let off = SelectRow { disabled: true, ..row };
         let mut sc = Scene::new(t);
         let mut v = false;
         sc.frame(|ui| {
-            option_at(ui, off, &mut v);
+            select_row_at(ui, off, &mut v);
         });
         sc.click(centre(r), 1);
         sc.ui.event(&SPACE);
         sc.frame(|ui| {
-            option_at(ui, off, &mut v);
+            select_row_at(ui, off, &mut v);
         });
         assert!(!v && sc.ui.focused().is_none(), "a disabled row takes no press and no focus");
     });
@@ -794,15 +803,15 @@ fn texts_in(list: &DrawList, r: Rect) -> Vec<String> {
 }
 
 #[test]
-fn an_option_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
+fn a_selection_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
     let tail = r"D:\Archive\2024\reports\quarterly\final versions\signed";
-    let row = OptionRow { label: "Quarterly reports with every appendix and the signed copies", detail: "Archive", detail_tail: tail, mark: Mark::Check, ..OptionRow::default() };
+    let row = SelectRow { label: "Quarterly reports with every appendix and the signed copies", detail: "Archive", detail_tail: tail, selector: Selector::Multiple, ..SelectRow::default() };
     let mut sc = Scene::new(Theme::dark());
     let mut v = false;
     let mut id = None;
-    sc.frame(|ui| id = Some(option_at(ui, row, &mut v)));
+    sc.frame(|ui| id = Some(select_row_at(ui, row, &mut v)));
     let list = sc.frame(|ui| {
-        option_at(ui, row, &mut v);
+        select_row_at(ui, row, &mut v);
     });
     let texts = texts_in(&list, sc.rect(id.unwrap()));
     let label = texts.iter().find(|s| s.starts_with("Quarterly")).expect("the label is painted");
@@ -813,24 +822,24 @@ fn an_option_rows_label_is_cut_at_its_end_and_its_detail_tail_at_its_start() {
 }
 
 #[test]
-fn a_radio_row_with_a_detail_line_reports_its_press_and_paints_its_detail() {
+fn a_single_selection_row_with_a_detail_line_reports_its_press_and_paints_its_detail() {
     both(|t| {
-        let row = OptionRow { label: "Weekly", detail: "Archive", detail_tail: r"D:\Archive\weekly", mark: Mark::Radio, ..OptionRow::default() };
+        let row = SelectRow { label: "Weekly", detail: "Archive", detail_tail: r"D:\Archive\weekly", selector: Selector::Single, ..SelectRow::default() };
         let mut sc = Scene::new(t);
         let mut v = false;
         let mut id = None;
-        sc.frame(|ui| id = Some(option_at(ui, row, &mut v)));
+        sc.frame(|ui| id = Some(select_row_at(ui, row, &mut v)));
         let r = sc.rect(id.unwrap());
         assert_eq!(r.h, 2.0 * INSET_TIGHT + 18.0 + 16.0, "two lines on whole pixels");
         // A press on the detail line, under the label, is the row's.
         sc.click(Vec2::new(r.x + INSET + MARK_SIZE + 20.0, r.y + r.h - INSET_TIGHT - 4.0), 1);
         sc.frame(|ui| {
-            option_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         assert!(v, "the press is reported and its caller selects the row");
         sc.click(Vec2::new(380.0, 280.0), 1);
         let list = sc.frame(|ui| {
-            option_at(ui, row, &mut v);
+            select_row_at(ui, row, &mut v);
         });
         let texts = texts_in(&list, r);
         assert!(texts.iter().any(|s| s == "Archive \u{b7} ") && texts.iter().any(|s| s == r"D:\Archive\weekly"), "the detail is painted: {texts:?}");
@@ -840,21 +849,21 @@ fn a_radio_row_with_a_detail_line_reports_its_press_and_paints_its_detail() {
         let sq = square(r, INSET, INSET_TIGHT + 4.0);
         let pic = sc.pic(&list);
         pic.is(sq.x + 6.0, sq.y + 6.0, t.text, "the selected row's dot");
-        pic.is(sq.x, sq.y, t.ground, "a round mark, with empty corners");
+        pic.is(sq.x, sq.y, t.ground, "a round selector, with empty corners");
     });
 }
 
-/// The two kinds of choice a dropdown's rows serve.
+/// The two kinds of choice a menu's selection rows serve.
 #[derive(Copy, Clone, PartialEq)]
 enum Kind {
-    /// Several, with check boxes.
-    Checks,
-    /// One, with radio buttons; the list closes on the pick.
-    Radios,
+    /// Several, with multiple selectors.
+    Several,
+    /// One, with single selectors; the list closes on the pick.
+    One,
 }
 
-/// The corner of a panel: a dropdown hung above its line, which sits at (20, 220) and is 240 wide, holding two
-/// options, a separator and an action; and a button at (300, 20), away from both. Its caller applies the presses as
+/// The corner of a panel: a menu hung above its line, which sits at (20, 220) and is 240 wide, holding two
+/// selection rows, a separator and an action; and a button at (300, 20), away from both. Its caller applies the presses as
 /// its kind wants.
 struct Corner {
     open: bool,
@@ -884,34 +893,34 @@ struct CornerOut {
 fn corner(ui: &mut Ui, c: &mut Corner) -> CornerOut {
     let mut out = CornerOut::default();
     ui.node("panel", Style { column: true, w: Dim::Px(240.0), ..at(20.0, 220.0) }, |ui| {
-        let opts = DropdownOpts { up: true, disabled: c.disabled };
+        let opts = MenuOpts { up: true, disabled: c.disabled };
         let kind = c.kind;
-        let mark = match kind {
-            Kind::Checks => Mark::Check,
-            Kind::Radios => Mark::Radio,
+        let selector = match kind {
+            Kind::Several => Selector::Multiple,
+            Kind::One => Selector::Single,
         };
         let selected = c.selected;
         let mut asked = None;
         let mut rows = Vec::new();
         let mut action = false;
-        let r = ui.dropdown("dd", "Back up: Reports", &mut c.open, opts, |ui| {
+        let r = ui.menu("dd", "Back up: Reports", &mut c.open, opts, |ui| {
             for (i, label) in ["Reports", "Notes"].into_iter().enumerate() {
-                let row = OptionRow { label, detail: "Archive", detail_tail: r"D:\Archive\2024", mark, selected: selected[i], disabled: false };
-                let resp = ui.option(&format!("o{i}"), row);
+                let row = SelectRow { label, detail: "Archive", detail_tail: r"D:\Archive\2024", selector, selected: selected[i], disabled: false };
+                let resp = ui.menu_select(&format!("o{i}"), row);
                 rows.push(resp.id);
                 if resp.clicked {
                     asked = Some(i);
                 }
             }
-            ui.dropdown_separator();
-            let a = ui.dropdown_action("browse", "Browse\u{2026}");
+            ui.menu_separator();
+            let a = ui.menu_action("browse", "Browse\u{2026}");
             rows.push(a.id);
             action = a.clicked;
         });
         if let Some(i) = asked {
             match kind {
-                Kind::Checks => c.selected[i] = !c.selected[i],
-                Kind::Radios => {
+                Kind::Several => c.selected[i] = !c.selected[i],
+                Kind::One => {
                     c.selected = [i == 0, i == 1];
                     c.open = false;
                 }
@@ -941,9 +950,9 @@ fn opened_corner(t: Theme, kind: Kind) -> (Scene, Corner, CornerOut) {
 }
 
 #[test]
-fn the_dropdown_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_open_while_rows_are_checked() {
+fn the_menu_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_open_while_rows_are_checked() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Checks);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         let line = sc.rect(out.line.unwrap());
         let list = sc.rect(out.list.expect("the list is built while open"));
         assert_eq!((list.x, list.w), (line.x, line.w), "the list has exactly the line's width");
@@ -955,7 +964,7 @@ fn the_dropdown_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_ope
         assert!(rows.iter().all(|r| r.x == list.x + FRAME && r.w == list.w - 2.0 * FRAME), "every row spans the list inside its frame");
         // The first row has the focus when the list opens.
         assert_eq!(sc.ui.focused(), Some(out.rows[0]), "the first row takes the focus on opening");
-        // The action row leaves the marks' column empty: its text starts where the labels do.
+        // The action row leaves the selectors' column empty: its text starts where the labels do.
         let painted = sc.frame(|ui| out = corner(ui, &mut c));
         let at = |s: &str| painted.cmds.iter().find_map(|c| if let Cmd::Text { at, text, .. } = c { (text == s).then_some(at.x) } else { None });
         assert!(at("Notes").is_some(), "the label is painted");
@@ -985,16 +994,16 @@ fn the_dropdown_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_ope
 }
 
 #[test]
-fn a_single_choice_with_radios_selects_one_row_and_its_caller_closes_the_list() {
+fn a_single_choice_selects_one_row_and_its_caller_closes_the_list() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Radios);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::One);
         let rows: Vec<Rect> = out.rows.iter().map(|id| sc.rect(*id)).collect();
         let sq = square(rows[1], INSET, INSET_TIGHT + 4.0);
         let pic = {
             let list = sc.frame(|ui| out = corner(ui, &mut c));
             sc.pic(&list)
         };
-        pic.is(sq.x, sq.y + 5.0, t.edge, "a round mark, its ring in the edge colour");
+        pic.is(sq.x, sq.y + 5.0, t.edge, "a round selector, its ring in the edge colour");
         pic.is(sq.x, sq.y, t.ground, "with empty corners");
         sc.click(centre(rows[1]), 1);
         sc.frame(|ui| out = corner(ui, &mut c));
@@ -1020,7 +1029,7 @@ fn a_single_choice_with_radios_selects_one_row_and_its_caller_closes_the_list() 
 #[test]
 fn up_and_down_move_the_focus_through_the_open_list_and_open_the_closed_line() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Checks);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         assert_eq!(sc.ui.focused(), Some(out.rows[0]));
         sc.key(Key::Down, NONE, 1);
         sc.frame(|ui| out = corner(ui, &mut c));
@@ -1067,9 +1076,9 @@ fn up_and_down_move_the_focus_through_the_open_list_and_open_the_closed_line() {
 }
 
 #[test]
-fn a_dropdown_its_caller_closes_gives_the_focus_back_to_its_line() {
+fn a_menu_its_caller_closes_gives_the_focus_back_to_its_line() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Checks);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         // Space on the action row, reached with Tab, as a keyboard would open a dialog from it.
         sc.key(Key::Tab, NONE, 1);
         sc.frame(|ui| out = corner(ui, &mut c));
@@ -1089,10 +1098,10 @@ fn a_dropdown_its_caller_closes_gives_the_focus_back_to_its_line() {
 }
 
 #[test]
-fn escape_closes_the_dropdown_and_gives_the_focus_back_to_its_line() {
+fn escape_closes_the_menu_and_gives_the_focus_back_to_its_line() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Checks);
-        assert!(sc.ui.menu_open(), "an open dropdown takes Escape first");
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
+        assert!(sc.ui.menu_open(), "an open menu takes Escape first");
         sc.key(Key::Escape, NONE, 1);
         let list = sc.frame(|ui| out = corner(ui, &mut c));
         assert!(!c.open && out.closed && out.list.is_none(), "Escape closes the list");
@@ -1114,9 +1123,9 @@ fn escape_closes_the_dropdown_and_gives_the_focus_back_to_its_line() {
 }
 
 #[test]
-fn a_press_outside_closes_the_dropdown_reaches_nothing_and_focuses_the_line() {
+fn a_press_outside_closes_the_menu_reaches_nothing_and_focuses_the_line() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Checks);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         let button = Vec2::new(310.0, 28.0);
         sc.click(button, 1);
         sc.frame(|ui| out = corner(ui, &mut c));
@@ -1140,9 +1149,9 @@ fn a_press_outside_closes_the_dropdown_reaches_nothing_and_focuses_the_line() {
 }
 
 #[test]
-fn enter_in_the_dropdown_is_reported_and_leaves_it_open() {
+fn enter_in_the_menu_is_reported_and_leaves_it_open() {
     both(|t| {
-        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Checks);
+        let (mut sc, mut c, mut out) = opened_corner(t, Kind::Several);
         sc.key(Key::Enter, NONE, 1);
         sc.frame(|ui| out = corner(ui, &mut c));
         assert!(out.enter, "Enter from a row of the list is reported");
@@ -1169,10 +1178,10 @@ fn enter_in_the_dropdown_is_reported_and_leaves_it_open() {
 }
 
 #[test]
-fn a_disabled_dropdown_line_opens_nothing() {
+fn a_disabled_menu_line_opens_nothing() {
     both(|t| {
         let mut sc = Scene::new(t);
-        let mut c = Corner { disabled: true, ..Corner::new(Kind::Checks) };
+        let mut c = Corner { disabled: true, ..Corner::new(Kind::Several) };
         let mut out = CornerOut::default();
         sc.frame(|ui| out = corner(ui, &mut c));
         let line = sc.rect(out.line.unwrap());

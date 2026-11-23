@@ -1,12 +1,12 @@
-//! The Dropdown card: the line closed and disabled; then open in each kind of choice, several with check boxes and one
-//! with radio buttons (one row disabled); then the same two with two-line rows whose long detail is cut at its start,
+//! The Menu card: the line closed and disabled; then open in each kind of choice, several with multiple selectors and
+//! one with single selectors (one row disabled); then the same two with two-line rows whose long detail is cut at its start,
 //! a separator and an action row; and a list hung above its line. The Design System has no preview of it yet. An open
 //! list is opened by a press on its line, so its first row has the focus, as it does when the list opens.
 
 use std::cell::Cell as Memo;
 
 use mere_layout::{Dim, Justify, Style};
-use mere_ui::{DropdownOpts, Id, Mark, OptionRow, Theme, Ui};
+use mere_ui::{Id, MenuOpts, SelectRow, Selector, Theme, Ui};
 
 use super::select::{Probe, centre, click};
 use super::{Block, Card, Cell, State, render};
@@ -17,44 +17,44 @@ const COL: f32 = 280.0;
 /// What a list holds, in order.
 #[derive(Copy, Clone)]
 enum Item {
-    Row(OptionRow<'static>),
+    Row(SelectRow<'static>),
     Separator,
     Action(&'static str),
 }
 
-const fn row(label: &'static str, mark: Mark, selected: bool) -> Item {
-    Item::Row(OptionRow { label, detail: "", detail_tail: "", mark, selected, disabled: false })
+const fn row(label: &'static str, selector: Selector, selected: bool) -> Item {
+    Item::Row(SelectRow { label, detail: "", detail_tail: "", selector, selected, disabled: false })
 }
 
-const fn off(label: &'static str, mark: Mark) -> Item {
-    Item::Row(OptionRow { label, detail: "", detail_tail: "", mark, selected: false, disabled: true })
+const fn off(label: &'static str, selector: Selector) -> Item {
+    Item::Row(SelectRow { label, detail: "", detail_tail: "", selector, selected: false, disabled: true })
 }
 
-const fn two(label: &'static str, detail: &'static str, detail_tail: &'static str, mark: Mark, selected: bool) -> Item {
-    Item::Row(OptionRow { label, detail, detail_tail, mark, selected, disabled: false })
+const fn two(label: &'static str, detail: &'static str, detail_tail: &'static str, selector: Selector, selected: bool) -> Item {
+    Item::Row(SelectRow { label, detail, detail_tail, selector, selected, disabled: false })
 }
 
-const TOPPINGS: &[Item] = &[row("Cheese", Mark::Check, true), row("Tomato", Mark::Check, false), row("Basil", Mark::Check, true), row("Olives", Mark::Check, false)];
-const SIZES: &[Item] = &[row("Small", Mark::Radio, false), row("Medium", Mark::Radio, true), row("Large", Mark::Radio, false), off("Extra large", Mark::Radio)];
+const TOPPINGS: &[Item] = &[row("Cheese", Selector::Multiple, true), row("Tomato", Selector::Multiple, false), row("Basil", Selector::Multiple, true), row("Olives", Selector::Multiple, false)];
+const SIZES: &[Item] = &[row("Small", Selector::Single, false), row("Medium", Selector::Single, true), row("Large", Selector::Single, false), off("Extra large", Selector::Single)];
 const BACKUP: &[Item] = &[
-    two("Reports", "Archive", r"D:\Archive\2024\reports\quarterly\final versions", Mark::Check, true),
-    two("Sketches", "Code", r"C:\Code\sketches\2024\interface studies", Mark::Check, false),
-    two("Notes", "", "", Mark::Check, true),
+    two("Reports", "Archive", r"D:\Archive\2024\reports\quarterly\final versions", Selector::Multiple, true),
+    two("Sketches", "Code", r"C:\Code\sketches\2024\interface studies", Selector::Multiple, false),
+    two("Notes", "", "", Selector::Multiple, true),
     Item::Separator,
     Item::Action("Browse\u{2026}"),
 ];
 const SAVE_TO: &[Item] = &[
-    two("Documents", "This computer", r"C:\Users\someone\Documents\Letters\2024\drafts", Mark::Radio, true),
-    two("Projects", "This computer", r"C:\Code\projects", Mark::Radio, false),
-    two("Archive", "External drive", r"D:\Archive\2024", Mark::Radio, false),
+    two("Documents", "This computer", r"C:\Users\someone\Documents\Letters\2024\drafts", Selector::Single, true),
+    two("Projects", "This computer", r"C:\Code\projects", Selector::Single, false),
+    two("Archive", "External drive", r"D:\Archive\2024", Selector::Single, false),
     Item::Separator,
     Item::Action("Choose a folder\u{2026}"),
 ];
-const SORT: &[Item] = &[row("Name", Mark::Radio, true), row("Date modified", Mark::Radio, false), row("Size", Mark::Radio, false)];
+const SORT: &[Item] = &[row("Name", Selector::Single, true), row("Date modified", Selector::Single, false), row("Size", Selector::Single, false)];
 
-/// A dropdown in a box `COL` wide and `h` tall, its line at the bottom when the list opens up, at the top when it
+/// A menu in a box `COL` wide and `h` tall, its line at the bottom when the list opens up, at the top when it
 /// opens down. `open` presses the line once.
-fn list(line: &'static str, items: &'static [Item], opts: DropdownOpts, open: bool, h: f32) -> Cell {
+fn list(line: &'static str, items: &'static [Item], opts: MenuOpts, open: bool, h: f32) -> Cell {
     let probe = Probe::new();
     let shown = Memo::new(false);
     let line_id: Memo<Option<Id>> = Memo::new(None);
@@ -70,15 +70,15 @@ fn list(line: &'static str, items: &'static [Item], opts: DropdownOpts, open: bo
         let mut id = None;
         ui.node("box", style, |ui| {
             let mut o = shown.get();
-            let r = ui.dropdown("dd", line, &mut o, opts, |ui| {
+            let r = ui.menu("menu", line, &mut o, opts, |ui| {
                 for (i, item) in items.iter().enumerate() {
                     match *item {
                         Item::Row(row) => {
-                            ui.option(&format!("o{i}"), row);
+                            ui.menu_select(&format!("o{i}"), row);
                         }
-                        Item::Separator => ui.dropdown_separator(),
+                        Item::Separator => ui.menu_separator(),
                         Item::Action(text) => {
-                            ui.dropdown_action(&format!("a{i}"), text);
+                            ui.menu_action(&format!("a{i}"), text);
                         }
                     }
                 }
@@ -94,9 +94,9 @@ fn list(line: &'static str, items: &'static [Item], opts: DropdownOpts, open: bo
 }
 
 pub fn blocks() -> Vec<Block> {
-    let down = DropdownOpts::default();
-    let up = DropdownOpts { up: true, ..down };
-    let disabled = DropdownOpts { disabled: true, ..down };
+    let down = MenuOpts::default();
+    let up = MenuOpts { up: true, ..down };
+    let disabled = MenuOpts { disabled: true, ..down };
     vec![
         Block::matrix(vec![vec![list("Toppings: Cheese, Basil", TOPPINGS, down, false, 24.0), list("Size: Medium", SIZES, disabled, false, 24.0)]]).col_width(COL),
         Block::matrix(vec![vec![list("Toppings: Cheese, Basil", TOPPINGS, down, true, 140.0), list("Size: Medium", SIZES, down, true, 140.0)]]).col_width(COL),
