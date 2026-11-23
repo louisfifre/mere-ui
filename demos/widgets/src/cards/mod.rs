@@ -28,19 +28,24 @@ use mere_layout::{Dim, Insets, Position, Style};
 use mere_ui::tokens::{SPACE_48, SPACE_64, SPACE_96};
 use mere_ui::{Id, Theme, Ui};
 
+pub mod action_row;
 pub mod button;
 pub mod cover;
 pub mod detail_tabs;
 pub mod fold;
+pub mod group;
 pub mod help;
 pub mod hover_box;
 pub mod icon_button;
+pub mod immediate_row;
 pub mod list_heads;
 pub mod list_row;
 pub mod menu;
 pub mod number_field;
+pub mod rule;
 pub mod scroll_area;
 pub mod select;
+pub mod selection_row;
 pub mod selector;
 pub mod stop_button;
 pub mod tab_menu;
@@ -210,19 +215,24 @@ pub fn render(theme: Theme, blocks: Vec<Block>) -> Card {
 
 /// Every card, by its kebab-case name.
 pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
+    ("action-row", action_row::card),
     ("button", button::card),
     ("cover", cover::card),
     ("detail-tabs", detail_tabs::card),
     ("fold", fold::card),
+    ("group", group::card),
     ("help", help::card),
     ("hover-box", hover_box::card),
     ("icon-button", icon_button::card),
+    ("immediate-row", immediate_row::card),
     ("list-heads", list_heads::card),
     ("list-row", list_row::card),
     ("menu", menu::card),
     ("number-field", number_field::card),
+    ("rule", rule::card),
     ("scroll-area", scroll_area::card),
     ("select", select::card),
+    ("selection-row", selection_row::card),
     ("selector", selector::card),
     ("stop-button", stop_button::card),
     ("tab-menu", tab_menu::card),

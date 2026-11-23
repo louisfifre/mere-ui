@@ -202,3 +202,27 @@ fn a_disabled_select_does_not_open() {
     assert!(!p.last.unwrap().open);
 }
 
+
+#[test]
+fn the_keyboard_opens_moves_and_picks_and_the_line_gets_the_focus_back() {
+    let mut p = Page::new();
+    // A press gives the line the focus and opens the list on the chosen row; Escape closes it.
+    p.open();
+    p.ui.event(&Event::Key { key: Key::Escape, mods: Mods::default() });
+    p.frame();
+    assert!(!p.last.unwrap().open);
+    let line = p.last.unwrap().resp.id;
+    assert_eq!(p.ui.focused(), Some(line), "the closed list gives the focus back to its line");
+    // Space opens it again, Down moves to the next row, Space picks it and closes.
+    p.ui.event(&Event::Char { ch: ' ' });
+    p.frame();
+    assert!(p.last.unwrap().open, "Space on the line opens the list");
+    p.ui.event(&Event::Key { key: Key::Down, mods: Mods::default() });
+    p.frame();
+    p.ui.event(&Event::Char { ch: ' ' });
+    p.frame();
+    assert_eq!(p.chosen, 2, "Down then Space picks the row after the chosen one");
+    p.frame();
+    assert!(!p.last.unwrap().open, "and closes the list");
+    assert_eq!(p.ui.focused(), Some(line));
+}

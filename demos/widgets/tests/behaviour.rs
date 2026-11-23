@@ -8,7 +8,7 @@ use mere_layout::{Dim, Insets, Position, Style};
 use mere_ui::tokens::{FADE_DIM, FADE_DISABLED, FADE_LIT, FRAME, GAP_TIGHT, INSET, INSET_TIGHT};
 use mere_ui::{SWITCH_H, SWITCH_W};
 use mere_ui::{
-    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ListRow, MARK_SIZE, MenuOpts, NumberSpec, Trigger, SelectionRow, Selector,
+    ButtonLook, ButtonOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ImmediateRow, ListRow, MARK_SIZE, MenuOpts, NumberSpec, Trigger, SelectionRow, Selector,
     SelectorOpts, RowOpts, ScrollOpts, THUMB_W, TextLook, Theme, Tone, Ui, scroll_style, text_width,
 };
 use mere_win32::Renderer;
@@ -1208,5 +1208,108 @@ fn a_status_sentence_in_the_failure_tone_is_painted_in_amber() {
         let colors: Vec<Color> = list.cmds.iter().filter_map(|c| if let Cmd::Text { color, .. } = c { Some(*color) } else { None }).collect();
         assert!(!colors.is_empty() && colors.iter().all(|c| *c == t.warn), "every line of the sentence is in the warn colour");
         assert_eq!(colors.len(), 2, "it wraps under the control's width");
+    });
+}
+/// Three immediate-selection rows in a column 300 wide at (20, 20), the last one disabled; a press makes the pressed
+/// row the selected one, as a caller does. Answers the rows' ids.
+fn immediate_rows_at(ui: &mut Ui, selected: &mut usize) -> Vec<Id> {
+    let mut ids = Vec::new();
+    ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| {
+        for (i, label) in ["Headphones", "Speakers", "Monitor"].into_iter().enumerate() {
+            let r = ui.immediate_row(&format!("r{i}"), ImmediateRow { label, selected: i == *selected, disabled: i == 2, ..ImmediateRow::default() });
+            if r.clicked {
+                *selected = i;
+            }
+            ids.push(r.id);
+        }
+    });
+    ids
+}
+
+#[test]
+fn an_immediate_row_applies_on_its_press_and_the_selected_one_is_lit_and_marked() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut selected = 0;
+        let mut ids = Vec::new();
+        sc.frame(|ui| ids = immediate_rows_at(ui, &mut selected));
+        let rows: Vec<Rect> = ids.iter().map(|&id| sc.rect(id)).collect();
+        assert_eq!(rows[0].h, 2.0 * INSET_TIGHT + 18.0, "one line");
+        // The selected row is lit with the tint and carries the indicator; the others have neither.
+        let list = sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        let pic = sc.pic(&list);
+        let mark = |r: Rect| Vec2::new(r.x + INSET + 1.0, r.y + r.h / 2.0);
+        pic.is(rows[0].x + rows[0].w - 2.0, rows[0].y + 2.0, t.tint(), "the selected row is lit");
+        let m = mark(rows[0]);
+        pic.is(m.x, m.y, t.text, "its indicator");
+        pic.is(rows[1].x + rows[1].w - 2.0, rows[1].y + 2.0, t.ground, "an unselected row is not");
+        let m = mark(rows[1]);
+        pic.is(m.x, m.y, t.ground, "and has no indicator");
+        // A press on the second row applies it at once.
+        sc.click(Vec2::new(rows[1].x + rows[1].w - 4.0, rows[1].y + 4.0), 1);
+        sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        assert_eq!(selected, 1, "the press selects, nothing to validate");
+        assert_eq!(sc.ui.focused(), Some(ids[1]), "and gives the row the focus");
+        // Space on the focused row asks for it again; it stays selected.
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        assert_eq!(selected, 1);
+        // The disabled row takes no press.
+        sc.click(centre(rows[2]), 1);
+        sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        assert_eq!(selected, 1, "a disabled row takes no press");
+        // Away from the pointer and the focus, the newly selected row is lit and marked.
+        sc.ui.event(&Event::PointerMoved { pos: Vec2::new(380.0, 280.0) });
+        let list = sc.frame(|ui| {
+            immediate_rows_at(ui, &mut selected);
+        });
+        let pic = sc.pic(&list);
+        assert_eq!(sc.ui.focused(), None, "the press on the disabled row took the focus away");
+        let m = mark(rows[1]);
+        pic.is(m.x, m.y, t.text, "the indicator moved with the selection");
+        pic.is(rows[0].x + rows[0].w - 2.0, rows[0].y + 2.0, t.ground, "the row it left is no longer lit");
+    });
+}
+
+#[test]
+fn a_group_parts_itself_from_the_group_it_follows_and_from_nothing_else() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let mut ids = Vec::new();
+        let build = |ui: &mut Ui, ids: &mut Vec<Id>| {
+            ids.clear();
+            ui.node("col", Style { column: true, w: Dim::Px(300.0), ..at(20.0, 20.0) }, |ui| {
+                ids.push(ui.group("a", |ui| {
+                    ui.selection_row("o", SelectionRow { label: "Reports", ..SelectionRow::default() });
+                }));
+                ids.push(ui.group("b", |ui| {
+                    ui.action_row("x", "Browse\u{2026}");
+                }));
+                ids.push(ui.titled_group("c", "View", |_| {}, |ui| {
+                    ui.selection_row("o", SelectionRow { label: "Grid", ..SelectionRow::default() });
+                }).group);
+            });
+        };
+        sc.frame(|ui| build(ui, &mut ids));
+        let list = sc.frame(|ui| build(ui, &mut ids));
+        let [a, b, c] = [0, 1, 2].map(|i| sc.rect(ids[i]));
+        assert_eq!(a.y, 20.0, "nothing above the first group");
+        assert_eq!(b.y - (a.y + a.h), 2.0 * INSET_TIGHT + FRAME, "a separator between two groups, inset-tight above and below");
+        let pic = sc.pic(&list);
+        let rule_y = a.y + a.h + INSET_TIGHT;
+        pic.is(a.x + INSET + 2.0, rule_y, t.line, "the separator, in the line colour");
+        pic.is(a.x + 2.0, rule_y, t.ground, "inset as the rows' texts are");
+        assert_eq!(c.y, b.y + b.h, "a titled group needs no separator above it");
+        // Its title stands gap-wide below the group it follows.
+        let title = texts_in(&list, Rect::new(c.x, c.y, c.w, mere_ui::tokens::GAP_WIDE + 18.0));
+        assert_eq!(title.concat(), "VIEW", "the title, in capitals (drawn letter by letter, it is tracked), gap-wide down");
     });
 }
