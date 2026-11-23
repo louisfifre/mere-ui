@@ -45,6 +45,9 @@ pub mod tab_menu;
 pub mod tabs;
 pub mod text;
 pub mod text_field;
+pub mod tick_box;
+pub mod tick_list;
+pub mod tick_row;
 pub mod toggle;
 pub mod tool_button;
 pub mod tooltip;
@@ -225,6 +228,9 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("tabs", tabs::card),
     ("text", text::card),
     ("text-field", text_field::card),
+    ("tick-box", tick_box::card),
+    ("tick-list", tick_list::card),
+    ("tick-row", tick_row::card),
     ("toggle", toggle::card),
     ("tool-button", tool_button::card),
     ("tooltip", tooltip::card),

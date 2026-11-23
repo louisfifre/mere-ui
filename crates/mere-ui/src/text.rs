@@ -1,5 +1,6 @@
 //! Text metrics as arithmetic: IBM Plex Mono is monospaced, so a width is a count times a constant and no
-//! text-measuring trait is needed. The ellipsis (`ellipsize`) and the wrapping of a paragraph (`wrap_lines`) are here.
+//! text-measuring trait is needed. The ellipsis at the end (`ellipsize`) or at the start (`ellipsize_start`) and the
+//! wrapping of a paragraph (`wrap_lines`) are here.
 
 use mere_base::Weight;
 
@@ -109,6 +110,28 @@ pub fn ellipsize(s: &str, look: TextLook, w: f32) -> String {
         out.push(c);
     }
     out.push('\u{2026}');
+    out
+}
+
+/// `ellipsize` from the other end, for a folder: `s` if it fits in `w`, else the ellipsis and the longest
+/// whole-glyph suffix that fits after it, so that the end of a path (the folder's own name) stays readable.
+pub fn ellipsize_start(s: &str, look: TextLook, w: f32) -> String {
+    if look.width(s) <= w + 0.01 {
+        return s.to_string();
+    }
+    let step = look.step();
+    let n = ((w - step) / step + 1e-3).floor().max(0.0) as usize;
+    let mut kept = Vec::new();
+    let mut used = 0;
+    for c in s.chars().rev() {
+        if used + cells(c) > n {
+            break;
+        }
+        used += cells(c);
+        kept.push(c);
+    }
+    let mut out = String::from('\u{2026}');
+    out.extend(kept.iter().rev());
     out
 }
 

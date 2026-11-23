@@ -5,7 +5,7 @@
 use mere_ui::tokens::*;
 use mere_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
 use mere_layout::{Dim, Display, Edges, Insets, Position, Style};
-use mere_ui::{ARROW, GUTTER, ListRow, PLOT_H, Resp, RowOpts, ScrollOpts, ScrollResp, THUMB_W, TextLook, Theme, Tone, Ui, ellipsize, scroll_style};
+use mere_ui::{ARROW, GUTTER, ListRow, PLOT_H, Resp, RowOpts, ScrollOpts, ScrollResp, THUMB_W, TextLook, Theme, Tone, Ui, ellipsize, ellipsize_start, scroll_style};
 
 /// A list row: the 18 px line and `INSET_TIGHT` above and below.
 const ROW_H: f32 = 18.0 + 2.0 * INSET_TIGHT;
@@ -109,6 +109,17 @@ fn ellipsize_cases() {
     // Narrower than the ellipsis cell: nothing but the ellipsis (the painter clips it).
     assert_eq!(ellipsize(s, body(), 5.0), "\u{2026}");
     assert_eq!(ellipsize("", body(), 5.0), "");
+}
+
+#[test]
+fn ellipsize_start_keeps_the_end() {
+    let s = r"C:\Users\someone\AppData\Roaming\.minecraft-exploration";
+    assert_eq!(ellipsize_start(s, body(), 1000.0), s);
+    // 20 cells: the ellipsis and the last 19 chars.
+    let cut = ellipsize_start(s, body(), 20.0 * 7.2);
+    assert_eq!(cut, format!("\u{2026}{}", &s[s.len() - 19..]));
+    assert_eq!(ellipsize_start(s, body(), 5.0), "\u{2026}");
+    assert_eq!(ellipsize_start("", body(), 5.0), "");
 }
 
 #[test]
