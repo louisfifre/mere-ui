@@ -25,8 +25,21 @@ The project's words, each confirmed with the maintainer. Name things this way in
 - **breakpoint**: a window width at which the layout changes form. Kept as few as possible: none in the world preview, at most one in the launcher's Home.
 - **shot**: a PNG rendered offscreen, the same frame the window shows. Rejected: screenshot, capture.
 - **PLACEHOLDER**: a provisional value shown until the real one exists, always marked as such in the handoff.
-- **menu**: a line that opens a list of rows over what lies around it, above or under the line and as wide as it; the rows are selection rows and action rows, groups of them parted by thin separators. Confirmed by the maintainer on 2026-11-23. Rejected: dropdown.
+- **menu**: the container of an open list: a trigger (a line with a chevron, or a strip tab) opens, above or under it, a framed box that holds groups of rows. The menu brings the frame and the fill; its groups and rows have none. Confirmed by the maintainer on 2026-11-23 (the trigger and the groups are proposed words, below). Rejected: dropdown.
 - **single selector**: the round mark of one choice among several, a dot when it is selected; it is never alone, always one among others. It is the mark alone, without its label. Confirmed by the maintainer on 2026-11-23. Rejected: radio, radio button.
 - **multiple selector**: the square mark of one of several choices that can be taken together, a check when it is selected. It is the mark alone, without its label. Confirmed by the maintainer on 2026-11-23.
 - **selection row**: a row of a menu that selects: a selector facing its label, with a muted detail line under the label or not. Confirmed by the maintainer on 2026-11-23.
 - **action row**: a row of a menu that runs something ("Browse…"), with no selector; its text lines up with the labels. Confirmed by the maintainer on 2026-11-23.
+
+## Proposed words
+
+Words the atomic rebuild of the kit introduced; each waits for the maintainer's yes. Until then the code uses them and `docs/naming.md` lists them as proposed.
+
+- **trigger**: what opens a menu: a line with a chevron (the select's look) or a strip tab with a chevron (More). Proposed. Rejected: button, opener.
+- **group**: rows stacked with no frame and no fill, placeable anywhere (a menu's list, a panel); a group that follows another is parted from it by a thin separator, which the group places itself. Proposed. Rejected: section (a panel's fold is one).
+- **titled group**: a group with a title in capitals and a separator under it, the panel's group of settings; parted from the group before by space, not by a separator. Proposed.
+- **immediate-selection row**: a row that applies its choice as soon as it is pressed, with no selector and nothing to validate after; the selected one is lit as under the pointer and marked by an indicator bar on its side. The select's options and More's rows are these. Proposed. Rejected: option, menu item.
+- **indicator**: the small bar on the side of the selected immediate-selection row. Proposed.
+- **rule**: the one 1 px line of the kit, of two kinds: a section rule (edge colour) opens a panel's section, a separator (line colour) parts things inside one. Proposed. Rejected: divider, hairline (kept for the drawing itself).
+- **value row**: a panel's setting: a label with its help mark, an optional note, and the control at the right, every row's control in one column. Proposed. Rejected: setting row, field row.
+- **stage template**: the page's layout: the stage in the centre and up to two panels, beside it with a grip in each gap or stacked under it. Proposed. Rejected: layout, shell.
