@@ -11,7 +11,7 @@ use crate::id::Id;
 use crate::input::Input;
 use crate::menu::Menu;
 use crate::scroll::{ArrowDir, BarHot, ScrollMetrics, ScrollPaint, arrow_rects, arrows_shown, chevron, thumb_rect, track_rect};
-use crate::text::{TextLook, Tone, baseline, ellipsize, half_leading, wrap_lines, wrap_lines_after};
+use crate::text::{TextLook, Tone, baseline, ellipsize, ellipsize_start, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
 
 /// What the pointer did to a widget this frame.
@@ -31,9 +31,9 @@ pub struct Resp {
 pub(crate) enum Paint {
     None,
     Box { fill: Option<Color>, frame: Option<Color> },
-    /// `ellipsis` cuts the text to its box with `ellipsize` when painting, the box being known only then.
+    /// `cut` shortens the text to its box with an ellipsis when painting, the box being known only then.
     /// `wrap` breaks it into lines of the box's width (`wrap_lines`); neither underline nor ellipsis then.
-    Text { text: String, look: TextLook, color: Color, underline: bool, strike: bool, ellipsis: bool, wrap: bool },
+    Text { text: String, look: TextLook, color: Color, underline: bool, strike: bool, cut: Cut, wrap: bool },
     /// One flowing run: `lead` in its colour, `gap` px, then `text` wrapped on from there (`wrap_lines_after`).
     Flow { lead: String, lead_color: Color, gap: f32, text: String, look: TextLook, color: Color },
     /// The running generate button: its 1 px frame, then the bar from the padding box's left, `share` of its width.
@@ -46,6 +46,17 @@ pub(crate) enum Paint {
     Scroll(ScrollPaint),
     /// Ready-made commands in the node's own coordinates (canvas): moved to the node's place when painted.
     Cmds(Vec<Cmd>),
+}
+
+/// Where a text too long for its box loses its glyphs.
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub(crate) enum Cut {
+    /// Not at all: it overflows.
+    None,
+    /// At its end (`ellipsize`): a name.
+    End,
+    /// At its start (`ellipsize_start`): a folder, whose end is what tells it apart.
+    Start,
 }
 
 pub struct Ui {
@@ -562,24 +573,30 @@ impl Ui {
 
     /// A text leaf: its size is arithmetic, and the closure owns what it needs, as the layout wants.
     pub(crate) fn add_text(&mut self, text: &str, look: TextLook, color: Color, underline: bool, style: Style) -> NodeId {
-        self.add_text_with(text, look, color, underline, false, false, style)
+        self.add_text_with(text, look, color, underline, false, Cut::None, style)
     }
 
     /// A text leaf whose word may be struck through (`text-decoration: line-through`).
     pub(crate) fn add_text_struck(&mut self, text: &str, look: TextLook, color: Color, strike: bool, style: Style) -> NodeId {
-        self.add_text_with(text, look, color, false, strike, false, style)
+        self.add_text_with(text, look, color, false, strike, Cut::None, style)
     }
 
     /// A text leaf that may shrink below its text (`min-width: 0`) and is cut with an ellipsis when painted.
     pub(crate) fn add_ellipsis(&mut self, text: &str, look: TextLook, color: Color, underline: bool) -> NodeId {
         let style = Style { min_w: Dim::Px(0.0), ..Style::default() };
-        self.add_text_with(text, look, color, underline, false, true, style)
+        self.add_text_with(text, look, color, underline, false, Cut::End, style)
     }
 
-    fn add_text_with(&mut self, text: &str, look: TextLook, color: Color, underline: bool, strike: bool, ellipsis: bool, style: Style) -> NodeId {
+    /// `add_ellipsis` cut at the start: a folder keeps its end.
+    pub(crate) fn add_ellipsis_start(&mut self, text: &str, look: TextLook, color: Color) -> NodeId {
+        let style = Style { min_w: Dim::Px(0.0), ..Style::default() };
+        self.add_text_with(text, look, color, false, false, Cut::Start, style)
+    }
+
+    fn add_text_with(&mut self, text: &str, look: TextLook, color: Color, underline: bool, strike: bool, cut: Cut, style: Style) -> NodeId {
         let owned = text.to_string();
         let width = look.width(text);
-        let n = self.add("text", style, Paint::Text { text: owned, look, color, underline, strike, ellipsis, wrap: false });
+        let n = self.add("text", style, Paint::Text { text: owned, look, color, underline, strike, cut, wrap: false });
         let measured = Measured { size: Vec2::new(width, look.line), baseline: baseline(look) };
         self.tree.set_leaf(n, Box::new(move |_: Avail| measured));
         n
@@ -590,7 +607,7 @@ impl Ui {
     /// (everything on one line). Nothing to show measures 0 x 0.
     pub(crate) fn add_paragraph(&mut self, text: &str, look: TextLook, color: Color, style: Style) -> NodeId {
         let owned = text.to_string();
-        let n = self.add("paragraph", style, Paint::Text { text: owned.clone(), look, color, underline: false, strike: false, ellipsis: false, wrap: true });
+        let n = self.add("paragraph", style, Paint::Text { text: owned.clone(), look, color, underline: false, strike: false, cut: Cut::None, wrap: true });
         let base = baseline(look);
         self.tree.set_leaf(
             n,
@@ -789,7 +806,7 @@ impl Painter<'_> {
                     draw_line(self.list, line, *look, *color, x, top + i as f32 * look.line);
                 }
             }
-            Paint::Text { text, look, color, underline, strike, ellipsis, wrap } => {
+            Paint::Text { text, look, color, underline, strike, cut, wrap } => {
                 if *wrap {
                     for (i, line) in wrap_lines(text, *look, r.w).iter().enumerate() {
                         let y = r.y + i as f32 * look.line + half_leading(*look);
@@ -797,9 +814,13 @@ impl Painter<'_> {
                     }
                 } else {
                     let y = r.y + half_leading(*look);
-                    let drawn = if *ellipsis { ellipsize(text, *look, r.w) } else { text.clone() };
+                    let drawn = match cut {
+                        Cut::None => text.clone(),
+                        Cut::End => ellipsize(text, *look, r.w),
+                        Cut::Start => ellipsize_start(text, *look, r.w),
+                    };
                     // A box narrower than the ellipsis cell still shows one: cut it to the box.
-                    let cut = *ellipsis && drawn == "\u{2026}" && r.w < look.step();
+                    let cut = *cut != Cut::None && drawn == "\u{2026}" && r.w < look.step();
                     if cut {
                         self.list.push_clip(r);
                     }

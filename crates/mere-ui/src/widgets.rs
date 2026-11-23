@@ -117,6 +117,13 @@ impl Ui {
         self.add_ellipsis(s, look, color, false);
     }
 
+    /// `ellipsis` cut at the start (`ellipsize_start`): a folder too long for its box keeps its end, which is the part
+    /// that tells two folders apart.
+    pub fn ellipsis_start(&mut self, s: &str, look: TextLook) {
+        let color = self.tone_color(look.tone);
+        self.add_ellipsis_start(s, look, color);
+    }
+
     pub fn button(&mut self, key: &str, text: &str, look: ButtonLook) -> Resp {
         self.button_with(key, text, look, ButtonOpts::default())
     }
