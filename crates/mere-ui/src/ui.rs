@@ -11,6 +11,7 @@ use crate::id::Id;
 use crate::input::Input;
 use crate::menu::Menu;
 use crate::scroll::{ArrowDir, BarHot, ScrollMetrics, ScrollPaint, arrow_rects, arrows_shown, chevron, thumb_rect, track_rect};
+use crate::tick::Hung;
 use crate::text::{TextLook, Tone, baseline, ellipsize, ellipsize_start, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
 
@@ -120,6 +121,14 @@ pub struct Ui {
     lifts: Vec<NodeId>,
     lift_depth: u32,
     lift_rects: Vec<Rect>,
+    /// The open tick list as last built (tick.rs), whether one was built open this frame, the list that Escape or a
+    /// press outside closed (told when it is built), and, while a list's rows are built, their ids and whether the
+    /// first of them takes the focus.
+    pub(crate) tick_hung: Option<Hung>,
+    pub(crate) tick_built: bool,
+    pub(crate) tick_close: Option<Id>,
+    pub(crate) tick_rows: Option<Vec<Id>>,
+    pub(crate) tick_first: bool,
 }
 
 /// How long the pointer rests on a titled widget before its tip shows (the browsers' own is about this).
@@ -167,6 +176,11 @@ impl Ui {
             lifts: Vec::new(),
             lift_depth: 0,
             lift_rects: Vec::new(),
+            tick_hung: None,
+            tick_built: false,
+            tick_close: None,
+            tick_rows: None,
+            tick_first: false,
         }
     }
 
@@ -185,6 +199,11 @@ impl Ui {
             // An open menu takes Escape before any field does.
             Event::Key { key: Key::Escape, .. } if self.menu.is_some() => {
                 self.menu = None;
+                true
+            }
+            // Then an open tick list, which closes when it is built next.
+            Event::Key { key: Key::Escape, .. } if self.tick_hung.is_some() => {
+                self.tick_close = self.tick_hung.map(|h| h.id);
                 true
             }
             Event::Key { key, mods } => {
@@ -214,10 +233,10 @@ impl Ui {
         self.focus.as_ref().map(|f| f.id)
     }
 
-    /// A select's or a tab's menu is open: it takes Escape before anything else, so an application that closes
-    /// its own things with Escape leaves it to the menu.
+    /// A select's or a tab's menu, or a tick list, is open: it takes Escape before anything else, so an application
+    /// that closes its own things with Escape leaves it to the menu.
     pub fn menu_open(&self) -> bool {
-        self.menu.is_some()
+        self.menu.is_some() || self.tick_hung.is_some()
     }
 
     /// True when the frame just ended changed something that only the next frame shows (Tab moved the focus
@@ -253,6 +272,7 @@ impl Ui {
         self.lifts.clear();
         self.lift_depth = 0;
         self.menu_begin_frame();
+        self.tick_begin_frame();
     }
 
     /// The application's time in seconds. Tooltips are timed by it, so tests set it by hand.
@@ -437,6 +457,10 @@ impl Ui {
             painter.node(n, Vec2::new(origin.x + snap(origin.x + rel.x), origin.y + snap(origin.y + rel.y)), window);
         }
         self.lift_rects = later.iter().map(|(n, _)| abs[n.0]).collect();
+        // A list whose line was not built this frame (the page changed) is gone: nothing is left for Escape.
+        if !self.tick_built {
+            self.tick_hung = None;
+        }
         self.paint_menu(&abs);
         self.paint_tip();
         self.rects.clear();
