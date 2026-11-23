@@ -255,7 +255,8 @@ impl Ui {
 
     /// The plain row at the end of a tick list (an action such as "Choose a folder…"): its text in the rows' text
     /// column, underlined under the pointer, filled when focused. A press or Space on it is `Resp.clicked`; the list
-    /// stays open, the caller closes it if the action wants.
+    /// stays open, the caller closes it if the action wants (setting the list's `open` false), and the line then has
+    /// the focus back.
     pub fn tick_action(&mut self, key: &str, text: &str) -> Resp {
         let id = self.key(key);
         let mut resp = self.interact(id, false, Cursor::Hand);
@@ -293,6 +294,11 @@ impl Ui {
                 *open = false;
                 closed = true;
             }
+        }
+        // The caller closed the list it held open in the last frame (an action row that opens a dialog): closed as
+        // Escape would close it, so that the keyboard is not left on a row that is gone.
+        if !*open && !closed && self.tick_hung.is_some_and(|h| h.id == id) {
+            closed = true;
         }
         let wrap = Style { column: true, min_w: Dim::Px(0.0), position: Position::Relative, ..Style::default() };
         self.open(key, id, wrap, Paint::None);

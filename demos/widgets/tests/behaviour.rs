@@ -853,6 +853,28 @@ fn the_tick_list_opens_above_its_line_as_wide_as_it_holds_every_row_and_stays_op
 }
 
 #[test]
+fn a_tick_list_its_caller_closes_gives_the_focus_back_to_its_line() {
+    both(|t| {
+        let (mut sc, mut c, mut out) = opened_corner(t);
+        // Space on the action row, reached with Tab, as a keyboard would open a dialog from it.
+        sc.key(Key::Tab, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        sc.key(Key::Tab, NONE, 1);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert_eq!(sc.ui.focused(), Some(out.rows[2]), "the action row has the focus");
+        sc.ui.event(&SPACE);
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(out.action, "Space runs the action");
+        c.open = false;
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(out.closed && out.list.is_none(), "the list the caller closed is reported closed");
+        assert_eq!(sc.ui.focused(), out.line, "the line has the focus back");
+        sc.frame(|ui| out = corner(ui, &mut c));
+        assert!(!out.closed, "reported once");
+    });
+}
+
+#[test]
 fn escape_closes_the_tick_list_and_gives_the_focus_back_to_its_line() {
     both(|t| {
         let (mut sc, mut c, mut out) = opened_corner(t);
