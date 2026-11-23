@@ -175,7 +175,8 @@ impl Ui {
     /// while it is open; it is not built otherwise. `open` is the caller's: a press on the trigger or Space on it flips
     /// it, Down or Up opens it, and Escape or a press outside the trigger and the list sets it false. When the list
     /// opens, a row takes the focus (`MenuOpts::start` after a press or Space, the first after Down, the last after
-    /// Up); when it closes, the trigger does. The focused line is framed in the text colour.
+    /// Up); when it closes, the trigger does,
+    /// unless the caller or a press outside gave the keyboard to something else. The focused line is framed in the text colour.
     pub fn menu(&mut self, key: &str, trigger: Trigger, open: &mut bool, opts: MenuOpts, rows: impl FnOnce(&mut Ui)) -> MenuResp {
         let id = self.key(key);
         let (mut opened, mut closed) = (false, false);
@@ -222,7 +223,10 @@ impl Ui {
             }
             into = Some(keys.step);
         }
-        if closed && !opts.disabled {
+        // The keyboard goes back to the trigger from the list, not from what the caller gave it as it closed the list (a
+        // field that a pick asks for) nor from what a press outside took.
+        let in_list = self.focus.as_ref().is_none_or(|f| self.menu_last_rows.contains(&f.id));
+        if closed && !opts.disabled && in_list {
             self.give_focus(lid);
         }
         let has = self.has_focus(lid);
@@ -281,6 +285,7 @@ impl Ui {
                 s.inset.left = Dim::Px(left);
             }
             mine = self.menu_rows.take().unwrap_or_default();
+            self.menu_last_rows.clone_from(&mine);
             self.menu_first = None;
             let to = match (into, self.menu_step.take()) {
                 (Some(-1), _) => mine.last().copied(),

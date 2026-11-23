@@ -130,6 +130,8 @@ pub struct Ui {
     pub(crate) menu_step: Option<(Id, i32)>,
     /// The widest row of the list being built, its texts whole: what a list as wide as its rows takes.
     pub(crate) menu_want: f32,
+    /// The rows of the list last built open: the keyboard a closing list gives back to its trigger is theirs.
+    pub(crate) menu_last_rows: Vec<Id>,
 }
 
 /// The size of `Paint::Chevron`: its rows below are 8 px wide and 5 tall.
@@ -186,6 +188,7 @@ impl Ui {
             menu_first: None,
             menu_step: None,
             menu_want: 0.0,
+            menu_last_rows: Vec::new(),
         }
     }
 
