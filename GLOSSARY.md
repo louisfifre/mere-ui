@@ -25,3 +25,8 @@ The project's words, each confirmed with the maintainer. Name things this way in
 - **breakpoint**: a window width at which the layout changes form. Kept as few as possible: none in the world preview, at most one in the launcher's Home.
 - **shot**: a PNG rendered offscreen, the same frame the window shows. Rejected: screenshot, capture.
 - **PLACEHOLDER**: a provisional value shown until the real one exists, always marked as such in the handoff.
+- **menu**: a line that opens a list of rows over what lies around it, above or under the line and as wide as it; the rows are selection rows and action rows, groups of them parted by thin separators. Confirmed by the maintainer on 2026-11-23. Rejected: dropdown.
+- **single selector**: the round mark of one choice among several, a dot when it is selected; it is never alone, always one among others. It is the mark alone, without its label. Confirmed by the maintainer on 2026-11-23. Rejected: radio, radio button.
+- **multiple selector**: the square mark of one of several choices that can be taken together, a check when it is selected. It is the mark alone, without its label. Confirmed by the maintainer on 2026-11-23.
+- **selection row**: a row of a menu that selects: a selector facing its label, with a muted detail line under the label or not. Confirmed by the maintainer on 2026-11-23.
+- **action row**: a row of a menu that runs something ("Browse…"), with no selector; its text lines up with the labels. Confirmed by the maintainer on 2026-11-23.

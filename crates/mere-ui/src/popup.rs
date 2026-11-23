@@ -4,7 +4,7 @@
 //! reaches nothing else) and the widgets under it are not hovered.
 //!
 //! Subset: the pointer and Escape only. The browser's popup also answers Up, Down, Enter and typing; the
-//! launcher's selects are short, so those are left out.
+//! selects in use are short, so those are left out.
 
 use mere_base::{Cursor, DrawList, Rect, Vec2};
 use mere_layout::Side;
