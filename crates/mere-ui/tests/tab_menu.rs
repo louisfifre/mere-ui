@@ -3,14 +3,14 @@
 
 use mere_base::{Button, Cmd, Event, Rect, Vec2};
 use mere_layout::{Dim, Style};
-use mere_ui::{MENU_ROW, MenuResp, MenuRow, TabLook, TabOpts, Theme, Ui};
+use mere_ui::{MENU_ROW, TabMenuResp, TabMenuRow, TabLook, TabOpts, Theme, Ui};
 
 const SIZE: Vec2 = Vec2::new(400.0, 300.0);
 
 struct Page {
     ui: Ui,
-    rows: Vec<MenuRow>,
-    last: Option<MenuResp>,
+    rows: Vec<TabMenuRow>,
+    last: Option<TabMenuResp>,
     picked: Vec<usize>,
     list: mere_base::DrawList,
 }
@@ -18,9 +18,9 @@ struct Page {
 impl Page {
     fn new() -> Page {
         let rows = vec![
-            MenuRow { text: "Flat".into(), disabled: true },
-            MenuRow { text: "Temperature".into(), disabled: false },
-            MenuRow { text: "Structures".into(), disabled: false },
+            TabMenuRow { text: "Flat".into(), disabled: true },
+            TabMenuRow { text: "Temperature".into(), disabled: false },
+            TabMenuRow { text: "Structures".into(), disabled: false },
         ];
         let mut p = Page { ui: Ui::new(Theme::dark()), rows, last: None, picked: Vec::new(), list: Default::default() };
         p.frame();

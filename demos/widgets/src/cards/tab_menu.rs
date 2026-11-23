@@ -4,7 +4,7 @@
 use mere_base::Event;
 use mere_layout::{Dim, Style};
 use mere_ui::tokens::FRAME;
-use mere_ui::{MENU_ROW, MenuRow, Theme, Ui, strip_style};
+use mere_ui::{MENU_ROW, TabMenuRow, Theme, Ui, strip_style};
 
 use super::select::{Probe, centre, click};
 use super::{Block, Card, Cell, State, render};
@@ -14,11 +14,11 @@ fn room(rows: usize) -> f32 {
     rows as f32 * MENU_ROW + 2.0 * FRAME
 }
 
-fn rows() -> Vec<MenuRow> {
+fn rows() -> Vec<TabMenuRow> {
     vec![
-        MenuRow { text: "Option one".into(), disabled: true },
-        MenuRow { text: "Option two".into(), disabled: false },
-        MenuRow { text: "Option three".into(), disabled: false },
+        TabMenuRow { text: "Option one".into(), disabled: true },
+        TabMenuRow { text: "Option two".into(), disabled: false },
+        TabMenuRow { text: "Option three".into(), disabled: false },
     ]
 }
 

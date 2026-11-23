@@ -10,7 +10,7 @@ use crate::field::{FieldPaint, Focus, Typed, paint_field};
 use crate::dropdown::Hung;
 use crate::id::Id;
 use crate::input::Input;
-use crate::menu::Menu;
+use crate::popup::Popup;
 use crate::scroll::{ArrowDir, BarHot, ScrollMetrics, ScrollPaint, arrow_rects, arrows_shown, chevron, thumb_rect, track_rect};
 use crate::text::{TextLook, Tone, baseline, ellipsize, ellipsize_start, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
@@ -111,11 +111,11 @@ pub struct Ui {
     tip_since: f64,
     /// A press hid the tip; it stays hidden until another widget becomes the candidate.
     tip_hidden: bool,
-    /// The open select menu, if any (menu.rs), the row a press just picked, and the box built this frame
-    /// that the menu hangs from.
-    pub(crate) menu: Option<Menu>,
-    pub(crate) menu_pick: Option<(Id, usize)>,
-    pub(crate) menu_node: Option<NodeId>,
+    /// The open popup list of a select box or a strip tab, if any (popup.rs), the row a press just picked, and the box built this frame
+    /// that the list hangs from.
+    pub(crate) popup: Option<Popup>,
+    pub(crate) popup_pick: Option<(Id, usize)>,
+    pub(crate) popup_node: Option<NodeId>,
     /// The overlays built this frame (`Ui::overlay`), how deep the build is inside one, and where they were painted in
     /// the last frame: what lies under one is not hovered.
     lifts: Vec<NodeId>,
@@ -171,9 +171,9 @@ impl Ui {
             tip_id: None,
             tip_since: 0.0,
             tip_hidden: false,
-            menu: None,
-            menu_pick: None,
-            menu_node: None,
+            popup: None,
+            popup_pick: None,
+            popup_node: None,
             lifts: Vec::new(),
             lift_depth: 0,
             lift_rects: Vec::new(),
@@ -198,9 +198,9 @@ impl Ui {
     /// field, which reads them when it is built.
     pub fn event(&mut self, e: &Event) -> bool {
         match *e {
-            // An open menu takes Escape before any field does.
-            Event::Key { key: Key::Escape, .. } if self.menu.is_some() => {
-                self.menu = None;
+            // An open popup list takes Escape before any field does.
+            Event::Key { key: Key::Escape, .. } if self.popup.is_some() => {
+                self.popup = None;
                 true
             }
             // Then an open dropdown, which closes when it is built next.
@@ -235,10 +235,10 @@ impl Ui {
         self.focus.as_ref().map(|f| f.id)
     }
 
-    /// A select's or a tab's menu, or a dropdown, is open: it takes Escape before anything else, so an application
-    /// that closes its own things with Escape leaves it to the menu.
+    /// A select's or a tab's popup list, or a menu, is open: it takes Escape before anything else, so an application
+    /// that closes its own things with Escape leaves it to the list.
     pub fn menu_open(&self) -> bool {
-        self.menu.is_some() || self.dropdown_hung.is_some()
+        self.popup.is_some() || self.dropdown_hung.is_some()
     }
 
     /// True when the frame just ended changed something that only the next frame shows (Tab moved the focus
@@ -270,10 +270,10 @@ impl Ui {
         self.tip_candidate = None;
         self.list = DrawList::default();
         self.size = size;
-        self.menu_node = None;
+        self.popup_node = None;
         self.lifts.clear();
         self.lift_depth = 0;
-        self.menu_begin_frame();
+        self.popup_begin_frame();
         self.dropdown_begin_frame();
     }
 
@@ -383,10 +383,10 @@ impl Ui {
         id
     }
 
-    /// The pointer is over an open menu, or over an overlay while building what is not inside one: the widget being
+    /// The pointer is over an open popup list, or over an overlay while building what is not inside one: the widget being
     /// built lies under it.
     fn covered(&self) -> bool {
-        self.under_menu() || (self.lift_depth == 0 && self.input.pos.is_some_and(|p| self.lift_rects.iter().any(|r| r.contains(p))))
+        self.under_popup() || (self.lift_depth == 0 && self.input.pos.is_some_and(|p| self.lift_rects.iter().any(|r| r.contains(p))))
     }
 
     /// The application's time in seconds, as last given to `set_clock`.
@@ -463,7 +463,7 @@ impl Ui {
         if !self.dropdown_built {
             self.dropdown_hung = None;
         }
-        self.paint_menu(&abs);
+        self.paint_popup(&abs);
         self.paint_tip();
         self.rects.clear();
         self.hits.clear();
