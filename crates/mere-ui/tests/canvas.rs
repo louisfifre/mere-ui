@@ -1,6 +1,6 @@
 //! The canvas: commands in a node's own coordinates, the press edge, and the wheel taken once.
 
-use mere_base::{Button, Cmd, Color, DrawList, Event, Rect, Vec2};
+use mere_base::{Button, Cmd, Color, DrawList, Event, Key, Rect, Vec2};
 use mere_layout::{Dim, Edges, Style};
 use mere_ui::{Resp, Theme, Ui};
 
@@ -101,4 +101,63 @@ fn the_pointer_is_known_after_it_moved() {
     assert_eq!(ui.pointer(), None);
     ui.event(&Event::PointerMoved { pos: Vec2::new(3.0, 4.0) });
     assert_eq!(ui.pointer(), Some(Vec2::new(3.0, 4.0)));
+}
+
+/// A focusable canvas beside a text field, so that Tab has somewhere to go.
+fn focus_frame(ui: &mut Ui, disabled: bool, seen: &mut Vec<Key>, focused: &mut bool) -> Resp {
+    ui.begin_frame(SIZE);
+    let mut resp = None;
+    ui.node("outer", Style { pad: Edges::new(30.0, 0.0, 0.0, 40.0), ..Style::default() }, |ui| {
+        let style = Style { w: Dim::Px(100.0), h: Dim::Px(80.0), shrink: 0.0, ..Style::default() };
+        resp = Some(ui.canvas_focus("bar", style, disabled, |ui, r, keys| {
+            *focused = keys.focused;
+            seen.extend(keys.keys.iter().map(|k| k.0));
+            let mut cmds = Vec::new();
+            if keys.focused {
+                cmds.push(ui.focus_ring(r.rect.unwrap_or_default()));
+            }
+            cmds
+        }));
+    });
+    ui.end_frame();
+    resp.unwrap()
+}
+
+#[test]
+fn a_focusable_canvas_takes_the_keyboard_on_a_press_and_its_keys_only_then() {
+    let mut ui = Ui::new(Theme::dark());
+    let (mut seen, mut focused) = (Vec::new(), false);
+    let r = focus_frame(&mut ui, false, &mut seen, &mut focused);
+    // Keys before the focus belong to no one.
+    ui.event(&Event::Key { key: Key::Right, mods: Default::default() });
+    focus_frame(&mut ui, false, &mut seen, &mut focused);
+    assert!(!focused && seen.is_empty());
+    let p = centre(&ui, &r);
+    ui.event(&Event::PointerMoved { pos: p });
+    focus_frame(&mut ui, false, &mut seen, &mut focused);
+    ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: 1 });
+    focus_frame(&mut ui, false, &mut seen, &mut focused);
+    ui.event(&Event::PointerUp { pos: p, button: Button::Left });
+    focus_frame(&mut ui, false, &mut seen, &mut focused);
+    assert!(focused, "a press focuses it");
+    for key in [Key::Left, Key::Home, Key::End, Key::Right] {
+        ui.event(&Event::Key { key, mods: Default::default() });
+    }
+    focus_frame(&mut ui, false, &mut seen, &mut focused);
+    assert_eq!(seen, vec![Key::Left, Key::Home, Key::End, Key::Right]);
+}
+
+#[test]
+fn a_disabled_focusable_canvas_takes_no_focus() {
+    let mut ui = Ui::new(Theme::dark());
+    let (mut seen, mut focused) = (Vec::new(), false);
+    let r = focus_frame(&mut ui, true, &mut seen, &mut focused);
+    let p = centre(&ui, &r);
+    ui.event(&Event::PointerMoved { pos: p });
+    focus_frame(&mut ui, true, &mut seen, &mut focused);
+    ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: 1 });
+    focus_frame(&mut ui, true, &mut seen, &mut focused);
+    ui.event(&Event::Key { key: Key::Right, mods: Default::default() });
+    focus_frame(&mut ui, true, &mut seen, &mut focused);
+    assert!(!focused && seen.is_empty());
 }

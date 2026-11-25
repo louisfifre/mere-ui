@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use mere_base::{Clipboard, Cmd, Color, Cursor, DrawList, Event, Key, Rect, Vec2, observe};
+use mere_base::{Clipboard, Cmd, Color, Cursor, DrawList, Event, Key, Mods, Rect, Vec2, observe};
 use mere_layout::{Avail, Dim, Measured, NodeId, Overflow, Position, Style, Tree};
 
 use crate::edit::MemoryClipboard;
@@ -13,6 +13,15 @@ use crate::input::Input;
 use crate::scroll::{ArrowDir, BarHot, ScrollMetrics, ScrollPaint, arrow_rects, arrows_shown, chevron, thumb_rect, track_rect};
 use crate::text::{TextLook, Tone, baseline, ellipsize, ellipsize_start, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
+
+/// What a focusable canvas (`Ui::canvas_focus`) learns about the keyboard this frame.
+#[derive(Clone, Debug, Default)]
+pub struct CanvasKeys {
+    /// The canvas has the keyboard.
+    pub focused: bool,
+    /// The keys taken for it, in arrival order: arrows, Home, End and Enter.
+    pub keys: Vec<(Key, Mods)>,
+}
 
 /// What the pointer did to a widget this frame.
 #[derive(Copy, Clone, Debug)]
@@ -337,6 +346,41 @@ impl Ui {
         self.open(key, id, style, Paint::Cmds(cmds));
         self.close();
         resp
+    }
+
+    /// A `canvas` that takes the keyboard like any other control: a press on it focuses it, Tab walks through it, and
+    /// while it is focused the keys the application's own widget uses (arrows, Home, End, Enter) are handed to `draw`
+    /// and taken from the frame's typed keys, so no other widget reads them. A disabled one takes no focus. `draw` also
+    /// learns whether it is focused, to paint the kit's focus ring (`Ui::focus_ring`).
+    pub fn canvas_focus(&mut self, key: &str, style: Style, disabled: bool, draw: impl FnOnce(&mut Ui, &Resp, &CanvasKeys) -> Vec<Cmd>) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, disabled, Cursor::Arrow);
+        let focused = self.focusable(&resp, disabled);
+        let mut keys = CanvasKeys { focused, keys: Vec::new() };
+        if focused {
+            let mut kept = Vec::new();
+            for t in std::mem::take(&mut self.typed) {
+                match t {
+                    Typed::Key(Key::Tab, m) => {
+                        self.tab = Some((id, m.shift));
+                        kept.push(t);
+                    }
+                    Typed::Key(k @ (Key::Left | Key::Right | Key::Up | Key::Down | Key::Home | Key::End | Key::Enter), m) => keys.keys.push((k, m)),
+                    other => kept.push(other),
+                }
+            }
+            self.typed = kept;
+        }
+        let cmds = draw(self, &resp, &keys);
+        self.open(key, id, style, Paint::Cmds(cmds));
+        self.close();
+        resp
+    }
+
+    /// The kit's focus ring around `rect` (in the canvas's own coordinates): a 1 px frame in the text colour, as a
+    /// focused field's or line's.
+    pub fn focus_ring(&self, rect: Rect) -> Cmd {
+        Cmd::Frame { rect, width_px: 1.0, color: self.theme.text }
     }
 
     /// A container that tells its body where the pointer is across it: the pointer's x as a share of the

@@ -72,5 +72,5 @@ pub use text::{ADVANCE_EM, ASCENT_EM, BODY_LINE, DESCENT_EM, XHEIGHT_EM, TextLoo
 pub use template::{GripResp, Part, SPLIT_GRIP_W, StagePlan, StageResp};
 pub use theme::{Theme, mix};
 pub use value::{ValueResp, ValueRow, value_grid};
-pub use ui::{Resp, TIP_DELAY, Ui};
+pub use ui::{CanvasKeys, Resp, TIP_DELAY, Ui};
 pub use widgets::{ActionLook, ActionOpts, TOGGLE_H, TOGGLE_W, ToggleOpts};
