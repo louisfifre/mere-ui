@@ -39,11 +39,14 @@ pub mod hover_box;
 pub mod icon_action;
 pub mod immediate_row;
 pub mod list_heads;
+pub mod list_line;
 pub mod list_row;
 pub mod menu;
 pub mod number_field;
+pub mod page_head;
 pub mod rule;
 pub mod scroll_area;
+pub mod section;
 pub mod stage_template;
 pub mod select;
 pub mod selection_row;
@@ -228,11 +231,14 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("icon-action", icon_action::card),
     ("immediate-row", immediate_row::card),
     ("list-heads", list_heads::card),
+    ("list-line", list_line::card),
     ("list-row", list_row::card),
     ("menu", menu::card),
     ("number-field", number_field::card),
+    ("page-head", page_head::card),
     ("rule", rule::card),
     ("scroll-area", scroll_area::card),
+    ("section", section::card),
     ("stage-template", stage_template::card),
     ("select", select::card),
     ("selection-row", selection_row::card),
