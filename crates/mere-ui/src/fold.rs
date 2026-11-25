@@ -25,6 +25,21 @@ fn growing(mut s: Style) -> Style {
     s
 }
 
+/// The section's box, a fold's and a section's alike.
+pub(crate) fn container_style() -> Style {
+    Style { column: true, shrink: 0.0, min_h: Dim::Px(0.0), ..Style::default() }
+}
+
+/// The line of the head: `gap` above and below, `gap` between what it holds.
+pub(crate) fn head_style(align_items: Align) -> Style {
+    Style { pad: Edges::vh(GAP, 0.0), align_items, gap: Vec2::new(GAP, 0.0), ..Style::default() }
+}
+
+/// What a section holds: stacked `gap` apart, `inset-hair` under the head and `gap-wide` after.
+pub(crate) fn body_style() -> Style {
+    Style { column: true, gap: Vec2::new(0.0, GAP), pad: Edges::new(INSET_HAIR, 0.0, GAP_WIDE, 0.0), min_h: Dim::Px(0.0), ..Style::default() }
+}
+
 impl Ui {
     pub fn fold(&mut self, key: &str, title: &str, open: &mut bool, body: impl FnOnce(&mut Ui)) -> Resp {
         self.fold_with(key, title, open, FoldOpts::default(), body)
@@ -37,7 +52,7 @@ impl Ui {
     pub fn fold_with(&mut self, key: &str, title: &str, open: &mut bool, opts: FoldOpts, body: impl FnOnce(&mut Ui)) -> Resp {
         let t = *self.theme();
         let id = self.key(key);
-        let container_style = Style { column: true, shrink: 0.0, min_h: Dim::Px(0.0), ..Style::default() };
+        let container_style = container_style();
         let container = self.open(key, id, container_style, Paint::None);
         // The border-top: the section rule that opens it.
         if !opts.bare {
@@ -53,13 +68,7 @@ impl Ui {
             self.restyle(container, growing(container_style));
         }
 
-        let head = Style {
-            pad: Edges::vh(GAP, 0.0),
-            align_items: Align::Baseline,
-            gap: Vec2::new(GAP, 0.0),
-            ..Style::default()
-        };
-        self.open("head", head_id, head, Paint::None);
+        self.open("head", head_id, head_style(Align::Baseline), Paint::None);
         self.add_text(&title.to_uppercase(), TextLook::heading(), t.text, false, Style::default());
         // ::after inherits the letter spacing; its weight is 400 (line 116).
         let sign = TextLook { weight: Weight::Regular, ..TextLook::heading() };
@@ -70,13 +79,7 @@ impl Ui {
 
         if *open {
             let b = self.key("body");
-            let mut style = Style {
-                column: true,
-                gap: Vec2::new(0.0, GAP),
-                pad: Edges::new(INSET_HAIR, 0.0, GAP_WIDE, 0.0),
-                min_h: Dim::Px(0.0),
-                ..Style::default()
-            };
+            let mut style = body_style();
             if opts.grow {
                 style = growing(style);
             }
