@@ -30,6 +30,7 @@ use mere_ui::{Id, Theme, Ui};
 
 pub mod action_row;
 pub mod action;
+pub mod action_icon;
 pub mod cover;
 pub mod detail_tabs;
 pub mod fold;
@@ -222,6 +223,7 @@ pub fn render(theme: Theme, blocks: Vec<Block>) -> Card {
 pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("action-row", action_row::card),
     ("action", action::card),
+    ("action-icon", action_icon::card),
     ("cover", cover::card),
     ("detail-tabs", detail_tabs::card),
     ("fold", fold::card),

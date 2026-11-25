@@ -290,3 +290,54 @@ fn a_hover_action_takes_its_own_press_and_leaves_the_ones_inside_to_their_widget
     let (l, i) = press_release(&mut ui, centre(inner_rect));
     assert!(i.clicked && !l.clicked, "a press on the action inside is the action's alone");
 }
+
+/// An action with an icon: the icon stands before the word, `GAP` from it and centred on the box's height, the box is
+/// as tall as the action without an icon, in both looks; the icon follows the word's colour, and a press is reported,
+/// not when the action is disabled.
+#[test]
+fn an_action_with_an_icon_puts_it_before_its_word() {
+    let play = icon();
+    for look in [ActionLook::Primary, ActionLook::Plain] {
+        let mut ui = Ui::new(Theme::dark());
+        let frame = |ui: &mut Ui, disabled: bool, with: bool| {
+            ui.begin_frame(SIZE);
+            let mut got = None;
+            column(ui, |ui| {
+                let opts = mere_ui::ActionOpts { disabled, ..Default::default() };
+                got = Some(if with { ui.action_icon("go", &play, "Play", look, opts) } else { ui.action_with("go", "Play", look, opts) });
+            });
+            let list = ui.end_frame().clone();
+            (got.unwrap(), list)
+        };
+        frame(&mut ui, false, false);
+        let (bare, _) = frame(&mut ui, false, false);
+        let bare_h = ui.rect(bare.id).unwrap().h;
+        frame(&mut ui, false, true);
+        let (r, list) = frame(&mut ui, false, true);
+        let rect = ui.rect(r.id).unwrap();
+        assert!((rect.h - bare_h).abs() < 0.01, "{look:?}: the icon adds no height");
+        let shape = list.cmds.iter().find_map(|c| if let Cmd::Shape { rect, color, .. } = c { Some((*rect, *color)) } else { None }).expect("the icon is drawn");
+        let word = text_at(&list, "Play");
+        assert!(shape.0.x + shape.0.w + GAP - 0.01 <= word.x && word.x <= shape.0.x + shape.0.w + GAP + 1.0, "{look:?}: the word follows the icon by the gap: icon {:?}, word {word:?}", shape.0);
+        assert!((shape.0.y + shape.0.h / 2.0 - (rect.y + rect.h / 2.0)).abs() <= 0.51, "{look:?}: the icon is centred on the height");
+        let word_colour = list.cmds.iter().find_map(|c| if let Cmd::Text { color, .. } = c { Some(*color) } else { None }).unwrap();
+        assert_eq!(shape.1, word_colour, "{look:?}: the icon has the word's colour");
+        // A press is reported; a disabled action reports none and its icon is faded with its word.
+        let p = centre(rect);
+        click(&mut ui, p);
+        frame(&mut ui, false, true);
+        release(&mut ui, p);
+        assert!(frame(&mut ui, false, true).0.clicked, "{look:?}: a press is reported");
+        let mut off = Ui::new(Theme::dark());
+        frame(&mut off, true, true);
+        let (r, list) = frame(&mut off, true, true);
+        let p = centre(off.rect(r.id).unwrap());
+        click(&mut off, p);
+        frame(&mut off, true, true);
+        release(&mut off, p);
+        assert!(!frame(&mut off, true, true).0.clicked, "{look:?}: a disabled action takes no press");
+        let shape = list.cmds.iter().find_map(|c| if let Cmd::Shape { color, .. } = c { Some(*color) } else { None }).unwrap();
+        let word_colour = list.cmds.iter().find_map(|c| if let Cmd::Text { color, .. } = c { Some(*color) } else { None }).unwrap();
+        assert_eq!(shape, word_colour, "{look:?}: disabled, the icon keeps the word's colour");
+    }
+}

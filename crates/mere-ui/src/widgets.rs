@@ -3,6 +3,7 @@
 use mere_base::{Cmd, Color, Cursor, Rect, Vec2, Weight};
 use mere_layout::{Align, Dim, Edges, Justify, Style};
 
+use crate::icon::{Icon, icon_shape};
 use crate::text::{TextLook, Tone};
 use crate::tokens::*;
 use crate::ui::{Paint, Resp, Ui};
@@ -107,6 +108,18 @@ impl Ui {
     }
 
     pub fn action_with(&mut self, key: &str, text: &str, look: ActionLook, opts: ActionOpts) -> Resp {
+        self.action_inner(key, None, text, look, opts)
+    }
+
+    /// An action with an icon before its word, in the primary look (the filled box) or the plain look (a muted word):
+    /// the page's "Play". The icon takes the word's colour, so that it follows the pointer and the disabled state with
+    /// it, and sits `GAP` before it. The other looks are words only and ignore the icon.
+    pub fn action_icon(&mut self, key: &str, icon: &Icon, text: &str, look: ActionLook, opts: ActionOpts) -> Resp {
+        debug_assert!(matches!(look, ActionLook::Primary | ActionLook::Plain), "an icon goes with the primary or the plain look only");
+        self.action_inner(key, Some(icon), text, look, opts)
+    }
+
+    fn action_inner(&mut self, key: &str, icon: Option<&Icon>, text: &str, look: ActionLook, opts: ActionOpts) -> Resp {
         let id = self.key(key);
         // `#generate.running` shows the default arrow (line 216).
         let cursor = if matches!(look, ActionLook::Running { .. }) { Cursor::Arrow } else { Cursor::Hand };
@@ -184,7 +197,13 @@ impl Ui {
                 (style, Paint::None, small, t.text, none, !none && lit)
             }
         };
+        let icon = icon.filter(|_| matches!(look, ActionLook::Primary | ActionLook::Plain));
+        let style = if icon.is_some() { Style { align_items: Align::Center, gap: Vec2::new(GAP, 0.0), ..style } } else { style };
         self.open(key, id, style, paint);
+        if let Some(icon) = icon {
+            let slot = Style { w: Dim::Px(ICON), h: Dim::Px(ICON), shrink: 0.0, ..Style::default() };
+            self.add("icon", slot, Paint::Cmds(vec![icon_shape(icon, ICON, word, icon.axis_aligned())]));
+        }
         if strike {
             self.add_text_struck(text, word_look, word, true, Style::default());
         } else {
