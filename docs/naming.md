@@ -129,6 +129,7 @@ Former name cell gives the stem and the others follow it.
 | `Ui::node` | A container under the open one | — | keep | `generic` | — |
 | `Ui::canvas` | A box whose draw commands the application gives | — | keep | `img` or `application` | — |
 | `Ui::hover_area`, `Ui::hover_box` | A container that tells where the pointer is over it; the one painted lit while hovered | — | keep | — | — |
+| `Ui::hover_action` | A hover box that also takes the press, the widgets inside keeping theirs: a line of a list that opens its page | — | chosen by the session (to validate with the maintainer) | `link` or `button` | Carbon: clickable tile |
 | `Ui::overlay` | A framed box painted after the tree, outside every clip | — | keep | `dialog` / `menu` surface | Material, Radix: Portal / Popover content |
 | `ellipsize`, `ellipsize_start` | Cut a text to a width with an ellipsis at its end or its start | — | keep | — | — |
 | `wrap_lines`, `wrap_lines_after` | Break a text into lines of a width, the second after a lead | — | keep | — | — |

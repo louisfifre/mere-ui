@@ -369,6 +369,14 @@ impl Ui {
         id
     }
 
+    /// A `hover_box` that is also an action: the whole box takes the press (a line of a list that opens its page), lit
+    /// under the pointer, with the hand. The widgets inside it keep their own presses: the box judges its own after
+    /// they have, so a press that one of them took is not the box's. `Resp.clicked` asks the caller to act.
+    pub fn hover_action(&mut self, key: &str, style: Style, lit: Color, body: impl FnOnce(&mut Ui)) -> Resp {
+        let id = self.hover_box(key, style, lit, body);
+        self.interact(id, false, Cursor::Hand)
+    }
+
     /// A framed box on the ground colour that is painted after the whole tree, outside every clip, so that it lies over
     /// what follows it and over the edge of a scroll area it sits in. It is laid out where its style puts it (an
     /// absolute box does not move its neighbours), and it is painted only while some of its parent is in sight. What it covers is not hovered and takes no press; the widgets

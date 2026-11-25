@@ -252,3 +252,41 @@ fn a_page_head_keeps_its_height_and_the_titles_case() {
     let (after, _) = frame(&mut ui, true);
     assert!(after.back.clicked, "the back action reports its press");
 }
+
+/// A line that opens its page takes the press on its own area; the action inside it keeps its own press, and the
+/// line does not also report it.
+#[test]
+fn a_hover_action_takes_its_own_press_and_leaves_the_ones_inside_to_their_widgets() {
+    let play = icon();
+    let mut ui = Ui::new(Theme::dark());
+    let lit = Theme::dark().tint();
+    let frame = |ui: &mut Ui| {
+        ui.begin_frame(SIZE);
+        let mut inner = None;
+        let mut line = None;
+        column(ui, |ui| {
+            let style = Style { h: Dim::Px(40.0), align_items: mere_layout::Align::Center, ..Style::default() };
+            line = Some(ui.hover_action("line", style, lit, |ui| {
+                ui.node("name", Style { grow: 1.0, ..Style::default() }, |ui| ui.label("Exploration", Tone::Text));
+                inner = Some(ui.icon_action("go", &play, mere_ui::IconLook::Filled, mere_ui::IconOpts::default()));
+            }));
+        });
+        ui.end_frame();
+        (line.unwrap(), inner.unwrap())
+    };
+    let press_release = |ui: &mut Ui, p: Vec2| {
+        ui.event(&Event::PointerMoved { pos: p });
+        frame(ui);
+        ui.event(&Event::PointerDown { pos: p, button: Button::Left, clicks: 1 });
+        frame(ui);
+        ui.event(&Event::PointerUp { pos: p, button: Button::Left });
+        frame(ui)
+    };
+    frame(&mut ui);
+    let (line, inner) = frame(&mut ui);
+    let (line_rect, inner_rect) = (ui.rect(line.id).unwrap(), ui.rect(inner.id).unwrap());
+    let (l, i) = press_release(&mut ui, Vec2::new(line_rect.x + 20.0, line_rect.y + 20.0));
+    assert!(l.clicked && !i.clicked, "a press on the line is the line's");
+    let (l, i) = press_release(&mut ui, centre(inner_rect));
+    assert!(i.clicked && !l.clicked, "a press on the action inside is the action's alone");
+}
