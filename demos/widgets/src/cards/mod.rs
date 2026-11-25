@@ -52,6 +52,7 @@ pub mod stage_template;
 pub mod select;
 pub mod selection_row;
 pub mod selector;
+pub mod split_action;
 pub mod stop_action;
 pub mod tab_menu;
 pub mod tabs;
@@ -245,6 +246,7 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("select", select::card),
     ("selection-row", selection_row::card),
     ("selector", selector::card),
+    ("split-action", split_action::card),
     ("stop-action", stop_action::card),
     ("tab-menu", tab_menu::card),
     ("tabs", tabs::card),
