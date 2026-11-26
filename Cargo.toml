@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/mere-base", "crates/mere-png", "crates/mere-win32", "crates/mere-layout", "crates/mere-ui", "demos/shell-boxes", "demos/widgets"]
 
 [workspace.package]
-version = "0.16.0"
+version = "0.17.0"
 edition = "2024"
 publish = false
 
