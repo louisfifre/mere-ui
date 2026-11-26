@@ -753,8 +753,8 @@ impl Ui {
     }
 
     /// The id `key` takes in the open container, without counting it as used: for a widget that reads its own state
-    /// before the call that keys it.
-    pub(crate) fn peek_key(&self, key: &str) -> Id {
+    /// before the call that keys it, and for a caller that needs the last frame's rect (`Ui::rect`) of a box it is about to build (`SplitOpts::list_over`).
+    pub fn peek_key(&self, key: &str) -> Id {
         self.stack.last().expect("the root is always open").1.child(key)
     }
 
