@@ -2,7 +2,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use mere_base::{Clipboard, Cmd, Color, Cursor, DrawList, Event, Key, Rect, Vec2, observe};
+use mere_base::{Clipboard, Cmd, Color, Cursor, DrawList, Event, Key, Mods, Rect, Vec2, observe};
 use mere_layout::{Avail, Dim, Measured, NodeId, Overflow, Position, Style, Tree};
 
 use crate::edit::MemoryClipboard;
@@ -13,6 +13,15 @@ use crate::input::Input;
 use crate::scroll::{ArrowDir, BarHot, ScrollMetrics, ScrollPaint, arrow_rects, arrows_shown, chevron, thumb_rect, track_rect};
 use crate::text::{TextLook, Tone, baseline, ellipsize, ellipsize_start, half_leading, wrap_lines, wrap_lines_after};
 use crate::theme::Theme;
+
+/// What a focusable canvas (`Ui::canvas_focus`) learns about the keyboard this frame.
+#[derive(Clone, Debug, Default)]
+pub struct CanvasKeys {
+    /// The canvas has the keyboard.
+    pub focused: bool,
+    /// The keys taken for it, in arrival order: arrows, Home, End and Enter.
+    pub keys: Vec<(Key, Mods)>,
+}
 
 /// What the pointer did to a widget this frame.
 #[derive(Copy, Clone, Debug)]
@@ -39,7 +48,8 @@ pub(crate) enum Paint {
     /// The running generate button: its 1 px frame, then the bar from the padding box's left, `share` of its width.
     Running { frame: Color, bar: Color, share: f32 },
     /// The arrow of a line that opens a list: `CHEVRON` in size, painted as filled 1 px rows, as Chrome's is at 1x.
-    Chevron { color: Color },
+    /// `up` turns it over: the list opens above its trigger.
+    Chevron { color: Color, up: bool },
     /// A text field: its own frame, clip, selection, text and caret (field.rs).
     Field(Box<FieldPaint>),
     /// A scroll area: it offsets its children and draws its thumb and fade after them (scroll.rs).
@@ -339,6 +349,41 @@ impl Ui {
         resp
     }
 
+    /// A `canvas` that takes the keyboard like any other control: a press on it focuses it, Tab walks through it, and
+    /// while it is focused the keys the application's own widget uses (arrows, Home, End, Enter) are handed to `draw`
+    /// and taken from the frame's typed keys, so no other widget reads them. A disabled one takes no focus. `draw` also
+    /// learns whether it is focused, to paint the kit's focus ring (`Ui::focus_ring`).
+    pub fn canvas_focus(&mut self, key: &str, style: Style, disabled: bool, draw: impl FnOnce(&mut Ui, &Resp, &CanvasKeys) -> Vec<Cmd>) -> Resp {
+        let id = self.key(key);
+        let resp = self.interact(id, disabled, Cursor::Arrow);
+        let focused = self.focusable(&resp, disabled);
+        let mut keys = CanvasKeys { focused, keys: Vec::new() };
+        if focused {
+            let mut kept = Vec::new();
+            for t in std::mem::take(&mut self.typed) {
+                match t {
+                    Typed::Key(Key::Tab, m) => {
+                        self.tab = Some((id, m.shift));
+                        kept.push(t);
+                    }
+                    Typed::Key(k @ (Key::Left | Key::Right | Key::Up | Key::Down | Key::Home | Key::End | Key::Enter), m) => keys.keys.push((k, m)),
+                    other => kept.push(other),
+                }
+            }
+            self.typed = kept;
+        }
+        let cmds = draw(self, &resp, &keys);
+        self.open(key, id, style, Paint::Cmds(cmds));
+        self.close();
+        resp
+    }
+
+    /// The kit's focus ring around `rect` (in the canvas's own coordinates): a 1 px frame in the text colour, as a
+    /// focused field's or line's.
+    pub fn focus_ring(&self, rect: Rect) -> Cmd {
+        Cmd::Frame { rect, width_px: 1.0, color: self.theme.text }
+    }
+
     /// A container that tells its body where the pointer is across it: the pointer's x as a share of the
     /// container's width, judged against the LAST frame's rect (what the person saw), before the children are
     /// built. None when the pointer is outside the visible part of the rect, when another widget holds the
@@ -367,6 +412,14 @@ impl Ui {
         body(self);
         self.close();
         id
+    }
+
+    /// A `hover_box` that is also an action: the whole box takes the press (a line of a list that opens its page), lit
+    /// under the pointer, with the hand. The widgets inside it keep their own presses: the box judges its own after
+    /// they have, so a press that one of them took is not the box's. `Resp.clicked` asks the caller to act.
+    pub fn hover_action(&mut self, key: &str, style: Style, lit: Color, body: impl FnOnce(&mut Ui)) -> Resp {
+        let id = self.hover_box(key, style, lit, body);
+        self.interact(id, false, Cursor::Hand)
     }
 
     /// A framed box on the ground colour that is painted after the whole tree, outside every clip, so that it lies over
@@ -700,8 +753,8 @@ impl Ui {
     }
 
     /// The id `key` takes in the open container, without counting it as used: for a widget that reads its own state
-    /// before the call that keys it.
-    pub(crate) fn peek_key(&self, key: &str) -> Id {
+    /// before the call that keys it, and for a caller that needs the last frame's rect (`Ui::rect`) of a box it is about to build (`SplitOpts::list_over`).
+    pub fn peek_key(&self, key: &str) -> Id {
         self.stack.last().expect("the root is always open").1.child(key)
     }
 
@@ -820,14 +873,15 @@ impl Painter<'_> {
                 let d = Vec2::new(r.x, r.y);
                 self.list.cmds.extend(cmds.iter().map(|c| c.translated(d)));
             }
-            Paint::Chevron { color } => {
+            Paint::Chevron { color, up } => {
                 // [from, to) of each 1 px row, relative to the leaf's top-left. Five rows centred in an even box
                 // land on a half pixel and blur: the top is kept on a whole pixel.
                 const ROWS: [&[(f32, f32)]; 5] = [&[(0.0, 2.0), (6.0, 8.0)], &[(0.0, 3.0), (5.0, 8.0)], &[(1.0, 7.0)], &[(2.0, 6.0)], &[(3.0, 5.0)]];
                 let top = r.y.floor();
                 for (i, row) in ROWS.iter().enumerate() {
+                    let y = if *up { ROWS.len() - 1 - i } else { i };
                     for &(a, b) in *row {
-                        self.list.fill(Rect::new(r.x + a, top + i as f32, b - a, 1.0), *color);
+                        self.list.fill(Rect::new(r.x + a, top + y as f32, b - a, 1.0), *color);
                     }
                 }
             }

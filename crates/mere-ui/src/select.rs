@@ -65,7 +65,7 @@ impl Ui {
         let mut open = self.was_open(key);
         let mut pick = None;
         let shown = options.get(*chosen).map_or("", String::as_str);
-        let menu = MenuOpts { up: opts.up, disabled: opts.disabled, height: Some(opts.height.unwrap_or(CONTROL)), start: Some(*chosen) };
+        let menu = MenuOpts { up: opts.up, disabled: opts.disabled, height: Some(opts.height.unwrap_or(CONTROL)), start: Some(*chosen), over: None };
         let current = *chosen;
         let r = self.menu(key, Trigger::Line(shown), &mut open, menu, |ui| {
             ui.group("options", |ui| {

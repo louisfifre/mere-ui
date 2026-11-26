@@ -30,6 +30,7 @@ use mere_ui::{Id, Theme, Ui};
 
 pub mod action_row;
 pub mod action;
+pub mod action_icon;
 pub mod cover;
 pub mod detail_tabs;
 pub mod fold;
@@ -39,15 +40,19 @@ pub mod hover_box;
 pub mod icon_action;
 pub mod immediate_row;
 pub mod list_heads;
+pub mod list_line;
 pub mod list_row;
 pub mod menu;
 pub mod number_field;
+pub mod page_head;
 pub mod rule;
 pub mod scroll_area;
+pub mod section;
 pub mod stage_template;
 pub mod select;
 pub mod selection_row;
 pub mod selector;
+pub mod split_action;
 pub mod stop_action;
 pub mod tab_menu;
 pub mod tabs;
@@ -219,6 +224,7 @@ pub fn render(theme: Theme, blocks: Vec<Block>) -> Card {
 pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("action-row", action_row::card),
     ("action", action::card),
+    ("action-icon", action_icon::card),
     ("cover", cover::card),
     ("detail-tabs", detail_tabs::card),
     ("fold", fold::card),
@@ -228,15 +234,19 @@ pub const CARDS: &[(&str, fn(Theme) -> Card)] = &[
     ("icon-action", icon_action::card),
     ("immediate-row", immediate_row::card),
     ("list-heads", list_heads::card),
+    ("list-line", list_line::card),
     ("list-row", list_row::card),
     ("menu", menu::card),
     ("number-field", number_field::card),
+    ("page-head", page_head::card),
     ("rule", rule::card),
     ("scroll-area", scroll_area::card),
+    ("section", section::card),
     ("stage-template", stage_template::card),
     ("select", select::card),
     ("selection-row", selection_row::card),
     ("selector", selector::card),
+    ("split-action", split_action::card),
     ("stop-action", stop_action::card),
     ("tab-menu", tab_menu::card),
     ("tabs", tabs::card),

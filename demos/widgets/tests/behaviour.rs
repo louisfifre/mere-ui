@@ -8,7 +8,7 @@ use mere_layout::{Dim, Insets, Position, Style};
 use mere_ui::tokens::{FADE_DIM, FADE_DISABLED, FADE_LIT, FRAME, GAP_TIGHT, INSET, INSET_TIGHT};
 use mere_ui::{TOGGLE_H, TOGGLE_W};
 use mere_ui::{
-    ActionLook, ActionOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ImmediateRow, ListRow, MARK_SIZE, MenuOpts, NumberSpec, Trigger, SelectionRow, Selector,
+    ActionLook, ActionOpts, SplitOpts, FieldOpts, GUTTER, Icon, IconLook, IconOpts, Id, ImmediateRow, ListRow, MARK_SIZE, MenuOpts, NumberSpec, Trigger, SelectionRow, Selector,
     SelectorOpts, RowOpts, ScrollOpts, THUMB_W, TextLook, Theme, Tone, Ui, scroll_style, text_width,
 };
 use mere_win32::Renderer;
@@ -1367,5 +1367,176 @@ fn a_split_grip_reports_its_press_and_a_double_press_resets() {
         sc.ui.event(&Event::PointerDown { pos: centre(r), button: Button::Left, clicks: 2 });
         build(&mut sc, &mut g);
         assert!(g.unwrap().resp.pressed && g.unwrap().reset, "a double press asks for the natural width");
+    });
+}
+
+// ---- the split action ----
+
+#[derive(Default)]
+struct SplitOut {
+    word: Option<Id>,
+    chevron: Option<Id>,
+    list: Option<Id>,
+    clicked: bool,
+}
+
+/// A split action at (20, 200), 200 wide, its list opening above it.
+fn split(ui: &mut Ui, open: &mut bool, opts: SplitOpts) -> SplitOut {
+    let mut out = SplitOut::default();
+    ui.node("w", Style { w: Dim::Px(200.0), ..at(20.0, 200.0) }, |ui| {
+        let r = ui.split_action("g", "Generate", ActionLook::Primary, open, SplitOpts { up: true, ..opts }, |ui| {
+            ui.group("details", |ui| {
+                ui.action_row("a", "64 blocks");
+                ui.action_row("b", "32 blocks");
+            });
+        });
+        let w = r.word.expect("a split has its word");
+        out.word = Some(w.id);
+        out.clicked = w.clicked;
+        out.chevron = Some(r.line.id);
+        out.list = r.list;
+    });
+    out
+}
+
+#[test]
+fn a_split_action_acts_on_its_word_and_opens_its_list_above_from_its_chevron() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let (mut open, mut out) = (false, SplitOut::default());
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        let (word, chevron) = (sc.rect(out.word.unwrap()), sc.rect(out.chevron.unwrap()));
+        assert!(chevron.x > word.x + word.w - 1.5 && chevron.w < word.w, "a narrow chevron part after the word");
+        let list = sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        sc.pic(&list).is(word.x + 4.0, word.y + 2.0, t.fill, "the word is filled");
+        sc.pic(&list).is(chevron.x - 0.5, word.y + 2.0, t.ground, "a 1 px line parts the two");
+
+        sc.click(centre(word), 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert!(out.clicked && !open, "the word acts and opens nothing");
+
+        sc.click(centre(chevron), 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert!(open && out.list.is_some(), "the chevron opens the list");
+        let (list, button) = (sc.rect(out.list.unwrap()), sc.rect(out.word.unwrap()));
+        assert!(list.y + list.h <= button.y + 0.01, "above the button, there being no room under it");
+        assert!((list.x - button.x).abs() < 1.0 && list.w >= word.w + chevron.w - 1.0, "as wide as the whole button");
+
+        // A press on the word while the list is open acts and closes it.
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        sc.click(centre(word), 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert!(out.clicked && !open && out.list.is_none(), "the word acts and shuts the list");
+    });
+}
+
+#[test]
+fn a_split_action_takes_the_keyboard_on_each_part() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let (mut open, mut out) = (false, SplitOut::default());
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        sc.click(centre(sc.rect(out.word.unwrap())), 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert_eq!(sc.ui.focused(), out.word, "a press gives the word the keyboard");
+        sc.key(Key::Enter, NONE, 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert!(out.clicked && !open, "Enter on the word acts");
+        sc.key(Key::Tab, NONE, 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert_eq!(sc.ui.focused(), out.chevron, "then the chevron");
+        sc.key(Key::Enter, NONE, 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert!(open && !out.clicked, "Enter on the chevron opens the list");
+        sc.key(Key::Escape, NONE, 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert!(!open, "Escape closes it");
+        assert_eq!(sc.ui.focused(), out.chevron, "the chevron has the keyboard again");
+        sc.key(Key::Down, NONE, 1);
+        sc.frame(|ui| out = split(ui, &mut open, SplitOpts::default()));
+        assert!(open, "Down opens it");
+    });
+}
+
+#[test]
+fn a_split_action_whose_word_is_disabled_still_opens_its_list() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let (mut open, mut out) = (false, SplitOut::default());
+        let off = SplitOpts { word_disabled: true, ..SplitOpts::default() };
+        sc.frame(|ui| out = split(ui, &mut open, off));
+        let (word, chevron) = (sc.rect(out.word.unwrap()), sc.rect(out.chevron.unwrap()));
+        let list = sc.frame(|ui| out = split(ui, &mut open, off));
+        sc.pic(&list).is(word.x + 4.0, word.y + word.h - 1.5, t.ground, "the word is outlined, not filled");
+        sc.pic(&list).is(chevron.x + 1.5, chevron.y + chevron.h - 1.5, t.ground, "so is the chevron: one look for both parts");
+        sc.pic(&list).is(word.x + 0.5, word.y + word.h / 2.0, t.edge, "the word's frame is the edge colour");
+        sc.pic(&list).is(chevron.x + chevron.w - 0.5, chevron.y + chevron.h / 2.0, t.edge, "the chevron's, the same");
+        sc.click(centre(word), 1);
+        sc.frame(|ui| out = split(ui, &mut open, off));
+        assert!(!out.clicked, "a disabled word does not act");
+        sc.click(centre(chevron), 1);
+        sc.frame(|ui| out = split(ui, &mut open, off));
+        assert!(open, "the chevron opens the list");
+        // Both disabled: nothing opens, and an open list closes.
+        let both_off = SplitOpts { word_disabled: true, chevron_disabled: true, ..SplitOpts::default() };
+        sc.frame(|ui| out = split(ui, &mut open, both_off));
+        assert!(!open && out.list.is_none());
+    });
+}
+
+/// A split action at (140, 200), 200 wide, opening `up` or under; the list as wide as `over` when given.
+fn split_dir(ui: &mut Ui, open: &mut bool, up: bool, over: Option<Rect>) -> SplitOut {
+    let mut out = SplitOut::default();
+    ui.node("w", Style { w: Dim::Px(200.0), ..at(140.0, 200.0) }, |ui| {
+        let opts = SplitOpts { up, list_over: over, ..SplitOpts::default() };
+        let r = ui.split_action("g", "Generate", ActionLook::Primary, open, opts, |ui| {
+            ui.group("details", |ui| {
+                ui.action_row("a", "A choice with a long name that wants more room than the button");
+            });
+        });
+        out.word = r.word.map(|w| w.id);
+        out.chevron = Some(r.line.id);
+        out.list = r.list;
+    });
+    out
+}
+
+#[test]
+fn a_split_action_points_its_chevron_the_way_its_list_opens() {
+    both(|t| {
+        // The chevron's top row is two 2 px bars at its ends when it points down, a 2 px bar in its middle up.
+        for (up, left_painted) in [(false, true), (true, false)] {
+            let mut sc = Scene::new(t);
+            let (mut open, mut out) = (false, SplitOut::default());
+            sc.frame(|ui| out = split_dir(ui, &mut open, up, None));
+            let list = sc.frame(|ui| out = split_dir(ui, &mut open, up, None));
+            let c = sc.rect(out.chevron.unwrap());
+            let (x, y) = (c.x + ((c.w - 8.0) / 2.0).floor(), (c.y + (c.h - 5.0) / 2.0).floor());
+            let pic = sc.pic(&list);
+            let (ink, bg) = (t.on_fill, t.fill);
+            pic.is(x + 0.5, y + 0.5, if left_painted { ink } else { bg }, "the top row's left end");
+            pic.is(x + 3.5, y + 0.5, if left_painted { bg } else { ink }, "the top row's middle");
+            pic.is(x + 3.5, y + 4.5, if left_painted { ink } else { bg }, "the bottom row's middle");
+        }
+    });
+}
+
+#[test]
+fn a_split_action_list_takes_the_rect_it_is_given_instead_of_the_button() {
+    both(|t| {
+        let mut sc = Scene::new(t);
+        let (mut open, mut out) = (true, SplitOut::default());
+        let row = Rect::new(30.0, 0.0, 340.0, 10.0);
+        sc.frame(|ui| out = split_dir(ui, &mut open, true, Some(row)));
+        sc.frame(|ui| out = split_dir(ui, &mut open, true, Some(row)));
+        let list = sc.rect(out.list.expect("open"));
+        assert!((list.x - 30.0).abs() < 0.01 && (list.w - 340.0).abs() < 0.01, "left edge and width of the rect: {list:?}");
+        let button = sc.rect(out.word.unwrap());
+        assert!(list.y + list.h <= button.y + 0.01, "still above the button");
+        // Without it, the list is the button's width.
+        sc.frame(|ui| out = split_dir(ui, &mut open, true, None));
+        sc.frame(|ui| out = split_dir(ui, &mut open, true, None));
+        let list = sc.rect(out.list.unwrap());
+        assert!((list.x - 140.0).abs() < 0.01 && (list.w - 200.0).abs() < 0.01, "the button's: {list:?}");
     });
 }

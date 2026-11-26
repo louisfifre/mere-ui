@@ -38,7 +38,9 @@ use mere_layout::{Dim, Edges, Insets, Margin, Position, Side, Style};
 use crate::field::{Focus, Typed};
 use crate::id::Id;
 use crate::line::LineLook;
+use crate::split::SplitState;
 use crate::tab::{TabLook, TabOpts};
+use crate::widgets::ActionLook;
 use crate::tokens::{CONTROL_COMPACT, FRAME, GAP_TIGHT, INSET_TIGHT};
 use crate::ui::{Paint, Resp, Ui};
 
@@ -51,6 +53,10 @@ pub enum Trigger<'a> {
     /// A strip tab with a chevron after its word, drawn pressed while the list is open (the bar's "More"); the list is
     /// as wide as its rows want, at least the tab.
     Tab(&'a str),
+    /// A split action (`Ui::split_action`): the word at the left does the action, a narrow chevron part at the right,
+    /// parted by a 1 px line, opens the list, which is as wide as the whole button. `look` is `ActionLook::Primary`
+    /// or `ActionLook::Running`; `word_disabled` fades the word alone (`MenuOpts::disabled` fades the chevron).
+    Split { word: &'a str, look: ActionLook, word_disabled: bool },
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -65,6 +71,10 @@ pub struct MenuOpts {
     /// the focus (a disabled row is skipped), in build order: the first when None. A list of one choice gives its
     /// chosen row, as a list box does.
     pub start: Option<usize>,
+    /// The list takes the left edge and the width of this rect (window coordinates, as the caller's last frame laid
+    /// it out: `Ui::rect`) instead of its trigger's: a trigger that is one part of a row whose list should be as wide
+    /// as the row. The list is then that wide whatever its rows want. Ignored on a tab, whose list sizes itself.
+    pub over: Option<Rect>,
 }
 
 /// What the person did to a menu this frame.
@@ -80,6 +90,8 @@ pub struct MenuResp {
     pub closed: bool,
     /// Enter was pressed while the focus was on the trigger or in the list.
     pub enter: bool,
+    /// The word of a split trigger, whose `clicked` is a press on it, or Enter or Space while it has the keyboard.
+    pub word: Option<Resp>,
 }
 
 /// The open list as last built: its list's box and its trigger, whose rects as the last frame laid them out are
@@ -194,6 +206,7 @@ impl Ui {
             closed = true;
         }
         let tab = matches!(trigger, Trigger::Tab(_));
+        let split = matches!(trigger, Trigger::Split { .. });
         // A tab keeps the strip's overlap of its neighbour's frame; a line takes its parent's width.
         let wrap = if tab {
             Style { position: Position::Relative, margin: Margin { left: Side::Px(-FRAME), ..Margin::default() }, ..Style::default() }
@@ -201,15 +214,32 @@ impl Ui {
             Style { column: true, w: Dim::Pct(100.0), min_w: Dim::Px(0.0), position: Position::Relative, ..Style::default() }
         };
         self.open(key, id, wrap, Paint::None);
+        // The word of a split comes before its chevron in Tab's walk. A press on it while the list is open acts and
+        // closes the list: the list's closing test counts the whole split as the trigger, so the press reaches it.
+        let mut word = None;
+        if let Trigger::Split { look, word_disabled, .. } = trigger {
+            let wid = self.key("word");
+            let cursor = if matches!(look, ActionLook::Running { .. }) { Cursor::Arrow } else { Cursor::Hand };
+            let mut r = self.interact(wid, word_disabled, cursor);
+            if self.focusable(&r, word_disabled) {
+                let keys = self.focus_keys(wid);
+                r.clicked |= keys.space || self.enter_typed();
+            }
+            word = Some(r);
+        }
         let lid = self.key("line");
         let resp = self.interact(lid, opts.disabled, Cursor::Hand);
         let focused = self.focusable(&resp, opts.disabled);
         let keys = if focused { self.focus_keys(lid) } else { Keys::default() };
         // Up or Down on the trigger of an open list goes into it, to its first row or its last.
         let mut into = None;
+        let enter_open = split && focused && !*open && self.enter_typed();
         if opts.disabled {
             closed |= std::mem::replace(open, false);
-        } else if resp.clicked || keys.space {
+        } else if word.is_some_and(|w| w.clicked) && *open {
+            *open = false;
+            closed = true;
+        } else if resp.clicked || keys.space || enter_open {
             *open = !*open;
             if *open {
                 opened = true;
@@ -231,14 +261,19 @@ impl Ui {
         }
         let has = self.has_focus(lid);
         match trigger {
+            Trigger::Split { word: text, look, word_disabled } => {
+                let w = word.expect("a split has its word");
+                let state = SplitState { word_lit: w.hovered || w.held, chevron_lit: resp.hovered || resp.held, word_focus: self.has_focus(w.id), chevron_focus: has };
+                self.split_parts(w.id, lid, text, look, word_disabled, opts.disabled, opts.up, state);
+            }
             Trigger::Line(text) => {
-                let look = LineLook { height: opts.height.unwrap_or(CONTROL_COMPACT), disabled: opts.disabled, focused: has };
+                let look = LineLook { height: opts.height.unwrap_or(CONTROL_COMPACT), disabled: opts.disabled, focused: has, up: opts.up };
                 self.menu_line("line", lid, text, look);
             }
             Trigger::Tab(word) => {
                 let lit = resp.hovered || resp.held;
                 let (_, color) = self.tab_box("line", lid, lit, word, TabLook::Strip, TabOpts { pressed: *open, disabled: opts.disabled }, Margin::default());
-                self.add_chevron(false, color);
+                self.add_chevron(false, color, opts.up);
                 self.close();
             }
         }
@@ -261,6 +296,13 @@ impl Ui {
                 margin.top = Side::Px(GAP_TIGHT);
             }
             let style = Style { position: Position::Absolute, inset, margin, column: true, pad: Edges::vh(FRAME + INSET_TIGHT, FRAME), ..Style::default() };
+            let mut style = style;
+            if let (Some(over), Some(wrap), false) = (opts.over, self.rect(id), tab) {
+                // Moved by what separates the row's left edge from the trigger's; whole pixels, so the frame is crisp.
+                style.inset.left = Dim::Px((over.x - wrap.x).round());
+                style.inset.right = Dim::Auto;
+                style.w = Dim::Px(over.w.round());
+            }
             self.menu_rows = Some(Vec::new());
             // The row `start` names (Down: the first) takes the focus as it is built, unless Up asked for the last,
             // given once all are built.
@@ -297,14 +339,14 @@ impl Ui {
                 // The row was painted without the focus: show it in one more frame, as after Tab.
                 self.redraw = true;
             }
-            self.menu_hung = Some(Hung { id, list: list_id, line: lid });
+            self.menu_hung = Some(Hung { id, list: list_id, line: if split { id } else { lid } });
             self.menu_built = true;
             list = Some(list_id);
         }
         self.close();
         let ours = self.focus.as_ref().is_some_and(|f| f.id == lid || mine.contains(&f.id));
         let enter = ours && self.enter_typed();
-        MenuResp { line: resp, list, open: *open, opened, closed, enter }
+        MenuResp { line: resp, list, open: *open, opened, closed, enter, word }
     }
 
     /// At the start of a frame, before any widget reads the pointer: a press outside the open list and its trigger

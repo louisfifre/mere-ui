@@ -42,6 +42,8 @@ Former name cell gives the stem and the others follow it.
 | `help_mark` | The mark after a label that shows on its row and opens the help | — | keep | `button` with `aria-expanded` | Carbon: toggletip / tooltip trigger; Fluent: InfoLabel |
 | `small_icon`, `SMALL_ICON`, `HELP_MARK_W` | A small icon to click beside a text; its size; the mark's hit width | — | keep | `button` | Material: icon button (small) |
 | `action`, `action_with`, `ActionOpts`, `ActionLook` | Runs something when pressed: filled, plain, link, running, pick and underlined looks | `button`, `button_with`, `ButtonOpts`, `ButtonLook` | chosen by the session | `button` | Material, Fluent, Carbon, Radix Themes, shadcn: Button; Apple: button |
+| `action_icon` | An action with an icon before its word, in the primary or the plain look: the page title's Play and Start | `button_with_icon` | chosen by the session (to validate with the maintainer) | `button` | Material: Button with a leading icon; Carbon: Button with icon; Fluent: Button with icon |
+| `split_action`, `SplitOpts` (`list_over`), `Trigger::Split` | A primary action in two parts that always look alike: its word acts, a chevron part (pointing the way the list opens) opens a list of choices, as wide as the button or as the rect `list_over` gives | `split_button`, `SplitButtonOpts` | chosen by the session (to validate with the maintainer) | `button` and `button` with `aria-haspopup` | Material 3: split button; Carbon: combo button; Fluent: SplitButton; Apple: pull-down button |
 | `stop_action` | A framed square with a filled square: stops a run | `stop_button` | chosen by the session | `button` | Material: icon button; Apple: button |
 | `icon_action`, `IconOpts`, `IconLook` | An action drawn as an icon: tool, caption, close, square, filled, bare looks | `icon_button` | chosen by the session | `button` | Material: IconButton; Fluent: Button with icon only; Carbon: icon-only Button |
 | `toggle`, `toggle_with`, `ToggleOpts` | An option that is on or off, with its two words | — | keep ("toggle" names the gesture, not an object) | `switch` | Fluent: ToggleSwitch; Material: Switch; Carbon: Toggle; Apple: toggle; Radix, shadcn: Switch |
@@ -69,6 +71,8 @@ Former name cell gives the stem and the others follow it.
 | `tool_action`, `tool_action_width`, `TOOL_PAD_L`, `TOOL_PAD_R`, `TOOL_GAP` | A launcher tool: an icon and its name; the width it needs | `tool_button`, `tool_button_width` | chosen by the session | `button` | — |
 | `value_row`, `ValueRow`, `ValueResp` | A settings row: label, note and a control in one column grid, with the help mark | — | chosen by the session | `group` or `row` | Fluent: Field; Carbon: form item |
 | `value_grid` | The style of the grid the value rows share | — | chosen by the session | — | — |
+| `list_line`, `ListLine`, `LineAction`, `LineEnd`, `ListLineResp`, `LINE_NEW_W`, `LINE_ACTION_W`, `LINE_END_W` | A line of a list of versioned things: name and version, then fixed slots (new version, action, icon action) that keep lines of different states aligned | — | chosen by the session (to validate with the maintainer) | `listitem` | Carbon: structured list row; Fluent: DetailsList row |
+| `page_head`, `PageHeadResp` | The title line of a page that is not the first: back action, title in its case, what the page offers at its end | — | chosen by the session (to validate with the maintainer) | `heading` with a `button` | Fluent: PageHeader; Material: top app bar |
 | `help_label`, `help_anchor` | The label's room that leaves space for the mark; the box the help panel hangs from | — | keep | — | — |
 | `help_panel`, `HelpText`, `HelpResp` | The panel that opens over a row with a title, a hint and facts | — | keep | `tooltip` / `dialog` (non-modal) | Carbon: Toggletip; Fluent: Teaching popover; Material: rich tooltip |
 | `title`, `TIP_DELAY` | A tooltip's text for a widget; the delay before it shows | — | keep | `tooltip` | Material, Fluent, Carbon, Radix: Tooltip; Apple: help tag |
@@ -77,9 +81,10 @@ Former name cell gives the stem and the others follow it.
 
 | Name | What it does | Former name | Status | ARIA | Design systems |
 |---|---|---|---|---|---|
-| `menu`, `MenuOpts`, `MenuResp` | A trigger that opens a list of rows above or under it; stays open while rows are acted on | — | confirmed | `menu` (list) with a menu button | Radix: DropdownMenu; Base UI: Menu; Apple: pull-down button; Fluent: MenuFlyout; Material: DropdownMenu |
+| `menu`, `MenuOpts` (`over`), `MenuResp` | A trigger that opens a list of rows above or under it (its chevron pointing that way), as wide as a given rect if one is given; stays open while rows are acted on | — | confirmed | `menu` (list) with a menu button | Radix: DropdownMenu; Base UI: Menu; Apple: pull-down button; Fluent: MenuFlyout; Material: DropdownMenu |
 | `Trigger::Line`, `Trigger::Tab` | What opens a menu: a framed line with a chevron, or a strip tab | — | chosen by the session | `button` with `aria-haspopup`, `aria-expanded` | Radix, Base UI: Trigger |
 | `group`, `titled_group`, `GroupResp` | Rows stacked with no frame; the titled one has a title in capitals and a separator under it | — | chosen by the session | `group` | Radix, Base UI: Group + Label; HTML: `optgroup`; Apple: section |
+| `section`, `ACTIONS_GAP` | A titled section that does not fold, its actions at the right end of its head where a fold has its sign; with no action the section is a `fold` | — | chosen by the session (to validate with the maintainer) | `region` with a heading | Carbon: section heading with actions; Polaris: Card header with actions |
 | `select_menu`, `SelectOpts`, `SelectResp` | A line showing the chosen text that opens a list of immediate rows and closes on a pick | — | keep | select-only `combobox` + `listbox` | HTML: select; Apple: pop-up button; Radix, Base UI, MUI: Select; Carbon: Dropdown |
 | `tab_menu`, `TabMenuRow`, `TabMenuResp` | The list that hangs from a strip tab ("More"), rows that can be disabled | — | keep (follows `Trigger::Tab`) | `button` + `menu` | Atlassian: dropdown menu with a trigger |
 | `fold`, `fold_with`, `FoldOpts` | A titled section whose body opens and closes, the open state the caller's | — | keep | disclosure (`button` + `aria-expanded`) | Carbon: Accordion; Fluent: Accordion; Radix, shadcn: Collapsible, Accordion |
@@ -126,6 +131,7 @@ Former name cell gives the stem and the others follow it.
 | `Ui::node` | A container under the open one | — | keep | `generic` | — |
 | `Ui::canvas` | A box whose draw commands the application gives | — | keep | `img` or `application` | — |
 | `Ui::hover_area`, `Ui::hover_box` | A container that tells where the pointer is over it; the one painted lit while hovered | — | keep | — | — |
+| `Ui::hover_action` | A hover box that also takes the press, the widgets inside keeping theirs: a line of a list that opens its page | — | chosen by the session (to validate with the maintainer) | `link` or `button` | Carbon: clickable tile |
 | `Ui::overlay` | A framed box painted after the tree, outside every clip | — | keep | `dialog` / `menu` surface | Material, Radix: Portal / Popover content |
 | `ellipsize`, `ellipsize_start` | Cut a text to a width with an ellipsis at its end or its start | — | keep | — | — |
 | `wrap_lines`, `wrap_lines_after` | Break a text into lines of a width, the second after a lead | — | keep | — | — |
