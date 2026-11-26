@@ -19,17 +19,19 @@ pub(crate) struct LineLook {
     pub disabled: bool,
     /// Framed in the text colour instead of the edge: the line has the keyboard.
     pub focused: bool,
+    /// The list opens above: the chevron points up.
+    pub up: bool,
 }
 
 impl Ui {
     /// The chevron that says a list opens here, `CHEVRON` in size, always `gap` after the text before it: the one rule
     /// of every trigger, so that a text cut short never touches it. `at_end` pushes it to the end of its box, the room
     /// left over going before it, as the line does.
-    pub(crate) fn add_chevron(&mut self, at_end: bool, color: Color) {
+    pub(crate) fn add_chevron(&mut self, at_end: bool, color: Color, up: bool) {
         self.add("chevron_gap", Style { w: Dim::Px(GAP), shrink: 0.0, ..Style::default() }, Paint::None);
         let left = if at_end { Side::Auto } else { Side::Px(0.0) };
         let style = Style { w: Dim::Px(CHEVRON.x), h: Dim::Px(CHEVRON.y), shrink: 0.0, margin: Margin { left, ..Margin::default() }, ..Style::default() };
-        self.add("chevron", style, Paint::Chevron { color });
+        self.add("chevron", style, Paint::Chevron { color, up });
     }
 
     /// The line: a framed box as wide as its parent, its text cut at its end (as the browser's select does) and the
@@ -49,7 +51,7 @@ impl Ui {
         };
         let node = self.open(key, id, style, Paint::Box { fill: None, frame: Some(frame) });
         self.add_ellipsis(text, TextLook::body(Tone::Text), fade(t.text), false);
-        self.add_chevron(true, fade(t.text));
+        self.add_chevron(true, fade(t.text), look.up);
         self.close();
         node
     }

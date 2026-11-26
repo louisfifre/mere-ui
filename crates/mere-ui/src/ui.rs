@@ -48,7 +48,8 @@ pub(crate) enum Paint {
     /// The running generate button: its 1 px frame, then the bar from the padding box's left, `share` of its width.
     Running { frame: Color, bar: Color, share: f32 },
     /// The arrow of a line that opens a list: `CHEVRON` in size, painted as filled 1 px rows, as Chrome's is at 1x.
-    Chevron { color: Color },
+    /// `up` turns it over: the list opens above its trigger.
+    Chevron { color: Color, up: bool },
     /// A text field: its own frame, clip, selection, text and caret (field.rs).
     Field(Box<FieldPaint>),
     /// A scroll area: it offsets its children and draws its thumb and fade after them (scroll.rs).
@@ -872,14 +873,15 @@ impl Painter<'_> {
                 let d = Vec2::new(r.x, r.y);
                 self.list.cmds.extend(cmds.iter().map(|c| c.translated(d)));
             }
-            Paint::Chevron { color } => {
+            Paint::Chevron { color, up } => {
                 // [from, to) of each 1 px row, relative to the leaf's top-left. Five rows centred in an even box
                 // land on a half pixel and blur: the top is kept on a whole pixel.
                 const ROWS: [&[(f32, f32)]; 5] = [&[(0.0, 2.0), (6.0, 8.0)], &[(0.0, 3.0), (5.0, 8.0)], &[(1.0, 7.0)], &[(2.0, 6.0)], &[(3.0, 5.0)]];
                 let top = r.y.floor();
                 for (i, row) in ROWS.iter().enumerate() {
+                    let y = if *up { ROWS.len() - 1 - i } else { i };
                     for &(a, b) in *row {
-                        self.list.fill(Rect::new(r.x + a, top + i as f32, b - a, 1.0), *color);
+                        self.list.fill(Rect::new(r.x + a, top + y as f32, b - a, 1.0), *color);
                     }
                 }
             }

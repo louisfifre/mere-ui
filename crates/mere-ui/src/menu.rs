@@ -71,6 +71,10 @@ pub struct MenuOpts {
     /// the focus (a disabled row is skipped), in build order: the first when None. A list of one choice gives its
     /// chosen row, as a list box does.
     pub start: Option<usize>,
+    /// The list takes the left edge and the width of this rect (window coordinates, as the caller's last frame laid
+    /// it out: `Ui::rect`) instead of its trigger's: a trigger that is one part of a row whose list should be as wide
+    /// as the row. The list is then that wide whatever its rows want. Ignored on a tab, whose list sizes itself.
+    pub over: Option<Rect>,
 }
 
 /// What the person did to a menu this frame.
@@ -260,16 +264,16 @@ impl Ui {
             Trigger::Split { word: text, look, word_disabled } => {
                 let w = word.expect("a split has its word");
                 let state = SplitState { word_lit: w.hovered || w.held, chevron_lit: resp.hovered || resp.held, word_focus: self.has_focus(w.id), chevron_focus: has };
-                self.split_parts(w.id, lid, text, look, word_disabled, opts.disabled, state);
+                self.split_parts(w.id, lid, text, look, word_disabled, opts.disabled, opts.up, state);
             }
             Trigger::Line(text) => {
-                let look = LineLook { height: opts.height.unwrap_or(CONTROL_COMPACT), disabled: opts.disabled, focused: has };
+                let look = LineLook { height: opts.height.unwrap_or(CONTROL_COMPACT), disabled: opts.disabled, focused: has, up: opts.up };
                 self.menu_line("line", lid, text, look);
             }
             Trigger::Tab(word) => {
                 let lit = resp.hovered || resp.held;
                 let (_, color) = self.tab_box("line", lid, lit, word, TabLook::Strip, TabOpts { pressed: *open, disabled: opts.disabled }, Margin::default());
-                self.add_chevron(false, color);
+                self.add_chevron(false, color, opts.up);
                 self.close();
             }
         }
@@ -292,6 +296,13 @@ impl Ui {
                 margin.top = Side::Px(GAP_TIGHT);
             }
             let style = Style { position: Position::Absolute, inset, margin, column: true, pad: Edges::vh(FRAME + INSET_TIGHT, FRAME), ..Style::default() };
+            let mut style = style;
+            if let (Some(over), Some(wrap), false) = (opts.over, self.rect(id), tab) {
+                // Moved by what separates the row's left edge from the trigger's; whole pixels, so the frame is crisp.
+                style.inset.left = Dim::Px((over.x - wrap.x).round());
+                style.inset.right = Dim::Auto;
+                style.w = Dim::Px(over.w.round());
+            }
             self.menu_rows = Some(Vec::new());
             // The row `start` names (Down: the first) takes the focus as it is built, unless Up asked for the last,
             // given once all are built.

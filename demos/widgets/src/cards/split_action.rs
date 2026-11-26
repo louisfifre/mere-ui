@@ -1,5 +1,6 @@
 //! The split action card: the primary button in two parts, the word and the chevron that opens a list, in rest, hover
-//! (over each part), held, a word that cannot act, both parts disabled and the running look. The Design System has no
+//! (over each part), held, a word that cannot act (both parts faded alike), both parts disabled, the chevron of a list
+//! that opens above, and the running look. The Design System has no
 //! preview of it yet.
 
 use mere_layout::{Dim, Style};
@@ -26,7 +27,7 @@ pub fn blocks() -> Vec<Block> {
     vec![Block::matrix(vec![
         vec![cell(State::Rest, primary, on, false), cell(State::Hover, primary, on, false), cell(State::Hover, primary, on, true)],
         vec![cell(State::Held, primary, on, false), cell(State::Held, primary, on, true), cell(State::Rest, primary, SplitOpts { word_disabled: true, ..on }, false)],
-        vec![cell(State::Rest, primary, SplitOpts { word_disabled: true, chevron_disabled: true, ..on }, false), cell(State::Rest, ActionLook::Running { share: 0.4 }, on, false)],
+        vec![cell(State::Rest, primary, SplitOpts { word_disabled: true, chevron_disabled: true, ..on }, false), cell(State::Rest, ActionLook::Running { share: 0.4 }, on, false), cell(State::Rest, primary, SplitOpts { up: true, ..on }, false)],
     ])]
 }
 
